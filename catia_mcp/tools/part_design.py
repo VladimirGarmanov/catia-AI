@@ -125,8 +125,8 @@ class PartDesignTools:
             {
                 "name": "catia_fillet",
                 "description": (
-                    "Add a fillet (rounded edge) to one or more edges of the current solid. "
-                    "Specify the radius and the edge names or feature to fillet."
+                    "Add a fillet using the last solid feature as CATIA's input. "
+                    "Exact edge targeting by name is unsupported."
                 ),
                 "inputSchema": {
                     "type": "object",
@@ -138,8 +138,8 @@ class PartDesignTools:
                         "edge_name": {
                             "type": "string",
                             "description": (
-                                "Name of the edge to fillet (e.g., 'Edge.1'). "
-                                "Use catia_list_edges to find edge names."
+                                "Legacy argument; rejected because names are not "
+                                "exact references"
                             ),
                         },
                     },
@@ -148,7 +148,10 @@ class PartDesignTools:
             },
             {
                 "name": "catia_chamfer",
-                "description": "Add a chamfer (beveled edge) to an edge of the current solid.",
+                "description": (
+                    "Add a chamfer using the last solid feature as CATIA's input. "
+                    "Exact edge targeting by name is unsupported."
+                ),
                 "inputSchema": {
                     "type": "object",
                     "properties": {
@@ -163,7 +166,10 @@ class PartDesignTools:
                         },
                         "edge_name": {
                             "type": "string",
-                            "description": "Name of the edge to chamfer",
+                            "description": (
+                                "Legacy argument; rejected because names are not "
+                                "exact references"
+                            ),
                         },
                     },
                     "required": ["length"],
@@ -173,7 +179,7 @@ class PartDesignTools:
                 "name": "catia_hole",
                 "description": (
                     "Create a Hole feature at a point in the active sketch. "
-                    "Supports simple, tapered, counterbored, and countersunk holes."
+                    "Only a simple hole is implemented; other requested types are rejected."
                 ),
                 "inputSchema": {
                     "type": "object",
@@ -188,7 +194,10 @@ class PartDesignTools:
                         },
                         "type": {
                             "type": "string",
-                            "description": "Hole type: 'simple', 'counterbored', 'countersunk', 'tapered'",
+                            "description": (
+                                "Only 'simple' is implemented; other values "
+                                "fail explicitly"
+                            ),
                             "enum": ["simple", "counterbored", "countersunk", "tapered"],
                             "default": "simple",
                         },
@@ -291,7 +300,7 @@ class PartDesignTools:
                 "name": "catia_shell",
                 "description": (
                     "Create a Shell feature: hollows out a solid leaving walls of specified thickness. "
-                    "Optionally remove faces to create openings."
+                    "Exact face removal is not supported."
                 ),
                 "inputSchema": {
                     "type": "object",
@@ -303,7 +312,10 @@ class PartDesignTools:
                         "faces_to_remove": {
                             "type": "array",
                             "items": {"type": "string"},
-                            "description": "Names of faces to remove (create openings). E.g., ['Face.1']",
+                            "description": (
+                                "Legacy argument; non-empty values are rejected because "
+                                "face names are not exact references"
+                            ),
                         },
                     },
                     "required": ["thickness"],
@@ -312,8 +324,8 @@ class PartDesignTools:
             {
                 "name": "catia_draft",
                 "description": (
-                    "Add a Draft Angle to faces for mold-release purposes. "
-                    "Tapers faces by a given angle relative to a pulling direction."
+                    "Add a Draft Angle relative to a pulling direction. "
+                    "Exact face targeting is not supported."
                 ),
                 "inputSchema": {
                     "type": "object",
@@ -324,7 +336,7 @@ class PartDesignTools:
                         },
                         "face_name": {
                             "type": "string",
-                            "description": "Name of the face to draft",
+                            "description": "Legacy argument; rejected if supplied",
                         },
                         "pulling_direction": {
                             "type": "string",
@@ -339,8 +351,8 @@ class PartDesignTools:
             {
                 "name": "catia_thickness",
                 "description": (
-                    "Add or remove thickness from faces of a solid. "
-                    "Offsets faces inward or outward."
+                    "Add or remove thickness from the last solid. "
+                    "Exact face targeting is not supported."
                 ),
                 "inputSchema": {
                     "type": "object",
@@ -351,7 +363,7 @@ class PartDesignTools:
                         },
                         "face_name": {
                             "type": "string",
-                            "description": "Name of the face to offset",
+                            "description": "Legacy argument; rejected if supplied",
                         },
                     },
                     "required": ["offset"],
@@ -367,15 +379,19 @@ class PartDesignTools:
             },
             {
                 "name": "catia_list_edges",
-                "description": "List all edges of the active solid body with their names for use with fillet/chamfer.",
+                "description": (
+                    "Report the exact-topology limitation without changing the user's selection. "
+                    "Names or indices cannot target a particular edge reliably."
+                ),
                 "inputSchema": {
                     "type": "object",
                     "properties": {},
                 },
+                "readOnlyHint": True,
             },
         ]
 
-    def execute(self, tool_name: str, arguments: dict[str, Any]) -> str:
+    def execute(self, tool_name: str, arguments: dict[str, Any]) -> str | dict[str, Any]:
         match tool_name:
             case "catia_pad":
                 return self._pad(arguments)
@@ -511,6 +527,11 @@ class PartDesignTools:
         return f"Groove (revolution cut) created: {angle}°. Feature: '{groove.Name}'"
 
     def _fillet(self, args: dict[str, Any]) -> str:
+        if args.get("edge_name"):
+            raise ValueError(
+                "Exact edge targeting by name is unsupported. Select the edge in CATIA; "
+                "this server does not yet validate selected-edge fillet creation."
+            )
         self.conn.ensure_connected()
         part = self.conn.get_active_part()
         body = self.conn.get_active_part_body()
@@ -529,6 +550,8 @@ class PartDesignTools:
         return f"Fillet created: R{radius} mm. Feature: '{fillet.Name}'"
 
     def _chamfer(self, args: dict[str, Any]) -> str:
+        if args.get("edge_name"):
+            raise ValueError("Exact edge targeting by name is unsupported")
         self.conn.ensure_connected()
         part = self.conn.get_active_part()
         body = self.conn.get_active_part_body()
@@ -541,6 +564,7 @@ class PartDesignTools:
             self._get_last_shape(),
             1,       # catTangencyChamferPropagation
             0,       # catLengthAngleChamfer mode
+            0,       # orientation
             length,
             angle,
         )
@@ -550,6 +574,8 @@ class PartDesignTools:
         return f"Chamfer created: {length} mm at {angle}°. Feature: '{chamfer.Name}'"
 
     def _hole(self, args: dict[str, Any]) -> str:
+        if args.get("type", "simple") != "simple":
+            raise ValueError("Only a simple hole is implemented; requested type is unsupported")
         self.conn.ensure_connected()
         part = self.conn.get_active_part()
         body = self.conn.get_active_part_body()
@@ -646,6 +672,8 @@ class PartDesignTools:
         return f"Mirror created about {plane_key.upper()} plane. Feature: '{mirror.Name}'"
 
     def _shell(self, args: dict[str, Any]) -> str:
+        if args.get("faces_to_remove"):
+            raise ValueError("Exact face removal by name is unsupported")
         self.conn.ensure_connected()
         part = self.conn.get_active_part()
         body = self.conn.get_active_part_body()
@@ -654,21 +682,13 @@ class PartDesignTools:
         thickness = args["thickness"]
         shell = sf.AddNewShell(self._get_last_shape(), 0, thickness, thickness)
 
-        # Remove specified faces if any
-        faces_to_remove = args.get("faces_to_remove", [])
-        for face_name in faces_to_remove:
-            try:
-                face = body.Shapes.Item(face_name) if face_name else None
-                if face:
-                    shell.AddFaceToRemove(part.CreateReferenceFromObject(face))
-            except Exception:
-                pass
-
         part.UpdateObject(shell)
         self.conn.refresh_display()
         return f"Shell created: {thickness} mm wall thickness. Feature: '{shell.Name}'"
 
     def _draft(self, args: dict[str, Any]) -> str:
+        if args.get("face_name"):
+            raise ValueError("Exact draft face targeting by name is unsupported")
         self.conn.ensure_connected()
         part = self.conn.get_active_part()
         body = self.conn.get_active_part_body()
@@ -690,6 +710,8 @@ class PartDesignTools:
         return f"Draft created: {angle}° angle. Feature: '{draft.Name}'"
 
     def _thickness(self, args: dict[str, Any]) -> str:
+        if args.get("face_name"):
+            raise ValueError("Exact thickness face targeting by name is unsupported")
         self.conn.ensure_connected()
         part = self.conn.get_active_part()
         body = self.conn.get_active_part_body()
@@ -720,30 +742,13 @@ class PartDesignTools:
             return "No features in the active body"
         return json.dumps(features, indent=2)
 
-    def _list_edges(self) -> str:
-        self.conn.ensure_connected()
-        part = self.conn.get_active_part()
-        body = self.conn.get_active_part_body()
-
-        # Get edges from the last shape
-        last_shape = self._get_last_shape()
-        edges = []
-        try:
-            # Access boundary representation
-            sel = self.conn.hso
-            sel.Clear()
-            sel.Add(last_shape)
-            sel.Search("Topology.Edge,sel")
-
-            for i in range(1, sel.Count + 1):
-                edges.append({
-                    "index": i,
-                    "name": sel.Item(i).Value.Name if hasattr(sel.Item(i).Value, "Name") else f"Edge.{i}",
-                })
-            sel.Clear()
-        except Exception as e:
-            return f"Could not enumerate edges: {e}. Use CATIA selection to identify edge names."
-
-        if not edges:
-            return "No edges found on the last feature"
-        return json.dumps(edges, indent=2)
+    def _list_edges(self) -> dict[str, Any]:
+        return {
+            "ok": False,
+            "code": "UNSUPPORTED_EXACT_TOPOLOGY",
+            "message": (
+                "This server cannot provide stable edge IDs from names or list indices. "
+                "Select an edge in CATIA and inspect it with catia_get_selection. "
+                "Exact edge-consuming COM operations need a live Windows validation."
+            ),
+        }

@@ -6,8 +6,9 @@ Also includes screenshot capture.
 
 from __future__ import annotations
 
-import json
 import os
+import tempfile
+from dataclasses import dataclass
 from typing import Any
 
 from catia_mcp.connection import CATIAConnection
@@ -25,6 +26,13 @@ FORMAT_MAP = {
     "pdf": "pdf",
     "cgr": "cgr",
 }
+
+
+@dataclass(frozen=True)
+class ScreenshotCapture:
+    file_path: str
+    mime_type: str
+    image_bytes: bytes
 
 
 class ExportTools:
@@ -67,9 +75,10 @@ class ExportTools:
             {
                 "name": "catia_screenshot",
                 "description": (
-                    "Capture a screenshot of the current 3D view and save as image file. "
+                    "Capture the current 3D view, save it, and return the image "
+                    "as MCP image content. "
                     "Supports JPG, BMP, TIFF (CATIA V5 cannot capture PNG; a .png path "
-                    "is saved as .jpg instead)."
+                    "is saved as .jpg instead). Pixel size follows the CATIA viewer."
                 ),
                 "inputSchema": {
                     "type": "object",
@@ -77,16 +86,6 @@ class ExportTools:
                         "file_path": {
                             "type": "string",
                             "description": "Output image path (e.g., 'C:/screenshots/part.png')",
-                        },
-                        "width": {
-                            "type": "integer",
-                            "description": "Image width in pixels (default: 1920)",
-                            "default": 1920,
-                        },
-                        "height": {
-                            "type": "integer",
-                            "description": "Image height in pixels (default: 1080)",
-                            "default": 1080,
                         },
                     },
                     "required": ["file_path"],
@@ -123,16 +122,17 @@ class ExportTools:
             },
         ]
 
-    def execute(self, tool_name: str, arguments: dict[str, Any]) -> str:
+    def execute(self, tool_name: str, arguments: dict[str, Any]) -> str | ScreenshotCapture:
         match tool_name:
             case "catia_export":
                 return self._export(arguments["file_path"], arguments.get("format"))
             case "catia_screenshot":
-                return self._screenshot(
-                    arguments["file_path"],
-                    arguments.get("width", 1920),
-                    arguments.get("height", 1080),
-                )
+                if "width" in arguments or "height" in arguments:
+                    raise ValueError(
+                        "catia_screenshot does not control pixel dimensions; "
+                        "resize the CATIA viewer before capture"
+                    )
+                return self._screenshot(arguments["file_path"])
             case "catia_set_view":
                 return self._set_view(arguments["view"])
             case "catia_fit_all":
@@ -176,26 +176,44 @@ class ExportTools:
 
         return f"Exported to {file_path}{size_info} (format: {fmt_key.upper()})"
 
-    def _screenshot(self, file_path: str, width: int = 1920, height: int = 1080) -> str:
+    def _screenshot(self, file_path: str) -> ScreenshotCapture:
         self.conn.ensure_connected()
-
-        # Ensure output directory exists
-        output_dir = os.path.dirname(file_path)
-        if output_dir and not os.path.exists(output_dir):
-            os.makedirs(output_dir, exist_ok=True)
+        if not file_path or not file_path.strip():
+            raise ValueError("An explicit file_path is required for a screenshot")
+        file_path = os.path.abspath(file_path)
 
         # CatCaptureFormat: 2 = TIFF, 4 = BMP, 5 = JPEG (no PNG in CATIA V5)
         capture_formats = {".jpg": 5, ".jpeg": 5, ".bmp": 4, ".tif": 2, ".tiff": 2}
+        mime_types = {
+            ".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".bmp": "image/bmp",
+            ".tif": "image/tiff", ".tiff": "image/tiff",
+        }
         ext = os.path.splitext(file_path)[1].lower()
         capture_format = capture_formats.get(ext)
         if capture_format is None:
             file_path = os.path.splitext(file_path)[0] + ".jpg"
             capture_format = 5
 
-        viewer = self.conn.active_window.ActiveViewer
-        viewer.CaptureToFile(capture_format, file_path)
+        output_dir = os.path.dirname(file_path)
+        if not os.path.exists(output_dir):
+            os.makedirs(output_dir, exist_ok=True)
 
-        return f"Screenshot saved to {file_path} ({width}x{height})"
+        viewer = self.conn.active_window.ActiveViewer
+        # A fresh capture path prevents an old image from being reported as new
+        # if CATIA returns without writing a file. Preserve the prior destination
+        # until a nonempty new capture has actually been read.
+        with tempfile.TemporaryDirectory(prefix=".catia-capture-", dir=output_dir) as capture_dir:
+            capture_path = os.path.join(capture_dir, os.path.basename(file_path))
+            viewer.CaptureToFile(capture_format, capture_path)
+            try:
+                with open(capture_path, "rb") as image_file:
+                    image_bytes = image_file.read()
+            except OSError as exc:
+                raise RuntimeError(f"CATIA did not produce a readable new screenshot: {exc}") from exc
+            if not image_bytes:
+                raise RuntimeError("CATIA produced an empty screenshot")
+            os.replace(capture_path, file_path)
+        return ScreenshotCapture(file_path, mime_types.get(ext, "image/jpeg"), image_bytes)
 
     def _set_view(self, view: str) -> str:
         self.conn.ensure_connected()

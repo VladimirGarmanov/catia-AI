@@ -27,9 +27,10 @@ class CATIAConnection:
     # CATIA V5 COM ProgID
     CATIA_PROGID = "CATIA.Application"
 
-    def __init__(self) -> None:
+    def __init__(self, allow_launch: bool = True) -> None:
         self.app: Any | None = None
         self._initialized_com = False
+        self.allow_launch = allow_launch
 
     @property
     def is_connected(self) -> bool:
@@ -70,7 +71,12 @@ class CATIAConnection:
             version = self._get_version()
             logger.info("Connected to running CATIA V5 instance (%s)", version)
             return f"Connected to running CATIA V5 instance ({version})"
-        except Exception:
+        except Exception as exc:
+            if not self.allow_launch:
+                raise RuntimeError(
+                    "No running CATIA V5 instance was found. "
+                    "Inspection-only mode will not launch CATIA."
+                ) from exc
             logger.info("No running CATIA instance found, launching new one...")
 
         # Phase 2: Launch a new CATIA instance

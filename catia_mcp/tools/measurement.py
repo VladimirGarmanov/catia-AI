@@ -282,5 +282,7 @@ class MeasurementTools:
         self.conn.ensure_connected()
         part = self.conn.get_active_part()
         part.Update()
+        if not part.IsUpToDate(part.MainBody):
+            raise RuntimeError("CATIA reports the main body is not up to date after Part.Update")
         self.conn.refresh_display()
-        return "Part updated successfully"
+        return "Part updated; CATIA reports the main body is up to date"

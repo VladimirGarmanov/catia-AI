@@ -1,17 +1,15 @@
-# CATIA V5 MCP Server
+# CATIA AI — CATIA V5 MCP Server
 
-> Connect Claude AI to Dassault Systemes CATIA V5 via the Model Context Protocol (MCP).
+> Connect Claude or local Codex to Dassault Systemes CATIA V5 via the Model Context Protocol (MCP).
 
-[![Clones](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/daiemon12/catia-v5-mcp-server/main/traffic/badge-clones.json)](traffic/clones.json)
-[![Views](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/daiemon12/catia-v5-mcp-server/main/traffic/badge-views.json)](traffic/views.json)
+Drive CATIA V5 CAD modeling from Claude Desktop, Claude Code, or local Codex using natural language.
 
-The first open-source MCP server for CATIA V5. Drive CATIA V5 CAD modeling from Claude Desktop or Claude Code using natural language.
-
-![Repository traffic](traffic/chart.png)
+Based on [daiemon12/catia-v5-mcp-server](https://github.com/daiemon12/catia-v5-mcp-server),
+with the original MIT license retained.
 
 ## What it does
 
-This MCP server exposes **78 tools** that let Claude:
+This MCP server exposes **81 tools** that let Claude or Codex:
 
 - **Create and manage documents** — new Part, Product (assembly), open, save, close
 - **2D Sketching** — lines, rectangles, circles, arcs, splines, points, constraints
@@ -21,15 +19,23 @@ This MCP server exposes **78 tools** that let Claude:
 - **Measurement** — distance, inertia, bounding box, parameters
 - **Export** — STEP, IGES, STL, 3DXML, VRML, screenshots
 - **View control** — set standard views, fit all, capture screenshots
+- **Current context** — inspect the active model and CATIA selection
 
 ## Requirements
 
 - **Windows** (COM automation is Windows-only)
 - **CATIA V5** installed and licensed (R2016+)
 - **Python 3.10+**
-- **Claude Desktop** or **Claude Code**
+- **Claude Desktop**, **Claude Code**, or local **Codex**
 
-## Quick Install (Recommended)
+For local **Codex on Windows**, use [WINDOWS_CODEX.md](WINDOWS_CODEX.md) and
+`setup_codex.ps1`. The CATIA connection still requires Windows COM automation.
+The [CAD agent team](MULTI_AGENT.md) has six roles for drawing interpretation,
+inspection, planning, plan review, execution, and independent verification.
+Only the executor receives all 81 tools; the inspection server exposes 13.
+Offline tests do not validate live CATIA geometry or COM behavior.
+
+## Claude Desktop Quick Install
 
 ```bash
 git clone https://github.com/daiemon12/catia-v5-mcp-server.git
@@ -134,6 +140,7 @@ catia-v5-mcp-server/
 │   └── tools/
 │       ├── __init__.py
 │       ├── document.py      # Document management (9 tools)
+│       ├── context.py       # Active model, selection, feature update (3 tools)
 │       ├── sketcher.py      # 2D Sketch tools (11 tools)
 │       ├── part_design.py   # 3D Part Design features (15 tools)
 │       ├── gsd.py           # Generative Shape Design — wireframe & surfaces (24 tools)
@@ -148,7 +155,7 @@ catia-v5-mcp-server/
 ### How it works
 
 ```
-Claude (Desktop/Code)
+Claude or local Codex
     │
     │ stdio (MCP JSON-RPC)
     ▼
@@ -163,12 +170,25 @@ catia_mcp/tools/*.py (Tool modules)
 CATIA V5 Application
 ```
 
-1. Claude sends MCP tool calls over stdio
+1. The MCP client sends tool calls over stdio
 2. The server routes each call to the appropriate tool module
 3. Each tool module uses `win32com.client` to drive CATIA V5 via COM
-4. Results (JSON, text) are returned to Claude
+4. Results (text, JSON, or screenshot image content) are returned to the client
 
 ## Tool Reference
+
+### Current Context Tools (3)
+| Tool | Description |
+|------|-------------|
+| `catia_get_selection` | Read current selection count, types/names, owning documents, and available feature dimensions |
+| `catia_get_model_state` | Read active document, bodies/sketches/features or components, parameters, and selection |
+| `catia_update_selected_feature` | Update exactly one selected CATPart feature/sketch through its live COM object; does not save |
+
+Selection names and positions are transient observations, not exact face or edge IDs.
+The legacy `catia_list_edges` does not provide a stable topology resolver; it now
+returns an explicit unsupported-capability error without clearing the user's
+selection. Exact selected face/edge operations still require live Windows
+validation. See [WINDOWS_CODEX.md](WINDOWS_CODEX.md).
 
 ### Document Tools (9)
 | Tool | Description |
@@ -178,8 +198,8 @@ CATIA V5 Application
 | `catia_new_part` | Create a new Part document |
 | `catia_new_product` | Create a new Product (assembly) |
 | `catia_open_document` | Open an existing document |
-| `catia_save_document` | Save / Save As |
-| `catia_close_document` | Close active document |
+| `catia_save_document` | Save As to an explicit path; overwrite requires opt-in |
+| `catia_close_document` | Close active document without saving |
 | `catia_list_documents` | List all open documents |
 | `catia_get_active_document_info` | Get detailed info about active document |
 
@@ -215,7 +235,7 @@ CATIA V5 Application
 | `catia_draft` | Draft angle |
 | `catia_thickness` | Thickness offset |
 | `catia_list_features` | List features in body |
-| `catia_list_edges` | List edges for fillet/chamfer |
+| `catia_list_edges` | Reports that exact edge enumeration/addressing is not yet supported |
 
 ### Generative Shape Design Tools (24)
 | Tool | Description |
@@ -272,7 +292,7 @@ CATIA V5 Application
 | Tool | Description |
 |------|-------------|
 | `catia_export` | Export to STEP/IGES/STL/3DXML/VRML |
-| `catia_screenshot` | Capture 3D view to image |
+| `catia_screenshot` | Save 3D view and return MCP image content (viewer pixel size) |
 | `catia_set_view` | Set view orientation |
 | `catia_fit_all` | Fit all in view |
 

@@ -6,6 +6,7 @@ Create, open, save, close, and list documents (Part, Product, Drawing).
 from __future__ import annotations
 
 import json
+import os
 from typing import Any
 
 from catia_mcp.connection import CATIAConnection
@@ -72,7 +73,10 @@ class DocumentTools:
             },
             {
                 "name": "catia_open_document",
-                "description": "Open an existing CATIA document from a file path (.CATPart, .CATProduct, .CATDrawing).",
+                "description": (
+                    "Open an existing CATIA document from a file path "
+                    "(.CATPart, .CATProduct, .CATDrawing)."
+                ),
                 "inputSchema": {
                     "type": "object",
                     "properties": {
@@ -86,26 +90,37 @@ class DocumentTools:
             },
             {
                 "name": "catia_save_document",
-                "description": "Save the active CATIA document. Optionally save to a new path (Save As).",
+                "description": (
+                    "Save As to an explicit path. Existing files require allow_overwrite=true. "
+                    "Never silently overwrite the active CATPart/CATProduct."
+                ),
                 "inputSchema": {
                     "type": "object",
                     "properties": {
                         "file_path": {
                             "type": "string",
-                            "description": "Optional new file path for Save As",
+                            "description": "Required explicit output path for Save As",
+                        },
+                        "allow_overwrite": {
+                            "type": "boolean", "default": False,
+                            "description": "Explicitly allow replacing an existing file",
                         },
                     },
+                    "required": ["file_path"],
                 },
             },
             {
                 "name": "catia_close_document",
-                "description": "Close the active CATIA document.",
+                "description": (
+                    "Close the active CATIA document without saving; "
+                    "save=true is rejected."
+                ),
                 "inputSchema": {
                     "type": "object",
                     "properties": {
                         "save": {
                             "type": "boolean",
-                            "description": "Whether to save before closing (default: false)",
+                            "description": "Must be false; saving during close is disabled",
                             "default": False,
                         },
                     },
@@ -145,7 +160,8 @@ class DocumentTools:
             case "catia_open_document":
                 return self._open_document(arguments["file_path"])
             case "catia_save_document":
-                return self._save_document(arguments.get("file_path"))
+                return self._save_document(
+                    arguments["file_path"], arguments.get("allow_overwrite", False))
             case "catia_close_document":
                 return self._close_document(arguments.get("save", False))
             case "catia_list_documents":
@@ -195,22 +211,27 @@ class DocumentTools:
         doc = docs.Open(file_path)
         return f"Opened document: '{doc.Name}' from {file_path}"
 
-    def _save_document(self, file_path: str | None = None) -> str:
+    def _save_document(self, file_path: str, allow_overwrite: bool = False) -> str:
+        if not file_path or not file_path.strip():
+            raise ValueError("An explicit file_path is required to save a document")
+        if os.path.exists(file_path) and not allow_overwrite:
+            raise FileExistsError(
+                f"Refusing to overwrite {file_path}. Use allow_overwrite=true only if intended."
+            )
         doc = self.conn.active_document
-        if file_path:
-            doc.SaveAs(file_path)
-            return f"Document saved as: {file_path}"
-        else:
-            doc.Save()
-            return f"Document '{doc.Name}' saved"
+        doc.SaveAs(file_path)
+        return f"Document saved as: {file_path}"
 
     def _close_document(self, save: bool = False) -> str:
         doc = self.conn.active_document
         name = doc.Name
         if save:
-            doc.Save()
+            raise ValueError(
+                "Close with save=true is disabled. Save first to an explicit path with "
+                "catia_save_document, then close with save=false."
+            )
         doc.Close()
-        return f"Document '{name}' closed" + (" (saved)" if save else "")
+        return f"Document '{name}' closed without saving"
 
     def _list_documents(self) -> str:
         self.conn.ensure_connected()
@@ -238,19 +259,23 @@ class DocumentTools:
             return "No documents open in CATIA"
         return json.dumps(result, indent=2, ensure_ascii=False)
 
-    def _get_active_document_info(self) -> str:
-        doc = self.conn.active_document
+    def _get_active_document_info(self, doc: Any | None = None) -> str:
+        if doc is None:
+            doc = self.conn.active_document
         info: dict[str, Any] = {
             "name": doc.Name,
             "path": doc.FullName if hasattr(doc, "FullName") else "unsaved",
         }
 
-        # Try Part document
+        # Identify document type first. Once identified, inspection failures must
+        # propagate instead of silently downgrading a CATPart to "Unknown".
         try:
             part = doc.Part
+        except Exception:
+            part = None
+        if part is not None:
             info["type"] = "CATPart"
             info["part_name"] = part.Name
-
             # List bodies
             bodies = part.Bodies
             body_list = []
@@ -259,9 +284,13 @@ class DocumentTools:
                 shapes = []
                 for j in range(1, body.Shapes.Count + 1):
                     shapes.append(body.Shapes.Item(j).Name)
+                sketches = []
+                for j in range(1, body.Sketches.Count + 1):
+                    sketches.append(body.Sketches.Item(j).Name)
                 body_list.append({
                     "name": body.Name,
                     "features": shapes,
+                    "sketches": sketches,
                 })
             info["bodies"] = body_list
 
@@ -282,12 +311,13 @@ class DocumentTools:
                 pass
 
             return json.dumps(info, indent=2, ensure_ascii=False)
-        except Exception:
-            pass
 
         # Try Product document
         try:
             product = doc.Product
+        except Exception:
+            product = None
+        if product is not None:
             info["type"] = "CATProduct"
             info["product_name"] = product.Name
             info["part_number"] = product.PartNumber
@@ -303,8 +333,6 @@ class DocumentTools:
                 })
             info["components"] = children
             return json.dumps(info, indent=2, ensure_ascii=False)
-        except Exception:
-            pass
 
         info["type"] = "Unknown"
         return json.dumps(info, indent=2, ensure_ascii=False)

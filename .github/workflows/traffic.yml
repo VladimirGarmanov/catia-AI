@@ -16,6 +16,8 @@ concurrency:
 
 jobs:
   collect:
+    # Keep upstream traffic automation from running in downstream copies.
+    if: github.repository == 'daiemon12/catia-v5-mcp-server'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
