@@ -29,10 +29,15 @@ This MCP server exposes **81 tools** that let Claude or Codex:
 - **Claude Desktop**, **Claude Code**, or local **Codex**
 
 For local **Codex on Windows**, use [WINDOWS_CODEX.md](WINDOWS_CODEX.md) and
-`setup_codex.ps1`. The CATIA connection still requires Windows COM automation.
+double-click `INSTALL.cmd`, then `START_CATIA_AI.cmd` (Python 3.10+ required).
+No Git, PowerShell policy changes, or administrator rights are requested.
+Existing Node/Codex installations are reused; missing Node requires an approved
+Node LTS ZIP. `DIAGNOSE.cmd` creates a report without calling CATIA tools.
+The CATIA connection still requires Windows COM automation.
 The [CAD agent team](MULTI_AGENT.md) has six roles for drawing interpretation,
 inspection, planning, plan review, execution, and independent verification.
-Only the executor receives all 81 tools; the inspection server exposes 13.
+Only the executor is configured for all 81 tools; the inspection server exposes 13.
+Actual Codex executor access must pass the startup readiness check before modeling.
 Offline tests do not validate live CATIA geometry or COM behavior.
 
 ## Claude Desktop Quick Install

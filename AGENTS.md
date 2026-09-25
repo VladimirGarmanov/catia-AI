@@ -4,8 +4,17 @@
 
 For CATIA modeling requests, the main chat coordinates the project agents in
 `.codex/agents`. This workflow is for CAD operations, not ordinary repository
-maintenance. Run `setup_codex.ps1` on Windows first so the roles have complete
-machine-local MCP transports. Do not add enabled-only MCP stubs to config.toml.
+maintenance. The user runs `INSTALL.cmd` on Windows so the roles have complete
+machine-local MCP transports, then `START_CATIA_AI.cmd`. Do not run setup during
+CAD tasks or repeatedly try a blocked `.ps1`. Never change execution policy or
+use Bypass. Do not add enabled-only MCP stubs to config.toml.
+
+Before first modeling, perform a readiness-only spawn with the configured
+`cad_executor` role (not a default agent merely given that task name). Require
+evidence of actual `catia_new_part` and `catia_pad` tool availability without
+calling them. Reading TOML is not proof that its settings were loaded. If access
+is missing, stop; ask the user to run `DIAGNOSE.cmd` and collect the actual spawn
+arguments and MCP startup error. Never broaden the coordinator's access.
 
 1. Delegate drawing interpretation to `cad_drawing_reader` when a drawing is
    supplied and current model inspection to `cad_model_inspector`. These two

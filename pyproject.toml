@@ -17,13 +17,13 @@ keywords = ["catia", "catia-v5", "mcp", "claude", "dassault-systemes", "cao", "c
 dependencies = [
     "mcp>=1.0.0,<2",
     "pywin32>=306; sys_platform == 'win32'",
+    "tomli>=2; python_version < '3.11'",
 ]
 
 [project.optional-dependencies]
 dev = [
     "pytest>=7.0",
     "ruff>=0.4.0",
-    "tomli>=2; python_version < '3.11'",
 ]
 
 [project.scripts]

@@ -8,8 +8,13 @@ from __future__ import annotations
 
 import json
 import os
-from pathlib import Path
 import sys
+from pathlib import Path
+
+try:
+    import tomllib
+except ImportError:
+    import tomli as tomllib
 
 
 ROLE_ACCESS = {
@@ -34,6 +39,12 @@ def render_agent_config(source: str, role: str, python_path: Path) -> str:
         source = prefix + suffix
     if "[mcp_servers." in source:
         raise ValueError(f"Manual MCP configuration in {role}; refusing to overwrite it")
+    parsed = tomllib.loads(source)
+    if parsed.get("name") != role:
+        raise ValueError(f"Agent name does not match {role}")
+    for key in ("description", "developer_instructions"):
+        if not isinstance(parsed.get(key), str) or not parsed[key].strip():
+            raise ValueError(f"Missing {key} in {role}")
     writer, inspector = ROLE_ACCESS[role]
     command = json.dumps(str(python_path), ensure_ascii=False)
     block = f'''{START_MARKER}
@@ -41,14 +52,20 @@ def render_agent_config(source: str, role: str, python_path: Path) -> str:
 command = {command}
 args = ["-m", "catia_mcp"]
 enabled = {str(writer).lower()}
+required = {str(writer).lower()}
+startup_timeout_sec = 30
 
 [mcp_servers.catia-v5-inspect]
 command = {command}
 args = ["-m", "catia_mcp", "--inspection-only"]
 enabled = {str(inspector).lower()}
+required = {str(inspector).lower()}
+startup_timeout_sec = 30
 {END_MARKER}
 '''
-    return source.rstrip() + "\n\n" + block
+    rendered = source.rstrip() + "\n\n" + block
+    tomllib.loads(rendered)
+    return rendered
 
 
 def configure_agents(project_root: Path, python_path: Path) -> list[str]:
@@ -62,8 +79,15 @@ def configure_agents(project_root: Path, python_path: Path) -> list[str]:
     changes = {}
     for role in ROLE_ACCESS:
         path = agent_dir / f"{role}.toml"
-        changes[path] = render_agent_config(path.read_text(encoding="utf-8"), role, python_path)
+        changes[path] = render_agent_config(path.read_text(encoding="utf-8-sig"), role, python_path)
     for path, content in changes.items():
+        if path.read_text(encoding="utf-8") == content:
+            continue
+        backup_dir = project_root / ".local" / "role-backups"
+        backup_dir.mkdir(parents=True, exist_ok=True)
+        backup = backup_dir / path.name
+        if not backup.exists():
+            backup.write_bytes(path.read_bytes())
         path.write_text(content, encoding="utf-8")
     return list(ROLE_ACCESS)
 

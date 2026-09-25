@@ -11,6 +11,7 @@ venv/
 .idea/
 .pytest_cache/
 .ruff_cache/
+.local/
 
 # GSD smoke test outputs
 GSD_SmokeTest*.CATPart
