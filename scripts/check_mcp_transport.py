@@ -37,8 +37,8 @@ async def probe_transports() -> dict:
     return {
         "inspection_tools": len(inspection), "full_tools": len(full),
         "stdio_discovery": "PASS", "catia_com": "NOT_TESTED",
-        "codex_executor_tool_access": "NOT_TESTED",
-        "note": "No tools called. This does not prove Codex loaded a custom role.",
+        "codex_session_tool_access": "NOT_TESTED",
+        "note": "No tools called. Interactive Codex access must be checked in its own session.",
     }
 
 

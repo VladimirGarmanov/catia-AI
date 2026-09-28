@@ -15,19 +15,20 @@ import re
 import shutil
 import subprocess
 import sys
-import tempfile
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 READINESS_PROMPT = (
-    "Read AGENTS.md. This is a readiness check, not authorization to model. "
+    "Read AGENTS.md. Work as ONE agent; do not spawn or delegate to subagents. "
+    "This startup check is not authorization to model. "
     "Do not run setup, modify configuration, change Windows policies, or use direct COM scripts. "
-    "Spawn the configured cad_executor role with agent_type=cad_executor, not a default agent "
-    "merely named executor. It must report its actual MCP tool access, specifically "
-    "catia_new_part and catia_pad, without calling them or changing CATIA. "
-    "Report the actual spawn arguments and PASS/FAIL for executor tool availability. "
-    "Reading TOML or parent inspection tools is not evidence of executor access. "
-    "If unavailable, stop and report the startup error or limitation; do not retry endlessly."
+    "Check YOUR OWN available tools for catia_new_part, catia_pad, catia_get_model_state, "
+    "catia_get_selection and catia_screenshot without calling them. Report PASS/FAIL. "
+    "If absent, report the exact MCP startup error and stop; do not repeat installation. "
+    "If present, wait for the user task. Read attached drawings visually, ask for missing "
+    "dimensions and units, then execute authorized modeling yourself through MCP, serially. "
+    "After every change update, measure, screenshot and verify. Never save or overwrite "
+    "without an explicit path and instruction."
 )
 
 
@@ -52,7 +53,10 @@ def windows_command(argv: list[str], comspec: str) -> list[str] | str:
     # Pass cmd's command line verbatim: list2cmdline on the nested command
     # would add C-runtime backslash escapes that cmd.exe does not understand.
     body = " ".join(f'"{arg}"' for arg in argv)
-    return subprocess.list2cmdline([comspec]) + ' /d /s /c "' + body + '"'
+    command = subprocess.list2cmdline([comspec]) + ' /d /s /c "' + body + '"'
+    if len(command) > 8000:
+        raise SetupError("Windows command is too long. Use a shorter project path or fewer PDF pages.")
+    return command
 
 
 def child_environment(node: Path | None, codex: Path | None) -> dict[str, str]:
@@ -170,21 +174,41 @@ def normalize_entry(entry: dict) -> dict:
             "config": config}
 
 
-def check_entry(entry: dict, python: Path, inspection: bool = True) -> None:
+def check_entry(entry: dict, python: Path, inspection: bool = False) -> None:
     expected = ["-m", "catia_mcp"] + (["--inspection-only"] if inspection else [])
     actual = normalize_entry(entry)
     same_path = ntpath.normcase(ntpath.normpath(str(actual["command"]))) == ntpath.normcase(
         ntpath.normpath(str(python)))
     if not same_path or actual["args"] != expected:
-        raise SetupError("An existing CATIA MCP entry points elsewhere. It was not overwritten. "
-                         "Have its owner review it before installing another project copy.")
+        raise SetupError("Effective CATIA MCP command/arguments differ from this project. "
+                         "No persistent configuration was overwritten.")
     if not actual["enabled"]:
-        raise SetupError("The CATIA inspection entry is disabled. Review your Codex settings; "
-                         "setup will not silently re-enable it.")
+        raise SetupError("The effective full CATIA entry is disabled. Review managed settings.")
 
 
-def read_entries(runner: Runner, codex: Path, cwd: Path) -> dict:
-    result = runner.run([str(codex), "mcp", "list", "--json"], cwd=cwd, private=True)
+def session_overrides(root: Path) -> list[str]:
+    """Full MCP for this invocation only; never rewrite user/project config.
+
+    TOML literal strings preserve Windows backslashes and avoid nested double
+    quotes in npm's cmd launcher. Reject unsupported paths rather than execute
+    an incorrectly quoted command. Complete tables also work on a clean install.
+    """
+    python = str((root / ".venv" / "Scripts" / "python.exe").resolve())
+    if any(char in python for char in "'\r\n"):
+        raise SetupError("Project path cannot contain apostrophes or newlines for CLI setup.")
+    settings = ["agents.enabled=false"]
+    for name, inspection in (("catia-v5", False), ("catia-v5-inspect", True)):
+        args = "['-m','catia_mcp','--inspection-only']" if inspection else "['-m','catia_mcp']"
+        enabled = "false" if inspection else "true"
+        settings.append(
+            f"mcp_servers.{name}={{command='{python}',args={args},"
+            f"enabled={enabled},required={enabled},startup_timeout_sec=60}}")
+    return [item for setting in settings for item in ("-c", setting)]
+
+
+def read_entries(runner: Runner, codex: Path) -> dict:
+    result = runner.run([str(codex), *session_overrides(runner.root),
+                         "mcp", "list", "--json"], private=True)
     try:
         entries = json.loads(result.stdout)
         if not isinstance(entries, list) or any(not isinstance(e, dict) for e in entries):
@@ -194,60 +218,13 @@ def read_entries(runner: Runner, codex: Path, cwd: Path) -> dict:
         raise SetupError("Cannot parse Codex MCP listing; no configuration was changed.") from exc
 
 
-def preflight_entries(entries: dict, python: Path) -> None:
-    if "catia-v5-inspect" in entries:
-        check_entry(entries["catia-v5-inspect"], python)
-    if "catia-v5" in entries and normalize_entry(entries["catia-v5"])["enabled"]:
-        raise SetupError("A global full-access catia-v5 entry already exists. Setup will not "
-                         "delete it or expose it to the coordinator. Review it first.")
-
-
-def configure_mcp(runner: Runner, codex: Path, python: Path) -> None:
-    # Read outside the project to avoid mistaking a project override for user config.
-    with tempfile.TemporaryDirectory(prefix="catia-config-check-") as directory:
-        cwd = Path(directory)
-        entries = read_entries(runner, codex, cwd)
-        preflight_entries(entries, python)
-        runner.run([str(python), str(runner.root / "scripts" / "configure_codex_agents.py")])
-        if "catia-v5-inspect" not in entries:
-            runner.run([str(codex), "mcp", "add", "catia-v5-inspect", "--",
-                        str(python), "-m", "catia_mcp", "--inspection-only"], cwd=cwd)
-        verified = read_entries(runner, codex, cwd)
-        if "catia-v5-inspect" not in verified:
-            raise SetupError("Codex did not retain the inspection registration")
-        check_entry(verified["catia-v5-inspect"], python)
-
-
-def validate_roles(root: Path, python: Path) -> list[str]:
-    # Delayed import: dependencies are installed before the first setup call.
-    try:
-        from scripts.configure_codex_agents import ROLE_ACCESS, tomllib
-    except ImportError as exc:
-        raise SetupError("TOML support missing. Run INSTALL.cmd first.") from exc
-    names = []
-    for role, flags in ROLE_ACCESS.items():
-        path = root / ".codex" / "agents" / f"{role}.toml"
-        try:
-            data = tomllib.loads(path.read_text(encoding="utf-8-sig"))
-            if data.get("name") != role:
-                raise ValueError("Wrong role name")
-            for key in ("description", "developer_instructions"):
-                if not isinstance(data.get(key), str) or not data[key].strip():
-                    raise ValueError(f"Missing {key}")
-            servers = data["mcp_servers"]
-            for name, enabled, args in (
-                ("catia-v5", flags[0], ["-m", "catia_mcp"]),
-                ("catia-v5-inspect", flags[1], ["-m", "catia_mcp", "--inspection-only"]),
-            ):
-                server = servers[name]
-                if (server.get("enabled") is not enabled or server.get("args") != args
-                        or Path(server.get("command", "")).resolve() != python.resolve()):
-                    raise ValueError(f"Wrong transport or access flags: {name}")
-            names.append(role)
-        except (OSError, ValueError, KeyError, TypeError) as exc:
-            raise SetupError(f"Invalid role file {path.name}: {exc}. Run INSTALL.cmd; "
-                             "do not copy instructions into a generic agent as a substitute.") from exc
-    return names
+def validate_session(entries: dict, python: Path) -> None:
+    if "catia-v5" not in entries:
+        raise SetupError("Full catia-v5 MCP missing from effective Codex configuration")
+    check_entry(entries["catia-v5"], python)
+    if ("catia-v5-inspect" in entries
+            and normalize_entry(entries["catia-v5-inspect"])["enabled"]):
+        raise SetupError("Inspection transport is still enabled in this single-agent session")
 
 
 def get_runtime(runner: Runner, *, install: bool) -> tuple[Path | None, Path]:
@@ -287,44 +264,52 @@ def install_project(runner: Runner) -> None:
     if not python.exists():
         runner.run([sys.executable, "-m", "venv", str(runner.root / ".venv")])
     runner.run([str(python), "-c", "import sys; assert sys.version_info >= (3, 10)"])
-    runner.run([str(python), "-m", "pip", "install", "-e", str(runner.root)], timeout=900)
+    runner.run([str(python), "-m", "pip", "install", "-e",
+                str(runner.root) + "[drawings]"], timeout=900)
     runner.run([str(python), str(runner.root / "test_server.py")])
     node, codex = get_runtime(runner, install=True)
-    configure_mcp(runner, codex, python)
-    # Validate with the venv interpreter, even when bootstrap Python has no tomli.
     state = {"node": str(node) if node else None, "codex": str(codex)}
     (runner.root / ".local" / "windows-runtime.json").write_text(
         json.dumps(state, indent=2), encoding="utf-8")
     runner.run([str(python), str(runner.root / "scripts" / "windows_launcher.py"), "diagnose"])
     runner.say("Setup complete. Open CATIA, then START_CATIA_AI.cmd. "
-               "Codex role access and live modeling still require the readiness check.")
+               "Single-agent mode: full MCP is scoped to the launcher session. "
+               "Live modeling still requires verification.")
 
 
 def diagnose(runner: Runner, codex: Path) -> None:
     python = runner.root / ".venv" / "Scripts" / "python.exe"
-    roles = validate_roles(runner.root, python)
-    runner.say("TOML and absolute transports OK: " + ", ".join(roles))
-    with tempfile.TemporaryDirectory(prefix="catia-diagnose-") as directory:
-        entries = read_entries(runner, codex, Path(directory))
-        preflight_entries(entries, python)
-        if "catia-v5-inspect" not in entries:
-            raise SetupError("Inspection server is not registered. Run INSTALL.cmd.")
+    validate_session(read_entries(runner, codex), python)
+    runner.say("Single-agent configuration OK: full catia-v5 enabled; inspection disabled. "
+               "No role files or persistent Codex settings were changed.")
     runner.run([str(python), str(runner.root / "scripts" / "check_mcp_transport.py")], timeout=90)
     runner.say("This checks configuration and real stdio discovery only. "
-               "CATIA COM and the spawned Codex executor were NOT tested. "
+               "CATIA COM and interactive Codex tool access were NOT tested. "
                "No CATIA tool was called. Logs contain local paths; review before sharing.")
 
 
-def start(runner: Runner, codex: Path) -> int:
+def start(runner: Runner, codex: Path, drawing: Path | None = None) -> int:
     diagnose(runner, codex)
     help_text = runner.run([str(codex), "--help"], private=True).stdout
-    argv = [str(codex)]
+    argv = [str(codex), *session_overrides(runner.root)]
     # A fresh process avoids reusing a daemon/session with pre-setup config.
     # This is a diagnostic precaution, not a claimed fix for role inheritance.
     if "--no-daemon" in help_text:
         argv.append("--no-daemon")
-    argv.extend(["-C", str(runner.root), READINESS_PROMPT])
-    runner.say("Starting a fresh Codex readiness session. Sign in if asked; "
+    prompt = READINESS_PROMPT
+    if drawing is not None:
+        from scripts.drawing_inputs import prepare_drawing
+        images = prepare_drawing(drawing, runner.root / ".local" / "drawings")
+        for path in images:
+            if "," in str(path):
+                raise SetupError("Drawing image paths cannot contain commas; move the project.")
+            argv.extend(["--image", str(path)])
+        prompt += (f" Attached are {len(images)} drawing page image(s) in page order. "
+                   "After the tool check, describe the visible geometry, dimensions and "
+                   "uncertainties; ask whether to create a NEW part. Do not model yet.")
+        runner.say(f"Prepared {len(images)} drawing image(s); original file unchanged.")
+    argv.extend(["-C", str(runner.root), prompt])
+    runner.say("Starting ONE Codex agent with full CATIA tools. Sign in if asked; "
                "do not share login codes. No modeling is authorized by this launcher.")
     return subprocess.call(windows_command(argv, runner.env.get("COMSPEC", "cmd.exe")),
                            cwd=runner.root, env=runner.env)
@@ -333,6 +318,8 @@ def start(runner: Runner, codex: Path) -> int:
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("action", choices=["install", "start", "diagnose"])
+    parser.add_argument("--drawing", type=Path, help="Attach a PNG, JPEG or PDF")
+    parser.add_argument("--choose-drawing", action="store_true", help="Open a drawing file picker")
     args = parser.parse_args(argv)
     if os.name != "nt":
         print("Windows-only. No installation or configuration was changed.")
@@ -353,7 +340,14 @@ def main(argv: list[str] | None = None) -> int:
         else:
             _, codex = get_runtime(runner, install=False)
             if args.action == "start":
-                return start(runner, codex)
+                drawing = args.drawing
+                if args.choose_drawing:
+                    from scripts.drawing_inputs import choose_drawing
+                    drawing = choose_drawing()
+                    if drawing is None:
+                        runner.say("Drawing selection cancelled. Codex was not started.")
+                        return 0
+                return start(runner, codex, drawing)
             diagnose(runner, codex)
         return 0
     except (SetupError, OSError, ValueError, subprocess.SubprocessError) as exc:

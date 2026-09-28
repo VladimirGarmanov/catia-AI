@@ -28,7 +28,7 @@ jobs:
           python-version: ${{ matrix.python-version }}
 
       - name: Install package (validates build backend)
-        run: python -m pip install -e ".[dev]"
+        run: python -m pip install -e ".[dev,drawings]"
 
       - name: Run offline test suite
         run: python -m pytest -q

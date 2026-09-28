@@ -1,63 +1,63 @@
 # CATIA operating rules for Codex
 
-## CAD team workflow
+## Single-agent workflow (default)
 
-For CATIA modeling requests, the main chat coordinates the project agents in
-`.codex/agents`. This workflow is for CAD operations, not ordinary repository
-maintenance. The user runs `INSTALL.cmd` on Windows so the roles have complete
-machine-local MCP transports, then `START_CATIA_AI.cmd`. Do not run setup during
-CAD tasks or repeatedly try a blocked `.ps1`. Never change execution policy or
-use Bypass. Do not add enabled-only MCP stubs to config.toml.
+Work as ONE agent. Do not spawn subagents for drawing interpretation, planning,
+execution, readiness checks or verification. The user explicitly chose this mode
+after custom executor sessions repeatedly inherited only inspection tools.
+Legacy files in .codex/agents and MULTI_AGENT.md do not mandate delegation.
 
-Before first modeling, perform a readiness-only spawn with the configured
-`cad_executor` role (not a default agent merely given that task name). Require
-evidence of actual `catia_new_part` and `catia_pad` tool availability without
-calling them. Reading TOML is not proof that its settings were loaded. If access
-is missing, stop; ask the user to run `DIAGNOSE.cmd` and collect the actual spawn
-arguments and MCP startup error. Never broaden the coordinator's access.
+The user runs INSTALL.cmd, then START_CATIA_AI.cmd or START_WITH_DRAWING.cmd.
+The launcher enables the full catia-v5 MCP directly for the main session and
+disables subagents/inspection transport through command-line overrides. It does
+not rewrite .codex/config.toml or user settings. Do not change access yourself,
+run installers during modeling, bypass Windows policy or use direct COM scripts.
 
-1. Delegate drawing interpretation to `cad_drawing_reader` when a drawing is
-   supplied and current model inspection to `cad_model_inspector`. These two
-   tasks may run together because only the inspector calls CATIA.
-2. Give both reports to `cad_planner`, then send its plan to
-   `cad_safety_reviewer`. Resolve missing dimensions with the user. Existing
-   user authorization for the stated target and dimensions remains valid.
-3. Start exactly one `cad_executor` with the accepted plan and target document.
-   It alone may modify CATIA. No other agent may call CATIA while it is working.
-   Never start a second executor or delegate a modeling action recursively.
-4. After the executor finishes, delegate acceptance to `cad_verifier` with the
-   original drawing, accepted plan, and operation evidence. It independently
-   reads the model and reports PASS, FAIL, or UNVERIFIABLE per postcondition.
-5. A failed check may return to the same executor for at most two scoped repair
-   attempts. Do not broaden dimensions, target, or save permissions. Then stop
-   and report remaining discrepancies if acceptance is still not established.
+At startup check your own available tools (catia_new_part, catia_pad,
+catia_get_model_state, catia_get_selection, catia_screenshot). Do not call them
+for a tool-availability-only request. Report a missing tool or actual startup
+error once and stop. Do not loop through installation or agent readiness checks.
 
-The main chat must not bypass the team by running Python COM scripts or altering
-role access. The server enforces the inspection tool allowlist; the one-writer
-schedule is an orchestration rule, not a lock against other CATIA clients.
+For an authorized modeling request:
+
+1. Read the attached drawing visually. PDF pages may arrive as ordered PNGs.
+   List visible dimensions, units, geometry, ambiguities and unreadable areas.
+   Ask for missing dimensions; do not infer invisible geometry as fact. A photo
+   of an object without scale is not a dimensioned drawing. Ask for a close-up
+   if reduced-resolution rendering hides a dimension.
+2. Connect and read model state and selection. Confirm the intended document or
+   explicit new-part request. A missing active document is normal before a new
+   part; other connection/read errors must be resolved first.
+3. Describe a short feature plan and measurable postconditions. Resolve missing
+   dimensions and ambiguous targets before writing. If the user already gave a
+   complete modeling instruction, execute it; do not stop after only a plan or
+   demand repeated authorization for that same scope.
+4. Execute one feature at a time yourself through MCP, serially. Update, reread
+   dimensions/state, capture and inspect a screenshot after each change. Stop
+   on an error or failed postcondition; report the last successful operation.
+5. Compare the finished model against the drawing and agreed dimensions. Report
+   verified and unverified items separately. This is self-verification, not an
+   independent review. At most two scoped repair attempts; never broaden scope.
 
 ## Model operations
 
-- Connect with `catia_connect`, then read `catia_get_model_state` and
-  `catia_get_selection` before acting. Confirm
-  the active document is the one the user means. Never alter another open document.
-- For a new part, call `catia_new_part`, then verify the active document is a
-  CATPart before modeling. Issue CATIA tool calls serially.
-- After each change, run `catia_update_part`, re-read model state/selection and
-  measurable dimensions, then capture `catia_screenshot` and inspect it. An
-  image alone does not prove a dimension or material effect.
-- Finish and close an edited sketch before accepting it as a completed modeling
-  step. Never pass a half-built sketch to the independent verifier.
-- `catia_update_selected_feature` acts on the current selected COM feature/sketch,
-  not a saved identifier. Read the selection again immediately before calling it.
-- Selection names, positions, and topology descriptions are transient, not exact
-  face/edge IDs. `catia_list_edges` explicitly reports unsupported exact
-  addressing. Do not promise selected-face/edge Fillet, Chamfer, Hole, or Sketch.
-- Ask for missing or unreadable dimensions in an attached drawing; never invent
-  them. The drawing image is supplied in the Codex chat, not to the MCP server.
-- Do not save, close, overwrite, or export a user document without an explicit
-  request. Saving requires an explicit output path; overwriting requires opt-in.
-- Treat a failed tool call as failure, not as a successful modeling step. CATIA
-  COM behavior still needs live Windows verification.
-- The Claude skills under `.claude/skills` are engineering references, not
-  automatically loaded Codex instructions.
+- Use catia_connect, then catia_get_model_state and catia_get_selection before
+  acting. Never alter another open document. Do not switch documents blindly.
+- For a new part call catia_new_part once, then record the actual new document
+  identity and verify CATPart type. Bind later operations to it.
+- After each mutation run catia_update_part and verify the active document and
+  measurable dimensions. A successful screenshot alone does not prove geometry.
+- Finish and close an edited sketch before accepting it as complete.
+- catia_update_selected_feature acts on the CURRENT selected COM feature/sketch.
+  Reread selection immediately before use; names are not saved object IDs.
+- Selection names, positions and topology descriptions are transient, not stable
+  face/edge IDs. catia_list_edges explicitly reports unsupported exact addressing.
+  Do not promise selected-face/edge Fillet, Chamfer, Hole or Sketch.
+- Do not save, close, overwrite or export without explicit instruction. Saving
+  requires an explicit path; overwriting additionally requires opt-in.
+- The user must not switch active documents or run another CATIA automation
+  client during modeling. Single-agent scheduling is not a COM interprocess lock.
+- Treat failed tools as failures. Offline tests do not validate Windows geometry.
+- Drawings are read by Codex, not by a paid AI API in the Python MCP server.
+  The Claude skills in .claude/skills are engineering references, not automatic
+  Codex instructions.

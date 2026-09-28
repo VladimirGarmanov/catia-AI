@@ -34,10 +34,14 @@ No Git, PowerShell policy changes, or administrator rights are requested.
 Existing Node/Codex installations are reused; missing Node requires an approved
 Node LTS ZIP. `DIAGNOSE.cmd` creates a report without calling CATIA tools.
 The CATIA connection still requires Windows COM automation.
-The [CAD agent team](MULTI_AGENT.md) has six roles for drawing interpretation,
-inspection, planning, plan review, execution, and independent verification.
-Only the executor is configured for all 81 tools; the inspection server exposes 13.
-Actual Codex executor access must pass the startup readiness check before modeling.
+The default is now **one Codex agent with all 81 tools**: it reads the drawing and
+selection, plans, models and verifies the result itself. No subagent is required.
+`START_WITH_DRAWING.cmd` opens a PNG/JPEG/PDF picker; PDF pages are rendered locally
+and attached as images (optional `drawings` dependencies installed by INSTALL).
+Launchers use session-only configuration overrides: full MCP enabled, inspection
+transport and subagents disabled. User/project config files are not rewritten.
+Legacy agent files are retained but not used by this workflow; see
+[MULTI_AGENT.md](MULTI_AGENT.md) for the observed limitation.
 Offline tests do not validate live CATIA geometry or COM behavior.
 
 ## Claude Desktop Quick Install

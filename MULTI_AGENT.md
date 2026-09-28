@@ -1,53 +1,23 @@
-# CAD-команда в Codex
+# Legacy multi-agent experiment — not the default
 
-Главный чат координирует шесть специалистов:
+The supported launch workflow is now **single-agent**. Use INSTALL.cmd and
+START_CATIA_AI.cmd, or START_WITH_DRAWING.cmd. See [WINDOWS_CODEX.md](WINDOWS_CODEX.md).
 
-| Агент | Задача | Доступ к CATIA после Windows setup |
-|---|---|---|
-| `cad_drawing_reader` | Читает чертёж, выписывает размеры и вопросы | Нет |
-| `cad_model_inspector` | Проверяет открытый документ и выделение | Инспекция |
-| `cad_planner` | Составляет последовательность построения и критерии результата | Нет |
-| `cad_safety_reviewer` | Проверяет план, размеры, документ и ограничения инструментов | Инспекция |
-| `cad_executor` | Строит принятую модель по шагам | Полные 81 инструмент |
-| `cad_verifier` | Независимо сравнивает модель с планом и чертежом | Инспекция |
+Windows evidence: both MCP processes discovered correctly (13 inspection / 81
+full tools), but cad_executor received only the parent's 13 inspection tools.
+Changing fork_turns from all to none did not change that result. The exact cause
+inside Codex was not established; TOML validation was not proof of role access.
 
-Порядок: **чертёж + состояние → план → проверка плана → исполнитель → проверка
-модели**. Если результат не сошёлся, допускаются две попытки исправления в рамках
-согласованной задачи. Скриншот и текст «создано» сами по себе не подтверждают размер.
+The six .codex/agents files and scripts/configure_codex_agents.py are retained as
+legacy references, not as a required or verified operating mode. INSTALL no
+longer edits these roles or registers the inspection server. START disables
+subagents for its session and connects the full MCP to the main chat directly.
 
-Сначала выполни [Windows-установку](WINDOWS_CODEX.md), затем открой новый чат Codex
-из этой папки и разреши загрузку конфигурации доверенного проекта. Пример запроса:
+Do not follow old reader/planner/executor/verifier prompts in this mode. One
+agent performs the whole authorized workflow and checks its own result. That is
+not independent verification. Do not run another CAD automation session at the
+same time.
 
-> Используй CAD-команду из AGENTS.md. Создай новую деталь по приложенному чертежу.
-> Сначала reader и inspector, затем planner и safety reviewer. Недостающие размеры
-> уточни у меня. После принятого плана запусти одного executor, а затем независимого
-> verifier. Другие документы не изменяй; без моей команды не сохраняй.
-
-В CLI изображение можно передать так (файл должен существовать):
-
-```powershell
-codex -i .\drawing.jpg "Используй CAD-команду из AGENTS.md для новой детали по чертежу"
-```
-
-`/agent` позволяет посмотреть потоки агентов. Родитель и роли наследуют выбранную
-модель; отдельный платный AI API в Python-сервер не добавлен. Несколько агентов
-расходуют больше токенов, поэтому роли без полезной задачи можно пропускать.
-
-Переносимые TOML-файлы содержат инструкции. `INSTALL.cmd` добавляет в них
-полные MCP-настройки с абсолютным путём к Windows `.venv`. Основной
-`.codex/config.toml` скрипт не меняет. До этой установки запреты в инструкциях ещё
-не являются настроенным разграничением MCP-доступа.
-
-Главный чат получает `catia-v5-inspect`: 13 инструментов для наблюдения. Этот
-сервер отклоняет прямой вызов инструментов изменения, не запускает CATIA сам,
-не очищает выделение. Скриншот сохраняет файл по указанному пути — режим
-инспекции означает отсутствие изменения CAD-модели, а не отсутствие всех файловых
-эффектов. Непроверенные legacy-измерения inertia/bounding box в этот режим не входят.
-
-Полный `catia-v5` включается только в конфигурации `cad_executor`. Все вызовы
-CATIA выполняются последовательно. Межпроцессного замка против других запущенных
-клиентов нет: во время построения не запускай ещё одну CAD-команду и не переключай
-активный документ вручную. Загрузка ролей и COM-поведение требуют живого теста на
-Windows; offline-тесты не доказывают качество геометрии.
-
-Формат ролей и наследование настроек: [официальная документация Codex](https://learn.chatgpt.com/docs/agent-configuration/subagents).
+.codex/config.toml is preserved, including its old team comments/settings.
+Session-only CLI overrides take precedence; simply running codex without the
+launcher does not select the new mode.
