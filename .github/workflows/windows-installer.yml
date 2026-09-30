@@ -1,0 +1,46 @@
+name: Build CATIA AI Windows installer
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      codex_version:
+        description: Stable OpenAI Codex release to bundle
+        required: true
+        default: "0.159.1"
+
+permissions:
+  contents: read
+
+jobs:
+  installer:
+    runs-on: windows-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13.3"
+          architecture: x64
+      - name: Assemble portable Python, CATIA MCP and native Codex
+        env:
+          CATIA_AI_CODEX_VERSION: ${{ inputs.codex_version || '0.159.1' }}
+        run: python scripts/build_windows_bundle.py
+      - name: Install Inno Setup on the hosted builder
+        run: choco install innosetup --yes --no-progress
+      - name: Compile the per-user installer
+        shell: pwsh
+        run: |
+          $bundle = Join-Path $env:GITHUB_WORKSPACE 'dist\windows-full\CATIA-AI'
+          $output = Join-Path $env:GITHUB_WORKSPACE 'dist\windows-installer'
+          $compiler = Join-Path ${env:ProgramFiles(x86)} 'Inno Setup 6\ISCC.exe'
+          New-Item -ItemType Directory -Path $output -Force | Out-Null
+          & $compiler "/DBundleDir=$bundle" "/DOutputDir=$output" 'installer\CATIA-AI.iss'
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - uses: actions/upload-artifact@v4
+        with:
+          name: CATIA-AI-Windows-Installer
+          path: dist/windows-installer/CATIA-AI-Setup.exe
+          if-no-files-found: error
+          retention-days: 30

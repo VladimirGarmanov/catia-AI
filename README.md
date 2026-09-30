@@ -25,14 +25,29 @@ This MCP server exposes **81 tools** that let Claude or Codex:
 
 - **Windows** (COM automation is Windows-only)
 - **CATIA V5** installed and licensed (R2016+)
-- **Python 3.10+**
 - **Claude Desktop**, **Claude Code**, or local **Codex**
 
-For local **Codex on Windows**, use [WINDOWS_CODEX.md](WINDOWS_CODEX.md) and
-double-click `INSTALL.cmd`, then `START_CATIA_AI.cmd` (Python 3.10+ required).
-No Git, PowerShell policy changes, or administrator rights are requested.
-Existing Node/Codex installations are reused; missing Node requires an approved
-Node LTS ZIP. `DIAGNOSE.cmd` creates a report without calling CATIA tools.
+## Windows one-file installer
+
+The GitHub Actions workflow `Build CATIA AI Windows installer` creates a
+self-contained x64 `CATIA-AI-Setup.exe`. It bundles the native Codex CLI,
+portable Python 3.13.3, this MCP server, and its dependencies. End users do not
+need to install Node, Python, Git, or use PowerShell. It installs per-user and
+does not change PATH. First Codex use still requires ChatGPT sign-in, and CATIA
+V5 must already be installed and licensed.
+
+Run the workflow from GitHub **Actions**, download its
+`CATIA-AI-Windows-Installer` artifact, extract it, and launch
+`CATIA-AI-Setup.exe`. A Windows x64 GitHub Actions runner is required to build
+the package; Python MCP development can continue offline on macOS. Workflow
+artifacts expire after 30 days; they are not a permanent public release.
+
+For local **Codex on Windows**, see [WINDOWS_CODEX.md](WINDOWS_CODEX.md). The
+one-file installer is the easiest route. A source ZIP also supports
+`INSTALL.cmd` followed by `START_CATIA_AI.cmd` and needs Python 3.10+; that
+developer route can reuse Node/Codex or ask the user to select portable Node.
+Neither route changes PowerShell policy or requires Git/admin rights.
+`DIAGNOSE.cmd` creates a report without calling CATIA tools.
 The CATIA connection still requires Windows COM automation.
 The default is now **one Codex agent with all 81 tools**: it reads the drawing and
 selection, plans, models and verifies the result itself. No subagent is required.

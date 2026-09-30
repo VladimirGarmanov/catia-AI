@@ -27,7 +27,8 @@ READINESS_PROMPT = (
     "If absent, report the exact MCP startup error and stop; do not repeat installation. "
     "If present, wait for the user task. Read attached drawings visually, ask for missing "
     "dimensions and units, then execute authorized modeling yourself through MCP, serially. "
-    "After every change update, measure, screenshot and verify. Never save or overwrite "
+    "After each feature update and measure; screenshot at meaningful feature checkpoints, "
+    "not after every primitive operation. Never save or overwrite "
     "without an explicit path and instruction."
 )
 
@@ -133,11 +134,19 @@ def discover_node(root: Path, state: dict, user: Path) -> Path | None:
 
 def discover_codex(root: Path, state: dict) -> Path | None:
     return first_file([
+        root.parent / "runtime" / "codex" / "codex.exe",
         root / ".local" / "codex" / "codex.cmd", state.get("codex"),
         shutil.which("codex.exe"), shutil.which("codex.cmd"),
         Path(os.environ.get("LOCALAPPDATA", str(root / ".local"))) / "codex-cli" / "codex.cmd",
         Path(os.environ.get("APPDATA", str(root / ".local"))) / "npm" / "codex.cmd",
     ])
+
+
+def project_python(root: Path) -> Path:
+    """Return this checkout's venv Python or the full install's bundled runtime."""
+    venv_python = root / ".venv" / "Scripts" / "python.exe"
+    bundled_python = root.parent / "runtime" / "python" / "python.exe"
+    return first_file((venv_python, bundled_python)) or venv_python.resolve()
 
 
 def pick_node() -> Path:
@@ -193,7 +202,7 @@ def session_overrides(root: Path) -> list[str]:
     quotes in npm's cmd launcher. Reject unsupported paths rather than execute
     an incorrectly quoted command. Complete tables also work on a clean install.
     """
-    python = str((root / ".venv" / "Scripts" / "python.exe").resolve())
+    python = str(project_python(root))
     if any(char in python for char in "'\r\n"):
         raise SetupError("Project path cannot contain apostrophes or newlines for CLI setup.")
     settings = ["agents.enabled=false"]
@@ -278,7 +287,7 @@ def install_project(runner: Runner) -> None:
 
 
 def diagnose(runner: Runner, codex: Path) -> None:
-    python = runner.root / ".venv" / "Scripts" / "python.exe"
+    python = project_python(runner.root)
     validate_session(read_entries(runner, codex), python)
     runner.say("Single-agent configuration OK: full catia-v5 enabled; inspection disabled. "
                "No role files or persistent Codex settings were changed.")
@@ -338,6 +347,8 @@ def main(argv: list[str] | None = None) -> int:
         if args.action == "install":
             install_project(runner)
         else:
+            if not project_python(ROOT).is_file():
+                raise SetupError("Python runtime is missing. Run INSTALL.cmd or the CATIA AI installer.")
             _, codex = get_runtime(runner, install=False)
             if args.action == "start":
                 drawing = args.drawing

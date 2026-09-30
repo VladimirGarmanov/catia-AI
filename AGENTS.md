@@ -7,9 +7,11 @@ execution, readiness checks or verification. The user explicitly chose this mode
 after custom executor sessions repeatedly inherited only inspection tools.
 Legacy files in .codex/agents and MULTI_AGENT.md do not mandate delegation.
 
-The user runs INSTALL.cmd, then START_CATIA_AI.cmd or START_WITH_DRAWING.cmd.
-The launcher enables the full catia-v5 MCP directly for the main session and
-disables subagents/inspection transport through command-line overrides. It does
+In a source checkout, the user runs INSTALL.cmd, then START_CATIA_AI.cmd or
+START_WITH_DRAWING.cmd. In the distributed full Windows installer, Python,
+Codex and dependencies are bundled; use the installed CATIA AI shortcut instead.
+Both launch paths enable the full catia-v5 MCP directly for the main session and
+disable subagents/inspection transport through command-line overrides. They do
 not rewrite .codex/config.toml or user settings. Do not change access yourself,
 run installers during modeling, bypass Windows policy or use direct COM scripts.
 
@@ -46,7 +48,8 @@ For an authorized modeling request:
 - For a new part call catia_new_part once, then record the actual new document
   identity and verify CATPart type. Bind later operations to it.
 - After each mutation run catia_update_part and verify the active document and
-  measurable dimensions. A successful screenshot alone does not prove geometry.
+  measurable dimensions. Take screenshots at meaningful feature checkpoints;
+  a successful screenshot alone does not prove geometry.
 - Finish and close an edited sketch before accepting it as complete.
 - catia_update_selected_feature acts on the CURRENT selected COM feature/sketch.
   Reread selection immediately before use; names are not saved object IDs.
