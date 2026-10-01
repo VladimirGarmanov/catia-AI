@@ -15,6 +15,8 @@ All dimensions are in millimeters, angles in degrees.
 from __future__ import annotations
 
 import json
+import math
+import ntpath
 from typing import Any
 
 from catia_mcp.connection import CATIAConnection
@@ -334,13 +336,23 @@ class GSDTools:
                 "name": "catia_gsd_revolve",
                 "description": (
                     "Revolve a profile curve around an axis line to create a surface of "
-                    "revolution. Angles in degrees."
+                    "revolution. The straight axis must lie in the profile plane. Pass a "
+                    "unique axis name or select one line and set axis_from_selection=true. "
+                    "Angles in degrees."
                 ),
                 "inputSchema": {
                     "type": "object",
                     "properties": {
                         "profile": {"type": "string", "description": "Profile element name"},
-                        "axis": {"type": "string", "description": "Axis line element name"},
+                        "axis": {
+                            "type": "string",
+                            "description": "Unique axis element name; omit when using selected axis",
+                        },
+                        "axis_from_selection": {
+                            "type": "boolean",
+                            "description": "Use the single currently selected straight line as exact axis Reference",
+                            "default": False,
+                        },
                         "angle1": {
                             "type": "number",
                             "description": "First angle limit (degrees)",
@@ -353,7 +365,7 @@ class GSDTools:
                         },
                         "name": {"type": "string", "description": "Optional name for the surface"},
                     },
-                    "required": ["profile", "axis"],
+                    "required": ["profile"],
                 },
             },
             {
@@ -958,15 +970,67 @@ class GSDTools:
 
     def _revolve(self, args: dict[str, Any]) -> str:
         self.conn.ensure_connected()
+        part = self.conn.get_active_part()
         profile_ref = self._ref(args["profile"])
-        axis_ref = self._ref(args["axis"])
+        axis_name = args.get("axis")
+        if args.get("axis_from_selection", False):
+            if axis_name:
+                raise ValueError("Omit axis when axis_from_selection=true")
+            axis_ref, selected_axis_name, selected_axis_type = self._selected_axis_reference(part)
+            axis_description = f"selected {selected_axis_name!r} ({selected_axis_type})"
+        else:
+            if not axis_name:
+                raise ValueError("Provide axis name or set axis_from_selection=true")
+            axis_ref = self._ref(axis_name)
+            axis_description = f"{axis_name!r}"
         angle1 = args.get("angle1", 360)
         angle2 = args.get("angle2", 0)
+        if any(isinstance(angle, bool) or not isinstance(angle, (int, float))
+               or not math.isfinite(angle) for angle in (angle1, angle2)):
+            raise ValueError("Revolution angles must be finite numbers")
         revol = self._factory().AddNewRevol(profile_ref, angle1, angle2, axis_ref)
         return self._finish(
             revol, args.get("name"),
-            f"Revolution surface created: {angle1}° around '{args['axis']}'.",
+            f"Revolution surface created: {angle1}° around {axis_description}.",
         )
+
+    def _selected_axis_reference(self, part: Any) -> tuple[Any, str, str]:
+        """Capture one selected linear support from the active CATPart."""
+        document = self.conn.active_document
+        selection = document.Selection
+        if selection.Count2 != 1:
+            raise ValueError("Select exactly one straight revolution axis in CATIA")
+        selected = selection.Item2(1)
+        selection_type = str(selected.Type)
+        allowed = {
+            "line2d", "axis2d", "line", "rectilineartridimfeatedge",
+            "rectilinearbidimfeatedge", "rectilinearmonodimfeatedge",
+        }
+        if selection_type.casefold() not in allowed:
+            raise ValueError(
+                f"Selected CATIA type {selection_type!r} is not a supported line/axis. "
+                "Select the axis geometry, not its parent feature."
+            )
+        owner = getattr(selected, "Document", None)
+        if owner is not None:
+            owner_path = str(getattr(owner, "FullName", ""))
+            active_path = str(getattr(document, "FullName", ""))
+            if owner_path and active_path and (
+                ntpath.normcase(ntpath.normpath(owner_path))
+                != ntpath.normcase(ntpath.normpath(active_path))
+            ):
+                raise ValueError("Selected revolution axis belongs to a different document")
+        value = selected.Value
+        axis_name = str(getattr(value, "Name", "<unnamed selected axis>"))
+        try:
+            reference = selected.Reference
+        except Exception:
+            reference = None
+        if reference is None:
+            reference = part.CreateReferenceFromObject(value)
+        if reference is None:
+            raise RuntimeError("CATIA could not create a Reference for the selected axis")
+        return reference, axis_name, selection_type
 
     def _fill(self, args: dict[str, Any]) -> str:
         self.conn.ensure_connected()

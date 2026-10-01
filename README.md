@@ -47,6 +47,9 @@ one-file installer is the easiest route. A source ZIP also supports
 `INSTALL.cmd` followed by `START_CATIA_AI.cmd` and needs Python 3.10+; that
 developer route can reuse Node/Codex or ask the user to select portable Node.
 Neither route changes PowerShell policy or requires Git/admin rights.
+After either route is installed, `UPDATE.cmd` downloads and applies the latest
+project files in place, preserving the local runtime and Codex config. It needs
+GitHub access; bundled runtime dependencies are updated by installing a newer EXE.
 `DIAGNOSE.cmd` creates a report without calling CATIA tools.
 The CATIA connection still requires Windows COM automation.
 The default is now **one Codex agent with all 81 tools**: it reads the drawing and

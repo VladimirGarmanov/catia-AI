@@ -84,9 +84,9 @@ class PartDesignTools:
             {
                 "name": "catia_shaft",
                 "description": (
-                    "Create a Shaft (revolution) from the last sketch. "
-                    "Revolves a 2D profile around an axis to create a solid of revolution. "
-                    "The sketch must contain a line to use as the revolution axis."
+                    "Create a Shaft from a sketch. CATIA normally uses an axis inside the sketch. "
+                    "To override it, select one straight axis in CATIA and set "
+                    "axis_from_selection=true; the tool assigns its live Reference to RevoluteAxis."
                 ),
                 "inputSchema": {
                     "type": "object",
@@ -99,6 +99,15 @@ class PartDesignTools:
                         "sketch_name": {
                             "type": "string",
                             "description": "Name of sketch to use.",
+                        },
+                        "axis_from_selection": {
+                            "type": "boolean",
+                            "description": (
+                                "Use the one currently selected straight axis/line. With no "
+                                "selection CATIA uses the sketch's own axis. A non-line or "
+                                "multiple selection is rejected."
+                            ),
+                            "default": True,
                         },
                     },
                 },
@@ -593,14 +602,127 @@ class PartDesignTools:
         if not isinstance(angle, (int, float)) or not math.isfinite(angle) or not 0 < angle <= 360:
             raise ValueError("Shaft angle must be finite and in (0, 360] degrees")
 
-        shaft = sf.AddNewShaft(sketch)
+        use_selection = args.get("axis_from_selection", True)
+        if not isinstance(use_selection, bool):
+            raise ValueError("axis_from_selection must be a boolean")
+        axis_info = None
+        if use_selection:
+            axis_info = self._selected_axis_reference(required=False)
+
+        try:
+            shaft = sf.AddNewShaft(sketch)
+        except Exception as exc:
+            axis_note = (
+                " A selected axis was captured, but AddNewShaft failed before CATIA could "
+                "accept the RevoluteAxis override; CATIA may require the sketch itself to "
+                "contain a valid axis."
+                if axis_info is not None else ""
+            )
+            raise RuntimeError(
+                f"CATIA could not create Shaft from sketch {sketch.Name!r}: {exc}.{axis_note}"
+            ) from exc
+        if axis_info is not None:
+            axis_reference, axis_name, selection_type = axis_info
+            try:
+                shaft.RevoluteAxis = axis_reference
+                if shaft.RevoluteAxis is None:
+                    raise RuntimeError("CATIA returned an empty RevoluteAxis after assignment")
+            except Exception as exc:
+                raise RuntimeError(
+                    f"Shaft {shaft.Name!r} was created, but CATIA rejected the selected "
+                    f"axis {axis_name!r} ({selection_type}): {exc}. Inspect the feature "
+                    "tree before retrying."
+                ) from exc
         shaft.FirstAngle.Value = angle
         if not math.isclose(float(shaft.FirstAngle.Value), angle, abs_tol=1e-7):
-            raise RuntimeError("Shaft was created, but CATIA did not apply the requested angle")
+            raise RuntimeError(
+                f"Shaft {shaft.Name!r} was created, but CATIA did not apply the requested "
+                "angle. Inspect the feature tree before retrying."
+            )
 
-        part.UpdateObject(shaft)
+        try:
+            part.UpdateObject(shaft)
+        except Exception as exc:
+            raise RuntimeError(
+                f"Shaft {shaft.Name!r} was created but UpdateObject failed: {exc}. "
+                "Inspect the feature tree before retrying."
+            ) from exc
+        try:
+            part.Update()
+        except Exception as exc:
+            raise RuntimeError(
+                f"Shaft {shaft.Name!r} was created, but full Part.Update failed: {exc}. "
+                "Inspect the model before retrying."
+            ) from exc
+        try:
+            up_to_date = bool(part.IsUpToDate(shaft))
+        except Exception as exc:
+            raise RuntimeError(
+                f"Shaft {shaft.Name!r} was updated, but CATIA status readback failed: {exc}. "
+                "Inspect the feature before retrying."
+            ) from exc
+        if not up_to_date:
+            raise RuntimeError(
+                f"Shaft {shaft.Name!r} exists but CATIA reports it is not up to date. "
+                "Inspect it before retrying."
+            )
         self.conn.refresh_display()
-        return f"Shaft (revolution) created: {angle}°. Feature: '{shaft.Name}'"
+        axis_message = (
+            f"selected axis {axis_name!r} ({selection_type})"
+            if axis_info is not None else "axis taken from the sketch"
+        )
+        return f"Shaft created: {angle}°; {axis_message}. Feature: '{shaft.Name}'"
+
+    def _selected_axis_reference(self, *, required: bool) -> tuple[Any, str, str] | None:
+        """Capture one currently selected straight axis as a short-lived COM Reference."""
+        document = self.conn.active_document
+        selection = document.Selection
+        count = selection.Count2
+        if count == 0:
+            if required:
+                raise ValueError("Select one straight revolution axis in CATIA first")
+            return None
+        if count != 1:
+            raise ValueError("Select exactly one straight revolution axis in CATIA")
+
+        selected = selection.Item2(1)
+        selection_type = str(selected.Type)
+        normalized_type = selection_type.casefold()
+        allowed = {
+            "line2d", "axis2d", "line", "rectilineartridimfeatedge",
+            "rectilinearbidimfeatedge", "rectilinearmonodimfeatedge",
+        }
+        if normalized_type not in allowed:
+            raise ValueError(
+                f"Selected CATIA type {selection_type!r} is not a supported straight axis. "
+                "Select a line/axis itself, not its sketch or parent feature."
+            )
+
+        try:
+            owner = selected.Document
+        except Exception:
+            owner = None
+        if owner is not None:
+            owner_path = str(getattr(owner, "FullName", ""))
+            active_path = str(getattr(document, "FullName", ""))
+            if owner_path and active_path and (
+                ntpath.normcase(ntpath.normpath(owner_path))
+                != ntpath.normcase(ntpath.normpath(active_path))
+            ):
+                raise ValueError("Selected revolution axis belongs to a different document")
+
+        value = selected.Value
+        name = str(getattr(value, "Name", "<unnamed selected axis>"))
+        part = self.conn.get_active_part()
+        try:
+            reference = selected.Reference
+        except Exception:
+            reference = None
+        if reference is None:
+            reference = part.CreateReferenceFromObject(value)
+        if reference is None:
+            raise RuntimeError("CATIA could not create a Reference for the selected axis")
+        return reference, name, selection_type
 
     def _groove(self, args: dict[str, Any]) -> str:
         self.conn.ensure_connected()
