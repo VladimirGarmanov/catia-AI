@@ -209,9 +209,11 @@ def session_overrides(root: Path) -> list[str]:
     for name, inspection in (("catia-v5", False), ("catia-v5-inspect", True)):
         args = "['-m','catia_mcp','--inspection-only']" if inspection else "['-m','catia_mcp']"
         enabled = "false" if inspection else "true"
+        # Approve CATIA MCP calls for this session without changing shell permissions.
+        approval = "" if inspection else ",default_tools_approval_mode='approve'"
         settings.append(
             f"mcp_servers.{name}={{command='{python}',args={args},"
-            f"enabled={enabled},required={enabled},startup_timeout_sec=60}}")
+            f"enabled={enabled},required={enabled},startup_timeout_sec=60{approval}}}")
     return [item for setting in settings for item in ("-c", setting)]
 
 

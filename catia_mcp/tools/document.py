@@ -182,8 +182,20 @@ class DocumentTools:
             except Exception as e:
                 rename_note = f" (rename to '{name}' not supported by this CATIA version: {e})"
         part_name = doc.Part.Name
+        if name and part_name != name and not rename_note:
+            rename_note = f" (requested Part.Name {name!r} was not applied by CATIA)"
         self.conn.refresh_display()
-        return f"Created new Part document: '{part_name}'{rename_note}"
+        return json.dumps({
+            "created": True,
+            "document_type": "CATPart",
+            "document_name": str(doc.Name),
+            "requested_name": name,
+            "name_field": "Part.Name",
+            "actual_name": str(part_name),
+            "rename_applied": not name or str(part_name) == name,
+            "saved": False,
+            "note": rename_note.strip() or "The document/tab name was not requested or changed.",
+        }, ensure_ascii=False)
 
     def _new_product(self, name: str | None = None) -> str:
         self.conn.ensure_connected()

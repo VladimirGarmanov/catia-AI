@@ -171,6 +171,24 @@ class CATIAConnection:
     def get_active_product(self) -> Any:
         """Get the Product object from the active ProductDocument."""
         doc = self.active_document
+        # PartDocument also exposes Product, so that attribute alone does not
+        # distinguish an assembly from a CATPart (including an unsaved one).
+        document_name = str(getattr(doc, "Name", "")).lower()
+        if document_name.endswith(".catpart"):
+            raise RuntimeError("WRONG_DOCUMENT_TYPE: Active document is a CATPart, not a CATProduct")
+        if document_name.endswith(".catproduct"):
+            return doc.Product
+        try:
+            doc.Part
+        except AttributeError:
+            pass
+        except Exception as exc:
+            raise RuntimeError(
+                "DOCUMENT_TYPE_UNVERIFIED: Cannot determine whether the active document "
+                f"is a CATPart or CATProduct: {exc}"
+            ) from exc
+        else:
+            raise RuntimeError("WRONG_DOCUMENT_TYPE: Active document is a CATPart, not a CATProduct")
         try:
             return doc.Product
         except Exception:

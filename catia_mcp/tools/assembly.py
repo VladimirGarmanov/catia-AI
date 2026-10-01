@@ -7,6 +7,9 @@ Contact, Offset, Angle), move components, and manage the product tree.
 from __future__ import annotations
 
 import json
+import math
+import ntpath
+from pathlib import Path
 from typing import Any
 
 from catia_mcp.connection import CATIAConnection
@@ -56,8 +59,8 @@ class AssemblyTools:
             {
                 "name": "catia_fix_constraint",
                 "description": (
-                    "Fix a component in place (remove all degrees of freedom). "
-                    "Typically applied to the base/reference component."
+                    "Fix the one currently selected assembly instance in place. "
+                    "Selection must be the component Product itself, not a face or feature."
                 ),
                 "inputSchema": {
                     "type": "object",
@@ -73,8 +76,9 @@ class AssemblyTools:
             {
                 "name": "catia_coincidence_constraint",
                 "description": (
-                    "Create a Coincidence constraint between two components. "
-                    "Aligns axes, planes, or points of two components."
+                    "Constrain two currently selected exact assembly supports in selection order. "
+                    "Each selected support must belong to the named component; names do not "
+                    "resolve face or plane references."
                 ),
                 "inputSchema": {
                     "type": "object",
@@ -89,11 +93,11 @@ class AssemblyTools:
                         },
                         "element1": {
                             "type": "string",
-                            "description": "Geometry element on component1 (e.g., 'xy plane', 'Face.1')",
+                            "description": "Unsupported legacy name target; select exact geometry instead",
                         },
                         "element2": {
                             "type": "string",
-                            "description": "Geometry element on component2",
+                            "description": "Unsupported legacy name target; select exact geometry instead",
                         },
                     },
                     "required": ["component1", "component2"],
@@ -103,7 +107,7 @@ class AssemblyTools:
                 "name": "catia_offset_constraint",
                 "description": (
                     "Create an Offset constraint between two faces/planes of two components. "
-                    "Maintains a constant distance between the reference elements."
+                    "Select both exact assembly supports in order before calling."
                 ),
                 "inputSchema": {
                     "type": "object",
@@ -126,7 +130,7 @@ class AssemblyTools:
             },
             {
                 "name": "catia_angle_constraint",
-                "description": "Create an Angle constraint between two components.",
+                "description": "Create an Angle constraint between two exact selected assembly supports.",
                 "inputSchema": {
                     "type": "object",
                     "properties": {
@@ -212,135 +216,265 @@ class AssemblyTools:
 
     def _add_component(self, file_path: str) -> str:
         product = self.conn.get_active_product()
+        source = Path(file_path)
+        if not source.is_file() or source.suffix.lower() not in {".catpart", ".catproduct"}:
+            raise FileNotFoundError(
+                f"No accessible CATPart/CATProduct file at {file_path!r} on this Windows computer"
+            )
         products = product.Products
-        component = products.AddComponentsFromFiles(
-            [file_path], "All"
-        )
+        previous_count = products.Count
+        products.AddComponentsFromFiles([str(source.resolve())], "All")
+        if products.Count != previous_count + 1:
+            raise RuntimeError(
+                f"CATIA returned from AddComponentsFromFiles, but Products.Count changed "
+                f"from {previous_count} to {products.Count}, not by one. Inspect the assembly "
+                "before retrying; the component may be missing or insertion partial."
+            )
+        component = products.Item(products.Count)
+        try:
+            product.Update()
+        except Exception as exc:
+            raise RuntimeError(
+                f"Component {component.Name!r} was inserted but assembly update failed: {exc}. "
+                "Inspect the assembly before retrying."
+            ) from exc
+        try:
+            actual_path = str(component.ReferenceProduct.Parent.FullName)
+        except Exception as exc:
+            raise RuntimeError(
+                f"Component {component.Name!r} was inserted but its source document "
+                f"could not be verified: {exc}. Inspect the assembly before retrying."
+            ) from exc
+        if ntpath.normcase(ntpath.normpath(actual_path)) != ntpath.normcase(
+            ntpath.normpath(str(source.resolve()))
+        ):
+            raise RuntimeError(
+                f"Component {component.Name!r} was inserted, but CATIA reports source "
+                f"{actual_path!r}, expected {str(source.resolve())!r}."
+            )
         self.conn.refresh_display()
-        return f"Component added from: {file_path}"
+        return (f"Component added: instance={component.Name!r}, "
+                f"part_number={component.PartNumber!r}, source={actual_path!r}")
 
     def _add_new_part(self, name: str | None = None) -> str:
         product = self.conn.get_active_product()
         products = product.Products
-        new_product = products.AddNewProduct("Part")
-        if name:
-            new_product.Name = name
+        previous_count = products.Count
+        new_product = products.AddNewComponent("Part", name or "NewPart")
+        if products.Count != previous_count + 1:
+            raise RuntimeError(
+                "CATIA returned from AddNewComponent, but the assembly component count "
+                "did not increase by exactly one. Inspect the assembly before retrying."
+            )
+        actual_part_number = str(new_product.PartNumber)
+        if name and actual_part_number != name:
+            raise RuntimeError(
+                f"Part component was created, but PartNumber is {actual_part_number!r} "
+                f"instead of {name!r}. Inspect it before retrying."
+            )
+        try:
+            new_product.ReferenceProduct.Parent.Part
+        except Exception as exc:
+            raise RuntimeError(
+                f"Product {new_product.Name!r} was created but the referenced CATPart "
+                f"could not be verified: {exc}. Inspect before retrying."
+            ) from exc
+        product.Update()
         self.conn.refresh_display()
-        return f"New Part component created in assembly: '{new_product.Name}'"
+        return (f"New unsaved CATPart component created: instance={new_product.Name!r}, "
+                f"part_number={actual_part_number!r}")
+
+    def _selected_assembly_references(self, expected_count: int,
+                                      component_names: list[str], *,
+                                      require_component: bool = False) -> list[Any]:
+        document = self.conn.active_document
+        product = self.conn.get_active_product()
+        selection = document.Selection
+        if selection.Count2 != expected_count:
+            raise ValueError(
+                f"Select exactly {expected_count} assembly instance support(s) in CATIA "
+                "before creating a constraint"
+            )
+        references = []
+        for position, expected_name in enumerate(component_names, start=1):
+            selected = selection.Item2(position)
+            selected_type = str(selected.Type)
+            is_product = selected_type.lower() == "product"
+            if require_component and not is_product:
+                raise ValueError(
+                    f"Selection {position} is {selected_type!r}, not a component Product"
+                )
+            if not require_component and is_product:
+                raise ValueError(
+                    f"Selection {position} is a whole Product; select its exact geometric support"
+                )
+            try:
+                # For Fix, Value is the explicitly selected Product itself.
+                # For geometric supports, LeafProduct identifies its instance.
+                leaf_name = str(
+                    selected.Value.Name if require_component else selected.LeafProduct.Name
+                )
+            except Exception as exc:
+                raise RuntimeError(
+                    f"Cannot verify assembly instance for selection {position}: {exc}"
+                ) from exc
+            if leaf_name != expected_name:
+                raise ValueError(
+                    f"Selection {position} belongs to instance {leaf_name!r}, "
+                    f"expected {expected_name!r}"
+                )
+            try:
+                reference = selected.Reference
+                if reference is None:
+                    raise ValueError("CATIA returned an empty Reference")
+                references.append(reference)
+            except Exception as exc:
+                raise RuntimeError(
+                    f"Selection {position} has no exact assembly Reference: {exc}"
+                ) from exc
+        return references
 
     def _fix_constraint(self, component_name: str) -> str:
         product = self.conn.get_active_product()
         constraints = product.Connections("CATIAConstraints")
-
-        component = product.Products.Item(component_name)
-        cst = constraints.AddMonoEltCst(0, component)  # Fix constraint
+        reference = self._selected_assembly_references(
+            1, [component_name], require_component=True)[0]
+        cst = constraints.AddMonoEltCst(0, reference)  # catCstTypeReference
         cst.Name = f"Fix.{component_name}"
-
+        product.Update()
         self.conn.refresh_display()
-        return f"Fix constraint applied to '{component_name}'"
+        return (f"Fix constraint {cst.Name!r} created for selected instance "
+                f"{component_name!r}; status={getattr(cst, 'Status', 'unavailable')!r}. "
+                "Verify instance pose and solved status in CATIA.")
 
     def _coincidence_constraint(self, args: dict[str, Any]) -> str:
+        if args.get("element1") is not None or args.get("element2") is not None:
+            raise ValueError(
+                "element1/element2 names are not exact support references. "
+                "Select both supports in CATIA and omit these arguments."
+            )
         product = self.conn.get_active_product()
         constraints = product.Connections("CATIAConstraints")
 
-        comp1 = product.Products.Item(args["component1"])
-        comp2 = product.Products.Item(args["component2"])
-
-        cst = constraints.AddBiEltCst(0, comp1, comp2)  # Coincidence
+        refs = self._selected_assembly_references(
+            2, [args["component1"], args["component2"]])
+        cst = constraints.AddBiEltCst(2, *refs)  # catCstTypeOn
+        product.Update()
         self.conn.refresh_display()
         return (
-            f"Coincidence constraint created between "
-            f"'{args['component1']}' and '{args['component2']}'"
+            f"Coincidence constraint created between the two selected supports; "
+            f"status={getattr(cst, 'Status', 'unavailable')!r}. "
+            "Verify supported geometry and orientation in CATIA."
         )
 
     def _offset_constraint(self, args: dict[str, Any]) -> str:
         product = self.conn.get_active_product()
         constraints = product.Connections("CATIAConstraints")
 
-        comp1 = product.Products.Item(args["component1"])
-        comp2 = product.Products.Item(args["component2"])
-
-        cst = constraints.AddBiEltCst(1, comp1, comp2)  # Offset
+        offset = args["offset"]
+        if not isinstance(offset, (int, float)) or not math.isfinite(offset) or offset < 0:
+            raise ValueError("Offset must be a finite nonnegative distance")
+        refs = self._selected_assembly_references(
+            2, [args["component1"], args["component2"]])
+        cst = constraints.AddBiEltCst(1, *refs)  # catCstTypeDistance
         cst.Dimension.Value = args["offset"]
-
+        product.Update()
+        if not math.isclose(float(cst.Dimension.Value), offset, abs_tol=1e-7):
+            raise RuntimeError("Offset constraint was created, but dimension readback differs")
         self.conn.refresh_display()
         return (
-            f"Offset constraint: {args['offset']} mm between "
-            f"'{args['component1']}' and '{args['component2']}'"
+            f"Offset constraint created between selected supports; dimension={offset} "
+            f"(CATIA units). Verify physical gap and orientation in CATIA."
         )
 
     def _angle_constraint(self, args: dict[str, Any]) -> str:
         product = self.conn.get_active_product()
         constraints = product.Connections("CATIAConstraints")
 
-        comp1 = product.Products.Item(args["component1"])
-        comp2 = product.Products.Item(args["component2"])
-
-        cst = constraints.AddBiEltCst(2, comp1, comp2)  # Angle
+        angle = args["angle"]
+        if not isinstance(angle, (int, float)) or not math.isfinite(angle) or not 0 <= angle <= 180:
+            raise ValueError("Assembly angle must be finite and between 0 and 180 degrees")
+        refs = self._selected_assembly_references(
+            2, [args["component1"], args["component2"]])
+        cst = constraints.AddBiEltCst(6, *refs)  # catCstTypeAngle
         cst.Dimension.Value = args["angle"]
-
+        product.Update()
+        if not math.isclose(float(cst.Dimension.Value), angle, abs_tol=1e-7):
+            raise RuntimeError("Angle constraint was created, but dimension readback differs")
         self.conn.refresh_display()
         return (
-            f"Angle constraint: {args['angle']}° between "
-            f"'{args['component1']}' and '{args['component2']}'"
+            f"Angle constraint created between selected supports; dimension={angle}°. "
+            "Verify orientation and solver status in CATIA."
         )
 
     def _move_component(self, args: dict[str, Any]) -> str:
-        import math
         product = self.conn.get_active_product()
-        component = product.Products.Item(args["component_name"])
-
-        # Get the current position matrix (4x3 = 12 values in CATIA)
+        products = product.Products
+        component_name = args["component_name"]
+        matches = [products.Item(index) for index in range(1, products.Count + 1)
+                   if str(products.Item(index).Name) == component_name]
+        if len(matches) != 1:
+            raise ValueError(
+                f"Component instance name {component_name!r} matched {len(matches)} "
+                "instances. Use a unique instance name before moving anything."
+            )
+        component = matches[0]
+        values = [args.get(key, 0) for key in ("tx", "ty", "tz", "rx", "ry", "rz")]
+        if any(isinstance(value, bool) or not isinstance(value, (int, float))
+               or not math.isfinite(value) for value in values):
+            raise ValueError("Translation and rotation increments must be finite numbers")
         position = component.Position
-        matrix = [0.0] * 12
-        position.GetComponents(matrix)
+        output = [0.0] * 12
+        returned = position.GetComponents(output)
+        old = list(returned) if isinstance(returned, (list, tuple)) and len(returned) == 12 else output
+        if len(old) != 12 or any(not math.isfinite(float(value)) for value in old):
+            raise RuntimeError("CATIA did not return a valid 12-component Position")
+        # Position stores local X, Y, Z axes as columns, followed by translation.
+        old_rotation = [[old[col * 3 + row] for col in range(3)] for row in range(3)]
+        for first in range(3):
+            for second in range(3):
+                dot = sum(old_rotation[row][first] * old_rotation[row][second]
+                          for row in range(3))
+                if not math.isclose(dot, float(first == second), abs_tol=1e-5):
+                    raise RuntimeError("CATIA returned a non-orthonormal component pose")
+        determinant = (
+            old_rotation[0][0] * (old_rotation[1][1] * old_rotation[2][2] - old_rotation[1][2] * old_rotation[2][1])
+            - old_rotation[0][1] * (old_rotation[1][0] * old_rotation[2][2] - old_rotation[1][2] * old_rotation[2][0])
+            + old_rotation[0][2] * (old_rotation[1][0] * old_rotation[2][1] - old_rotation[1][1] * old_rotation[2][0])
+        )
+        if not math.isclose(determinant, 1.0, abs_tol=1e-5):
+            raise RuntimeError("CATIA returned an invalid or mirrored component pose")
 
-        # Apply translation (values 9, 10, 11 are tx, ty, tz)
-        matrix[9] += args.get("tx", 0)
-        matrix[10] += args.get("ty", 0)
-        matrix[11] += args.get("tz", 0)
-
-        # Apply rotations if specified (simplified: sequential Euler rotations)
-        rx = math.radians(args.get("rx", 0))
-        ry = math.radians(args.get("ry", 0))
-        rz = math.radians(args.get("rz", 0))
-
-        if rx != 0 or ry != 0 or rz != 0:
-            # Build rotation matrix (Rz * Ry * Rx convention)
-            cx, sx = math.cos(rx), math.sin(rx)
-            cy, sy = math.cos(ry), math.sin(ry)
-            cz, sz = math.cos(rz), math.sin(rz)
-
-            # Rotation matrix components
-            r00 = cy * cz
-            r01 = cz * sx * sy - cx * sz
-            r02 = sx * sz + cx * cz * sy
-            r10 = cy * sz
-            r11 = cx * cz + sx * sy * sz
-            r12 = cx * sy * sz - cz * sx
-            r20 = -sy
-            r21 = cy * sx
-            r22 = cx * cy
-
-            # Apply to current rotation (first 9 elements)
-            old = matrix[:9]
-            matrix[0] = r00 * old[0] + r01 * old[3] + r02 * old[6]
-            matrix[1] = r00 * old[1] + r01 * old[4] + r02 * old[7]
-            matrix[2] = r00 * old[2] + r01 * old[5] + r02 * old[8]
-            matrix[3] = r10 * old[0] + r11 * old[3] + r12 * old[6]
-            matrix[4] = r10 * old[1] + r11 * old[4] + r12 * old[7]
-            matrix[5] = r10 * old[2] + r11 * old[5] + r12 * old[8]
-            matrix[6] = r20 * old[0] + r21 * old[3] + r22 * old[6]
-            matrix[7] = r20 * old[1] + r21 * old[4] + r22 * old[7]
-            matrix[8] = r20 * old[2] + r21 * old[5] + r22 * old[8]
-
-        position.SetComponents(matrix)
+        rx, ry, rz = (math.radians(value) for value in values[3:])
+        cx, sx = math.cos(rx), math.sin(rx)
+        cy, sy = math.cos(ry), math.sin(ry)
+        cz, sz = math.cos(rz), math.sin(rz)
+        delta = [
+            [cy * cz, cz * sx * sy - cx * sz, sx * sz + cx * cz * sy],
+            [cy * sz, cx * cz + sx * sy * sz, cx * sy * sz - cz * sx],
+            [-sy, cy * sx, cx * cy],
+        ]
+        rotation = [[sum(delta[row][k] * old_rotation[k][col] for k in range(3))
+                     for col in range(3)] for row in range(3)]
+        target = [rotation[row][col] for col in range(3) for row in range(3)]
+        target.extend(old[9 + index] + values[index] for index in range(3))
+        position.SetComponents(target)
+        product.Update()
+        actual = [0.0] * 12
+        returned = position.GetComponents(actual)
+        actual = list(returned) if isinstance(returned, (list, tuple)) and len(returned) == 12 else actual
+        if any(not math.isclose(float(actual[i]), target[i], abs_tol=1e-4)
+               for i in range(12)):
+            raise RuntimeError(
+                "SetComponents returned, but the solved assembly pose differs from the "
+                "requested pose. The component may be constrained; inspect before retrying."
+            )
         self.conn.refresh_display()
 
         return (
-            f"Component '{args['component_name']}' moved: "
-            f"T=({args.get('tx', 0)}, {args.get('ty', 0)}, {args.get('tz', 0)}) mm, "
-            f"R=({args.get('rx', 0)}, {args.get('ry', 0)}, {args.get('rz', 0)})°"
+            f"Component {args['component_name']!r} pose increment applied and read back: "
+            f"translation in parent axes={values[:3]} mm; rotation about component origin "
+            f"using parent axes Rz*Ry*Rx={values[3:]} degrees."
         )
 
     def _list_components(self) -> str:

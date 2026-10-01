@@ -6,6 +6,7 @@ Distance, angle, inertia, bounding box, and part property queries.
 from __future__ import annotations
 
 import json
+import math
 from typing import Any
 
 from catia_mcp.connection import CATIAConnection
@@ -22,8 +23,9 @@ class MeasurementTools:
             {
                 "name": "catia_measure_distance",
                 "description": (
-                    "Measure the minimum distance between two geometry elements. "
-                    "Returns distance in mm."
+                    "Measure minimum distance between two uniquely named geometry elements "
+                    "in the active CATPart. CATIA's raw length unit needs Windows calibration; "
+                    "the result is not labelled mm until then. Search clears the current selection."
                 ),
                 "inputSchema": {
                     "type": "object",
@@ -43,8 +45,9 @@ class MeasurementTools:
             {
                 "name": "catia_get_inertia",
                 "description": (
-                    "Get inertia properties of the active part: volume, surface area, "
-                    "center of gravity, mass (if density is defined), moments of inertia."
+                    "Read MainBody volume and area in SI units; optional mass uses a supplied "
+                    "uniform density. An inertia tensor is reported only when available and "
+                    "scope-compatible."
                 ),
                 "inputSchema": {
                     "type": "object",
@@ -59,8 +62,8 @@ class MeasurementTools:
             {
                 "name": "catia_get_bounding_box",
                 "description": (
-                    "Get the bounding box of the active part. "
-                    "Returns min/max coordinates in mm."
+                    "Report that exact active-part AABB measurement is not yet supported. "
+                    "No fake min/max coordinates are returned."
                 ),
                 "inputSchema": {
                     "type": "object",
@@ -114,7 +117,7 @@ class MeasurementTools:
             },
         ]
 
-    def execute(self, tool_name: str, arguments: dict[str, Any]) -> str:
+    def execute(self, tool_name: str, arguments: dict[str, Any]) -> str | dict[str, Any]:
         match tool_name:
             case "catia_measure_distance":
                 return self._measure_distance(arguments["element1"], arguments["element2"])
@@ -134,107 +137,93 @@ class MeasurementTools:
     def _measure_distance(self, elem1_name: str, elem2_name: str) -> str:
         self.conn.ensure_connected()
         part = self.conn.get_active_part()
-        spa = self.conn.app.GetWorkbench("SPAWorkbench")
+        doc = self.conn.active_document
+        spa = doc.GetWorkbench("SPAWorkbench")
 
-        # Create references from names
-        sel = self.conn.hso
-        sel.Clear()
-
-        # Search for the elements
-        sel.Search(f"Name={elem1_name},all")
-        if sel.Count == 0:
-            raise RuntimeError(f"Element '{elem1_name}' not found")
-        ref1 = part.CreateReferenceFromObject(sel.Item(1).Value)
-
-        sel.Clear()
-        sel.Search(f"Name={elem2_name},all")
-        if sel.Count == 0:
-            raise RuntimeError(f"Element '{elem2_name}' not found")
-        ref2 = part.CreateReferenceFromObject(sel.Item(1).Value)
-        sel.Clear()
+        sel = doc.Selection
+        references = []
+        for name in (elem1_name, elem2_name):
+            if not name or any(char in name for char in ",*=\r\n"):
+                raise ValueError("Element names must be nonempty literal names without search syntax")
+            try:
+                sel.Clear()
+                sel.Search(f"Name={name},all")
+                count = sel.Count2
+                selected = sel.Item2(1) if count == 1 else None
+                if count != 1:
+                    raise RuntimeError(
+                        f"Element {name!r} matched {count} objects; exact target is ambiguous"
+                    )
+                references.append(part.CreateReferenceFromObject(selected.Value))
+            finally:
+                sel.Clear()
 
         # Measure
-        measurable = spa.GetMeasurable(ref1)
-        distance = measurable.GetMinimumDistance(ref2)
+        measurable = spa.GetMeasurable(references[0])
+        distance = measurable.GetMinimumDistance(references[1])
 
-        return f"Minimum distance between '{elem1_name}' and '{elem2_name}': {distance:.4f} mm"
+        return json.dumps({
+            "minimum_distance_raw": distance,
+            "unit": "CATIA_SPA_length_unverified",
+            "target_names": [elem1_name, elem2_name],
+            "document": doc.Name,
+            "selection_cleared": True,
+            "note": "Calibrate against known geometry on this CATIA installation before treating the raw value as mm.",
+        })
 
-    def _get_inertia(self, density: float | None = None) -> str:
+    def _get_inertia(self, density: float | None = None) -> dict[str, Any]:
         self.conn.ensure_connected()
-        spa = self.conn.app.GetWorkbench("SPAWorkbench")
+        if density is not None and (
+            isinstance(density, bool) or not isinstance(density, (int, float))
+            or not math.isfinite(density) or density <= 0
+        ):
+            raise ValueError("density must be finite and positive in kg/m^3")
+        doc = self.conn.active_document
+        spa = doc.GetWorkbench("SPAWorkbench")
         part = self.conn.get_active_part()
         body = self.conn.get_active_part_body()
         ref = part.CreateReferenceFromObject(body)
-
         measurable = spa.GetMeasurable(ref)
-
-        result: dict[str, Any] = {}
-
+        result: dict[str, Any] = {"scope": "MainBody", "document": doc.Name,
+                                  "unavailable_fields": {}}
         try:
-            result["volume_mm3"] = round(measurable.Volume, 4)
-            result["volume_cm3"] = round(measurable.Volume / 1000, 4)
-        except Exception:
-            pass
-
+            volume_m3 = float(measurable.Volume)
+            if not math.isfinite(volume_m3) or volume_m3 < 0:
+                raise ValueError(f"Invalid CATIA volume: {volume_m3}")
+            result.update(volume_m3=volume_m3, volume_mm3=volume_m3 * 1e9)
+            if density is not None:
+                result.update(mass_kg=density * volume_m3, density_kg_m3=density,
+                              density_source="explicit uniform user input")
+        except Exception as exc:
+            result["unavailable_fields"]["volume"] = str(exc)
         try:
-            result["area_mm2"] = round(measurable.Area, 4)
-            result["area_cm2"] = round(measurable.Area / 100, 4)
-        except Exception:
-            pass
+            area_m2 = float(measurable.Area)
+            if not math.isfinite(area_m2) or area_m2 < 0:
+                raise ValueError(f"Invalid CATIA area: {area_m2}")
+            result.update(area_m2=area_m2, area_mm2=area_m2 * 1e6)
+        except Exception as exc:
+            result["unavailable_fields"]["area"] = str(exc)
+        result["unavailable_fields"]["inertia_matrix"] = (
+            "MainBody tensor and its reference point are not available from Measurable; "
+            "Product.GetTechnologicalObject('Inertia') has a different scope."
+        )
+        result["unavailable_fields"]["center_of_gravity"] = (
+            "Coordinate units and COM output marshalling require Windows validation."
+        )
+        if "volume_m3" not in result and "area_m2" not in result:
+            return {"ok": False, "code": "MEASUREMENT_UNAVAILABLE", "data": result,
+                    "message": "CATIA provided neither volume nor area for MainBody"}
+        return {"ok": True, "code": "PARTIAL_MEASUREMENT", "data": result}
 
-        try:
-            cog = [0.0, 0.0, 0.0]
-            measurable.GetCOG(cog)
-            result["center_of_gravity_mm"] = {
-                "x": round(cog[0], 4),
-                "y": round(cog[1], 4),
-                "z": round(cog[2], 4),
-            }
-        except Exception:
-            pass
-
-        if density and "volume_mm3" in result:
-            volume_m3 = result["volume_mm3"] * 1e-9  # mm3 to m3
-            mass_kg = density * volume_m3
-            result["mass_kg"] = round(mass_kg, 6)
-            result["mass_g"] = round(mass_kg * 1000, 3)
-            result["density_kg_m3"] = density
-
-        try:
-            inertia = [0.0] * 9
-            measurable.GetInertia(inertia)
-            result["inertia_matrix"] = [
-                [round(inertia[0], 4), round(inertia[1], 4), round(inertia[2], 4)],
-                [round(inertia[3], 4), round(inertia[4], 4), round(inertia[5], 4)],
-                [round(inertia[6], 4), round(inertia[7], 4), round(inertia[8], 4)],
-            ]
-        except Exception:
-            pass
-
-        return json.dumps(result, indent=2)
-
-    def _get_bounding_box(self) -> str:
+    def _get_bounding_box(self) -> dict[str, Any]:
         self.conn.ensure_connected()
-        spa = self.conn.app.GetWorkbench("SPAWorkbench")
-        part = self.conn.get_active_part()
-        body = self.conn.get_active_part_body()
-        ref = part.CreateReferenceFromObject(body)
-
-        measurable = spa.GetMeasurable(ref)
-
-        bbox = [0.0] * 6  # xmin, ymin, zmin, xmax, ymax, zmax
-        measurable.GetBoundingBox(bbox)
-
-        result = {
-            "min": {"x": round(bbox[0], 4), "y": round(bbox[1], 4), "z": round(bbox[2], 4)},
-            "max": {"x": round(bbox[3], 4), "y": round(bbox[4], 4), "z": round(bbox[5], 4)},
-            "dimensions": {
-                "length_x": round(bbox[3] - bbox[0], 4),
-                "length_y": round(bbox[4] - bbox[1], 4),
-                "length_z": round(bbox[5] - bbox[2], 4),
-            },
+        self.conn.get_active_part()
+        return {
+            "ok": False, "code": "UNSUPPORTED_EXACT_BOUNDING_BOX",
+            "message": "Measurable.GetBoundingBox is not a documented CATIA V5 method. "
+                       "Exact AABB requires a validated geometry-extremum implementation; "
+                       "no dimensions were measured or inferred.",
         }
-        return json.dumps(result, indent=2)
 
     def _get_parameters(self, name_filter: str | None = None) -> str:
         self.conn.ensure_connected()

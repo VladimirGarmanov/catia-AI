@@ -222,7 +222,8 @@ class ContextTools:
             selected_type = str(selected.Type)
             if selected_type not in {
                 "Pad", "Prism", "Pocket", "Sketch", "Hole", "Shaft", "Groove",
-                "Chamfer", "EdgeFillet", "Fillet",
+                "Chamfer", "EdgeFillet", "Fillet", "HybridShapeLoft",
+                "HybridShapeMultiSectionsSurface",
             }:
                 return self._error(
                     "UNSUPPORTED_SELECTION_TYPE",
@@ -230,12 +231,32 @@ class ContextTools:
                 )
             value = selected.Value
             name = str(value.Name)
-            part.UpdateObject(value)
-            part.Update()
-            if not part.IsUpToDate(value):
-                return self._error("UPDATE_FAILED", f"CATIA reports {name!r} is not up to date")
         except Exception as exc:
-            return self._error("UPDATE_FAILED", f"Could not update selected feature: {exc}")
+            return self._error("SELECTION_TARGET_FAILED", f"Cannot validate selected feature: {exc}")
+        try:
+            part.UpdateObject(value)
+        except Exception as exc:
+            return self._error(
+                "SELECTED_FEATURE_UPDATE_FAILED",
+                f"CATIA failed to update selected feature {name!r}: {exc}",
+            )
+        try:
+            part.Update()
+        except Exception as exc:
+            return self._error(
+                "FULL_PART_UPDATE_FAILED",
+                f"Selected feature {name!r} was updated, but full Part.Update failed: {exc}. "
+                "Inspect the current model before retrying.",
+            )
+        try:
+            up_to_date = bool(part.IsUpToDate(value))
+        except Exception as exc:
+            return self._error(
+                "UPDATE_STATUS_UNAVAILABLE",
+                f"CATIA updated {name!r}, but its status could not be read: {exc}",
+            )
+        if not up_to_date:
+            return self._error("UPDATE_FAILED", f"CATIA reports {name!r} is not up to date")
         return self._success({"feature": name, "selection_type": selected_type,
                               "up_to_date": True, "saved": False})
 
@@ -285,14 +306,19 @@ class ContextTools:
             if owner is not None:
                 item["document"] = self._document_label(owner)
 
-            leaf_product = self._optional_attr(
-                selected, "LeafProduct", warnings, f"Selection position {position} leaf product")
-            if leaf_product is not None:
-                product_name = self._optional_attr(
-                    leaf_product, "Name", warnings,
-                    f"Selection position {position} leaf product name")
-                if product_name is not None:
-                    item["leaf_product_name"] = str(product_name)
+            try:
+                leaf_product = selected.LeafProduct
+                product_name = str(leaf_product.Name)
+                if product_name == "InvalidLeafProduct":
+                    item["leaf_product_name"] = None
+                    item["leaf_product_status"] = "not_applicable"
+                else:
+                    item["leaf_product_name"] = product_name
+                    item["leaf_product_status"] = "available"
+            except Exception as exc:
+                item["leaf_product_name"] = None
+                item["leaf_product_status"] = "unavailable"
+                warnings.append(f"Selection position {position} leaf product unavailable: {exc}")
             items.append(item)
 
         return {

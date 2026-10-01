@@ -7,6 +7,7 @@ All dimensions are in millimeters. CATIA COM API uses millimeters natively.
 from __future__ import annotations
 
 import json
+import math
 from typing import Any
 
 from catia_mcp.connection import CATIAConnection
@@ -19,6 +20,22 @@ PLANE_MAP = {
     "xz": "PlaneZX",  # alias
 }
 
+# CATIA V5 Automation CatConstraintType: (enum value, number of elements).
+# Keep these explicit: pywin32 constants are not available in offline tests.
+# Source: CAA V5 MecModInterfaces / enum_CatConstraintType_27587.htm.
+CONSTRAINT_SPECS = {
+    "distance": (1, 2),       # catCstTypeDistance; one-line length uses 5 below
+    "radius": (14, 1),        # catCstTypeRadius
+    "angle": (6, 2),          # catCstTypeAngle
+    "coincidence": (2, 2),    # catCstTypeOn
+    "tangent": (4, 2),        # catCstTypeTangency
+    "perpendicular": (11, 2), # catCstTypePerpendicularity
+    "parallel": (8, 2),       # catCstTypeParallelism
+    "horizontal": (10, 1),    # catCstTypeHorizontality
+    "vertical": (13, 1),      # catCstTypeVerticality
+    "fix": (0, 1),            # catCstTypeReference
+}
+
 
 class SketcherTools:
     """Tools for 2D sketch operations in CATIA V5."""
@@ -27,6 +44,11 @@ class SketcherTools:
         self.conn = connection
         self._active_sketch: Any | None = None
         self._active_factory: Any | None = None
+        self._active_document_identity: tuple[str, str] | None = None
+
+    @staticmethod
+    def _document_identity(document: Any) -> tuple[str, str]:
+        return (str(document.Name), str(getattr(document, "FullName", "")))
 
     def get_tool_definitions(self) -> list[dict[str, Any]]:
         return [
@@ -186,9 +208,14 @@ class SketcherTools:
             {
                 "name": "catia_sketch_constraint",
                 "description": (
-                    "Add a dimensional constraint to the active sketch. "
+                    "Add a dimensional or geometric constraint to the active sketch. "
                     "Supported types: distance, radius, angle, coincidence, tangent, "
-                    "perpendicular, parallel, horizontal, vertical, fix."
+                    "perpendicular, parallel, horizontal, vertical, fix. "
+                    "Refresh catia_sketch_get_geometry immediately before using indices; "
+                    "they are transient positions, not stable IDs. Radius needs a circle/arc. "
+                    "Distance with one element sets a line's length; with two it sets their "
+                    "separation. Angle needs two lines. Close the sketch and update the part "
+                    "after editing to check the solve."
                 ),
                 "inputSchema": {
                     "type": "object",
@@ -208,14 +235,16 @@ class SketcherTools:
                         },
                         "geometry_index_1": {
                             "type": "integer",
+                            "minimum": 1,
                             "description": "Index of first geometry element (1-based, from sketch geometry list)",
                         },
                         "geometry_index_2": {
                             "type": "integer",
+                            "minimum": 1,
                             "description": "Index of second geometry element (for relational constraints)",
                         },
                     },
-                    "required": ["type"],
+                    "required": ["type", "geometry_index_1"],
                 },
             },
             {
@@ -277,9 +306,17 @@ class SketcherTools:
             raise RuntimeError(
                 "No active sketch. Use catia_create_sketch first to open a sketch."
             )
+        if self._active_document_identity != self._document_identity(self.conn.active_document):
+            raise RuntimeError(
+                "Active CATIA document changed while a sketch was open. "
+                "Return to the original document before editing or closing that sketch."
+            )
 
     def _create_sketch(self, plane: str = "xy") -> str:
+        if self._active_sketch is not None:
+            raise RuntimeError("SKETCH_ALREADY_OPEN: close the current sketch before creating another")
         self.conn.ensure_connected()
+        document = self.conn.active_document
         part = self.conn.get_active_part()
         body = self.conn.get_active_part_body()
 
@@ -295,22 +332,34 @@ class SketcherTools:
 
         # Create the sketch on the plane
         sketches = body.Sketches
+        previous_count = sketches.Count
         sketch = sketches.Add(ref)
+        if sketches.Count != previous_count + 1:
+            raise RuntimeError(
+                "CATIA returned a new sketch but the target body sketch count did not increase "
+                "by one. Inspect the model tree before retrying."
+            )
 
         # Open the sketch for editing
         self._active_sketch = sketch
+        self._active_document_identity = self._document_identity(document)
         self._active_factory = sketch.OpenEdition()
 
         plane_names = {"xy": "XY (front)", "yz": "YZ (right)", "zx": "ZX (top)"}
-        return f"Sketch created on {plane_names.get(plane_key, plane)} plane. Ready for geometry."
+        return (
+            f"Sketch {sketch.Name!r} created in {document.Name!r}/{body.Name!r} "
+            f"on {plane_names.get(plane_key, plane)} plane; editing=true. "
+            "Use fresh catia_sketch_get_geometry indices for constraints."
+        )
 
     def _close_sketch(self) -> str:
         self._ensure_sketch_open()
         sketch = self._active_sketch
         sketch.CloseEdition()
-        self.conn.get_active_part().UpdateObject(sketch)
         self._active_sketch = None
         self._active_factory = None
+        self._active_document_identity = None
+        self.conn.get_active_part().UpdateObject(sketch)
         self.conn.refresh_display()
         return "Sketch closed. You can now apply Part Design features (pad, pocket, etc.)."
 
@@ -352,15 +401,25 @@ class SketcherTools:
         start_angle: float, end_angle: float,
     ) -> str:
         self._ensure_sketch_open()
+        values = (cx, cy, radius, start_angle, end_angle)
+        if any(isinstance(item, bool) or not isinstance(item, (int, float))
+               or not math.isfinite(item) for item in values):
+            raise ValueError("Arc coordinates, radius, and angles must be finite numbers")
+        if radius <= 0:
+            raise ValueError("Arc radius must be positive")
+        raw_span = end_angle - start_angle
+        span = raw_span % 360
+        if span == 0 or abs(raw_span) >= 360:
+            raise ValueError("Arc must sweep strictly between 0 and 360 degrees; use circle for 360")
         factory = self._active_factory
-        import math
-        # CATIA CreateArc expects angles in radians
-        start_rad = math.radians(start_angle)
-        end_rad = math.radians(end_angle)
-        factory.CreateArc(cx, cy, radius, start_rad, end_rad)
+        normalized_start = start_angle % 360
+        start_rad = math.radians(normalized_start)
+        end_rad = math.radians(normalized_start + span)
+        arc = factory.CreateCircle(cx, cy, radius, start_rad, end_rad)
         return (
-            f"Arc created at ({cx}, {cy}), radius={radius} mm, "
-            f"from {start_angle}° to {end_angle}°"
+            f"Arc {getattr(arc, 'Name', '<unnamed>')!r} created at ({cx}, {cy}), "
+            f"radius={radius} mm, from {start_angle}° to {end_angle}° "
+            f"counter-clockwise (sweep {span}°). Close/update the sketch to validate it."
         )
 
     def _draw_spline(self, points: list[list[float]], closed: bool = False) -> str:
@@ -400,67 +459,92 @@ class SketcherTools:
         idx1 = args.get("geometry_index_1")
         idx2 = args.get("geometry_index_2")
 
-        constraints = sketch.Constraints
-        geom = sketch.GeometricElements
-
-        # Dimensional constraints (need a geometry reference + value)
-        if constraint_type in ("distance", "radius", "angle"):
-            if value is None:
-                raise ValueError(f"Constraint type '{constraint_type}' requires a 'value' parameter.")
-            if idx1 is None:
-                raise ValueError(f"Constraint type '{constraint_type}' requires 'geometry_index_1'.")
-
-            ref1 = geom.Item(idx1)
-
-            if constraint_type == "distance" and idx2 is not None:
-                ref2 = geom.Item(idx2)
-                cst = constraints.AddBiEltCst(0, ref1, ref2)  # catCstTypeDistance = 0
-                cst.Dimension.Value = value
-            elif constraint_type == "distance":
-                cst = constraints.AddMonoEltCst(0, ref1)  # Length constraint
-                cst.Dimension.Value = value
-            elif constraint_type == "radius":
-                cst = constraints.AddMonoEltCst(1, ref1)  # catCstTypeRadius = 1
-                cst.Dimension.Value = value
-            elif constraint_type == "angle":
-                if idx2 is None:
-                    raise ValueError("Angle constraint requires 'geometry_index_2'.")
-                ref2 = geom.Item(idx2)
-                cst = constraints.AddBiEltCst(2, ref1, ref2)  # catCstTypeAngle = 2
-                cst.Dimension.Value = value
-
-            return f"{constraint_type.capitalize()} constraint added: {value} {'mm' if constraint_type != 'angle' else '°'}"
-
-        # Geometric constraints (no value needed)
-        cst_type_map = {
-            "coincidence": 3,   # catCstTypeOn
-            "tangent": 4,       # catCstTypeTangent
-            "perpendicular": 6, # catCstTypePerpendicular
-            "parallel": 7,      # catCstTypeParallel
-            "horizontal": 8,    # catCstTypeHorizontality
-            "vertical": 9,      # catCstTypeVerticality
-            "fix": 10,          # catCstTypeFix
-        }
-
-        cst_code = cst_type_map.get(constraint_type)
-        if cst_code is None:
+        if constraint_type not in CONSTRAINT_SPECS:
             raise ValueError(f"Unknown constraint type: {constraint_type}")
+        cst_code, element_count = CONSTRAINT_SPECS[constraint_type]
+        if constraint_type == "distance" and idx2 is None:
+            cst_code, element_count = 5, 1  # catCstTypeLength, not catCstTypeReference
 
-        if constraint_type in ("horizontal", "vertical", "fix"):
-            if idx1 is None:
-                raise ValueError(f"Constraint '{constraint_type}' requires 'geometry_index_1'.")
-            ref1 = geom.Item(idx1)
-            constraints.AddMonoEltCst(cst_code, ref1)
-        else:
-            if idx1 is None or idx2 is None:
+        dimensional = constraint_type in ("distance", "radius", "angle")
+        if dimensional:
+            if isinstance(value, bool) or not isinstance(value, (int, float)):
+                raise ValueError(f"Constraint '{constraint_type}' requires a finite numeric value.")
+            if not math.isfinite(value):
+                raise ValueError("Constraint value must be finite.")
+            if constraint_type == "radius" and value <= 0:
+                raise ValueError("Radius must be greater than zero (mm).")
+            if constraint_type == "distance" and (value < 0 or (element_count == 1 and value == 0)):
+                raise ValueError("Distance must be nonnegative; line length must be positive (mm).")
+            if constraint_type == "angle" and not 0 <= value <= 360:
+                raise ValueError("Angle must be between 0 and 360 degrees.")
+        elif value is not None:
+            raise ValueError(f"Geometric constraint '{constraint_type}' does not accept a value.")
+
+        if element_count == 1 and idx2 is not None:
+            raise ValueError(f"Constraint '{constraint_type}' takes only geometry_index_1.")
+        if element_count == 2 and idx2 is None:
+            raise ValueError(f"Constraint '{constraint_type}' requires geometry_index_2.")
+
+        geom = sketch.GeometricElements
+        indices = [idx1] if element_count == 1 else [idx1, idx2]
+        count = geom.Count
+        for index in indices:
+            if isinstance(index, bool) or not isinstance(index, int) or not 1 <= index <= count:
                 raise ValueError(
-                    f"Constraint '{constraint_type}' requires both 'geometry_index_1' and 'geometry_index_2'."
+                    f"Invalid geometry index {index!r}; expected an integer in 1..{count}. "
+                    "Refresh catia_sketch_get_geometry before applying constraints."
                 )
-            ref1 = geom.Item(idx1)
-            ref2 = geom.Item(idx2)
-            constraints.AddBiEltCst(cst_code, ref1, ref2)
+        if element_count == 2 and idx1 == idx2:
+            raise ValueError("A two-element constraint requires two distinct geometry indices.")
 
-        return f"{constraint_type.capitalize()} constraint added"
+        # AddMonoEltCst/AddBiEltCst take Reference objects, not raw Geometry2D dispatches.
+        part = self.conn.get_active_part()
+        references = []
+        for index in indices:
+            try:
+                references.append(part.CreateReferenceFromObject(geom.Item(index)))
+            except Exception as exc:
+                raise RuntimeError(
+                    f"Cannot create CATIA Reference for sketch geometry index {index}: {exc}"
+                ) from exc
+
+        constraints = sketch.Constraints
+        method_name = "AddMonoEltCst" if element_count == 1 else "AddBiEltCst"
+        try:
+            constraint = getattr(constraints, method_name)(cst_code, *references)
+        except Exception as exc:
+            raise RuntimeError(
+                f"CATIA {method_name} failed for '{constraint_type}' "
+                f"(type={cst_code}, geometry_indices={indices}): {exc}. "
+                "Check the current geometry types and existing constraints before retrying; "
+                "radius requires a circle/arc, length a line, and angle two lines."
+            ) from exc
+
+        if dimensional:
+            try:
+                dimension = constraint.Dimension
+                dimension.Value = value
+                actual = float(dimension.Value)
+                if not math.isclose(actual, value, rel_tol=1e-9, abs_tol=1e-7):
+                    raise RuntimeError(f"Dimension readback is {actual}, expected {value}")
+            except Exception as exc:
+                # Creation has already changed the sketch. Do not hide that fact or add
+                # a duplicate constraint by automatically retrying the whole operation.
+                raise RuntimeError(
+                    f"'{constraint_type}' constraint was created, but setting/verifying "
+                    f"its dimension failed: {exc}. The new constraint remains in the sketch; "
+                    "inspect it before retrying."
+                ) from exc
+            unit = "degrees" if constraint_type == "angle" else "mm"
+            return (
+                f"{constraint_type.capitalize()} constraint added: {value} {unit}. "
+                "Dimension readback verified; close the sketch and update the part to check the solve."
+            )
+
+        return (
+            f"{constraint_type.capitalize()} constraint added. "
+            "Close the sketch and update the part to check the solve."
+        )
 
     def _get_geometry(self) -> str:
         self._ensure_sketch_open()

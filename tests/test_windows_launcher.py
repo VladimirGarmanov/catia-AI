@@ -77,6 +77,8 @@ def test_single_agent_overrides_are_complete_and_do_not_write_config(tmp_path):
     assert full["command"] == str(python.resolve())
     assert full["enabled"] is full["required"] is True
     assert full["args"] == ["-m", "catia_mcp"]
+    assert full["default_tools_approval_mode"] == "approve"
+    assert "approval_policy" not in data and "sandbox_mode" not in data
     inspect = data["mcp_servers"]["catia-v5-inspect"]
     assert inspect["enabled"] is inspect["required"] is False
     assert inspect["command"] == str(python.resolve())

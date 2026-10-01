@@ -7,6 +7,8 @@ RectPattern, CircPattern, Mirror, Rib, Slot, Shell, Thickness, Draft.
 from __future__ import annotations
 
 import json
+import math
+import ntpath
 from typing import Any
 
 from catia_mcp.connection import CATIAConnection
@@ -125,8 +127,8 @@ class PartDesignTools:
             {
                 "name": "catia_fillet",
                 "description": (
-                    "Add a fillet using the last solid feature as CATIA's input. "
-                    "Exact edge targeting by name is unsupported."
+                    "Fillet the one edge currently selected in CATIA. Selection is read "
+                    "immediately and is not a persistent edge ID. Edge names are unsupported."
                 ),
                 "inputSchema": {
                     "type": "object",
@@ -149,8 +151,8 @@ class PartDesignTools:
             {
                 "name": "catia_chamfer",
                 "description": (
-                    "Add a chamfer using the last solid feature as CATIA's input. "
-                    "Exact edge targeting by name is unsupported."
+                    "Chamfer the one edge currently selected in CATIA using length+angle mode. "
+                    "Edge names and stale selections are unsupported."
                 ),
                 "inputSchema": {
                     "type": "object",
@@ -178,8 +180,9 @@ class PartDesignTools:
             {
                 "name": "catia_hole",
                 "description": (
-                    "Create a Hole feature at a point in the active sketch. "
-                    "Only a simple hole is implemented; other requested types are rejected."
+                    "Create a simple flat-bottom Hole from a named positioning sketch "
+                    "containing exactly one user point. The sketch and direction must "
+                    "be checked against the target solid. Threading is unsupported."
                 ),
                 "inputSchema": {
                     "type": "object",
@@ -211,14 +214,14 @@ class PartDesignTools:
                             "description": "Sketch containing the hole center point",
                         },
                     },
-                    "required": ["diameter", "depth"],
+                    "required": ["diameter", "depth", "sketch_name"],
                 },
             },
             {
                 "name": "catia_rect_pattern",
                 "description": (
-                    "Create a Rectangular Pattern of the last feature. "
-                    "Duplicates a feature in a grid along two directions."
+                    "Pattern an explicitly named feature. Select two linear direction "
+                    "supports in CATIA immediately before calling. Counts include source."
                 ),
                 "inputSchema": {
                     "type": "object",
@@ -243,17 +246,17 @@ class PartDesignTools:
                         },
                         "feature_name": {
                             "type": "string",
-                            "description": "Name of the feature to pattern. Defaults to last feature.",
+                            "description": "Unique name of a MainBody feature to pattern (required).",
                         },
                     },
-                    "required": ["dir1_count", "dir1_spacing"],
+                    "required": ["feature_name", "dir1_count", "dir1_spacing"],
                 },
             },
             {
                 "name": "catia_circ_pattern",
                 "description": (
-                    "Create a Circular Pattern of the last feature. "
-                    "Duplicates a feature around a central axis."
+                    "Pattern an explicitly named feature around a selected point and "
+                    "selected linear axis. Counts include source; default is a closed ring."
                 ),
                 "inputSchema": {
                     "type": "object",
@@ -268,17 +271,17 @@ class PartDesignTools:
                         },
                         "feature_name": {
                             "type": "string",
-                            "description": "Feature to pattern. Defaults to last feature.",
+                            "description": "Unique name of a MainBody feature to pattern (required).",
                         },
                     },
-                    "required": ["count"],
+                    "required": ["feature_name", "count"],
                 },
             },
             {
                 "name": "catia_mirror",
                 "description": (
-                    "Mirror a feature or body about a plane. "
-                    "Creates a symmetric copy of the geometry."
+                    "Mirror the current MainBody about an origin plane. "
+                    "Mirroring one named feature is unsupported."
                 ),
                 "inputSchema": {
                     "type": "object",
@@ -290,7 +293,7 @@ class PartDesignTools:
                         },
                         "feature_name": {
                             "type": "string",
-                            "description": "Feature to mirror. Defaults to last feature.",
+                            "description": "Legacy unsupported argument; omit it to mirror MainBody.",
                         },
                     },
                     "required": ["plane"],
@@ -299,8 +302,8 @@ class PartDesignTools:
             {
                 "name": "catia_shell",
                 "description": (
-                    "Create a Shell feature: hollows out a solid leaving walls of specified thickness. "
-                    "Exact face removal is not supported."
+                    "Shell the active solid inward by removing the one face currently selected "
+                    "in CATIA; inner thickness=t, outer thickness=0. Face names are unsupported."
                 ),
                 "inputSchema": {
                     "type": "object",
@@ -324,8 +327,8 @@ class PartDesignTools:
             {
                 "name": "catia_draft",
                 "description": (
-                    "Add a Draft Angle relative to a pulling direction. "
-                    "Exact face targeting is not supported."
+                    "Draft is unavailable until a selected face, neutral plane, pulling vector "
+                    "and all CATIA mode arguments can be validated. No model change is made."
                 ),
                 "inputSchema": {
                     "type": "object",
@@ -351,15 +354,15 @@ class PartDesignTools:
             {
                 "name": "catia_thickness",
                 "description": (
-                    "Add or remove thickness from the last solid. "
-                    "Exact face targeting is not supported."
+                    "Offset the one currently selected solid face; direction/sign still needs "
+                    "live CATIA validation. Face names are unsupported."
                 ),
                 "inputSchema": {
                     "type": "object",
                     "properties": {
                         "offset": {
                             "type": "number",
-                            "description": "Thickness offset in mm (positive = outward, negative = inward)",
+                            "description": "Thickness offset in mm; physical sign requires live CATIA calibration",
                         },
                         "face_name": {
                             "type": "string",
@@ -371,7 +374,7 @@ class PartDesignTools:
             },
             {
                 "name": "catia_list_features",
-                "description": "List all features in the active Part Body with their names and types.",
+                "description": "List shapes in MainBody only; unknown COM types are reported honestly.",
                 "inputSchema": {
                     "type": "object",
                     "properties": {},
@@ -433,7 +436,14 @@ class PartDesignTools:
         sketches = body.Sketches
 
         if sketch_name:
-            return sketches.Item(sketch_name)
+            matches = [sketches.Item(index) for index in range(1, sketches.Count + 1)
+                       if str(sketches.Item(index).Name) == sketch_name]
+            if len(matches) != 1:
+                raise ValueError(
+                    f"Sketch name {sketch_name!r} matched {len(matches)} sketches in "
+                    f"{body.Name}; choose a unique name"
+                )
+            return matches[0]
 
         # Get the last sketch
         if sketches.Count == 0:
@@ -446,11 +456,89 @@ class PartDesignTools:
         shapes = body.Shapes
 
         if feature_name:
-            return shapes.Item(feature_name)
+            matches = [shapes.Item(index) for index in range(1, shapes.Count + 1)
+                       if str(shapes.Item(index).Name) == feature_name]
+            if len(matches) != 1:
+                raise ValueError(
+                    f"Feature name {feature_name!r} matched {len(matches)} shapes in "
+                    f"{body.Name}; choose a unique name"
+                )
+            return matches[0]
 
         if shapes.Count == 0:
             raise RuntimeError("No features found in the active body.")
         return shapes.Item(shapes.Count)
+
+    def _selected_geometry_reference(self, expected: str) -> Any:
+        """Resolve the current CATIA selection once, never by a feature name/index."""
+        document = self.conn.active_document
+        selection = document.Selection
+        if selection.Count2 != 1:
+            raise ValueError(f"Select exactly one {expected.lower()} in the active CATPart")
+        selected = selection.Item2(1)
+        selected_type = str(selected.Type)
+        if not selected_type.lower().endswith(expected.lower()):
+            raise ValueError(
+                f"Selected CATIA type {selected_type!r} is not a {expected.lower()}; "
+                "select exact geometry, not its parent feature"
+            )
+        try:
+            owner = selected.Document
+        except AttributeError:
+            owner = None
+        if owner is not None:
+            owner_path = str(getattr(owner, "FullName", ""))
+            active_path = str(getattr(document, "FullName", ""))
+            if owner_path and active_path and (
+                ntpath.normcase(ntpath.normpath(owner_path))
+                != ntpath.normcase(ntpath.normpath(active_path))
+            ):
+                raise RuntimeError("Selected topology belongs to a different document")
+        part = self.conn.get_active_part()
+        try:
+            reference = selected.Reference
+            if reference is not None:
+                return reference
+        except Exception:
+            pass
+        return part.CreateReferenceFromObject(selected.Value)
+
+    def _selected_support_references(self, expected: tuple[str, str]) -> tuple[Any, Any]:
+        """Capture two exact selected supports, in their current selection order."""
+        document = self.conn.active_document
+        selection = document.Selection
+        if selection.Count2 != 2:
+            raise ValueError(f"Select exactly two supports in CATIA: {expected}")
+        part = self.conn.get_active_part()
+        references = []
+        for position, expected_type in enumerate(expected, start=1):
+            selected = selection.Item2(position)
+            actual_type = str(selected.Type)
+            if not actual_type.lower().endswith(expected_type.lower()):
+                raise ValueError(
+                    f"Selection position {position} is {actual_type!r}; "
+                    f"expected a {expected_type.lower()} support"
+                )
+            try:
+                owner = selected.Document
+            except AttributeError:
+                owner = None
+            if owner is not None:
+                owner_path = str(getattr(owner, "FullName", ""))
+                document_path = str(getattr(document, "FullName", ""))
+                if owner_path and document_path and (
+                    ntpath.normcase(ntpath.normpath(owner_path))
+                    != ntpath.normcase(ntpath.normpath(document_path))
+                ):
+                    raise RuntimeError("Selected support belongs to another CATIA document")
+            try:
+                reference = selected.Reference
+                if reference is None:
+                    raise ValueError("Selection has no COM Reference")
+                references.append(reference)
+            except Exception:
+                references.append(part.CreateReferenceFromObject(selected.Value))
+        return references[0], references[1]
 
     def _pad(self, args: dict[str, Any]) -> str:
         self.conn.ensure_connected()
@@ -502,9 +590,13 @@ class PartDesignTools:
 
         sketch = self._get_last_sketch(args.get("sketch_name"))
         angle = args.get("angle", 360)
+        if not isinstance(angle, (int, float)) or not math.isfinite(angle) or not 0 < angle <= 360:
+            raise ValueError("Shaft angle must be finite and in (0, 360] degrees")
 
         shaft = sf.AddNewShaft(sketch)
-        shaft.FirstAngle = angle
+        shaft.FirstAngle.Value = angle
+        if not math.isclose(float(shaft.FirstAngle.Value), angle, abs_tol=1e-7):
+            raise RuntimeError("Shaft was created, but CATIA did not apply the requested angle")
 
         part.UpdateObject(shaft)
         self.conn.refresh_display()
@@ -518,9 +610,13 @@ class PartDesignTools:
 
         sketch = self._get_last_sketch(args.get("sketch_name"))
         angle = args.get("angle", 360)
+        if not isinstance(angle, (int, float)) or not math.isfinite(angle) or not 0 < angle <= 360:
+            raise ValueError("Groove angle must be finite and in (0, 360] degrees")
 
         groove = sf.AddNewGroove(sketch)
-        groove.FirstAngle = angle
+        groove.FirstAngle.Value = angle
+        if not math.isclose(float(groove.FirstAngle.Value), angle, abs_tol=1e-7):
+            raise RuntimeError("Groove was created, but CATIA did not apply the requested angle")
 
         part.UpdateObject(groove)
         self.conn.refresh_display()
@@ -534,13 +630,15 @@ class PartDesignTools:
             )
         self.conn.ensure_connected()
         part = self.conn.get_active_part()
-        body = self.conn.get_active_part_body()
         sf = part.ShapeFactory
 
         radius = args["radius"]
+        if not isinstance(radius, (int, float)) or not math.isfinite(radius) or radius <= 0:
+            raise ValueError("Fillet radius must be finite and positive in mm")
+        edge_ref = self._selected_geometry_reference("Edge")
 
         fillet = sf.AddNewSolidEdgeFilletWithConstantRadius(
-            self._get_last_shape(),
+            edge_ref,
             1,       # catTangencyFilletEdgePropagation
             radius,
         )
@@ -554,16 +652,19 @@ class PartDesignTools:
             raise ValueError("Exact edge targeting by name is unsupported")
         self.conn.ensure_connected()
         part = self.conn.get_active_part()
-        body = self.conn.get_active_part_body()
         sf = part.ShapeFactory
 
         length = args["length"]
         angle = args.get("angle", 45)
+        if any(not isinstance(value, (int, float)) or not math.isfinite(value)
+               for value in (length, angle)) or length <= 0 or not 0 < angle < 90:
+            raise ValueError("Chamfer needs a positive length and an angle strictly between 0 and 90°")
+        edge_ref = self._selected_geometry_reference("Edge")
 
         chamfer = sf.AddNewChamfer(
-            self._get_last_shape(),
-            1,       # catTangencyChamferPropagation
-            0,       # catLengthAngleChamfer mode
+            edge_ref,
+            1,       # catMinimalChamfer
+            1,       # catLengthAngleChamfer
             0,       # orientation
             length,
             angle,
@@ -576,21 +677,37 @@ class PartDesignTools:
     def _hole(self, args: dict[str, Any]) -> str:
         if args.get("type", "simple") != "simple":
             raise ValueError("Only a simple hole is implemented; requested type is unsupported")
+        if args.get("threaded", False):
+            raise ValueError("Threaded holes need explicit thread parameters and are unsupported")
+        if not args.get("sketch_name"):
+            raise ValueError("A named positioning sketch with one user point is required")
         self.conn.ensure_connected()
         part = self.conn.get_active_part()
-        body = self.conn.get_active_part_body()
         sf = part.ShapeFactory
 
         sketch = self._get_last_sketch(args.get("sketch_name"))
         diameter = args["diameter"]
         depth = args["depth"]
+        if any(not isinstance(value, (int, float)) or not math.isfinite(value) or value <= 0
+               for value in (diameter, depth)):
+            raise ValueError("Hole diameter and depth must be finite and positive in mm")
+        geometry = sketch.GeometricElements
+        point_count = 0
+        for index in range(1, geometry.Count + 1):
+            element = geometry.Item(index)
+            if str(element.Name).lower().startswith("point."):
+                point_count += 1
+        if point_count != 1:
+            raise ValueError(
+                f"Hole positioning sketch needs exactly one identifiable user Point; "
+                f"found {point_count}. Built-in sketch axes are not positioning points."
+            )
 
-        hole = sf.AddNewHole(sketch, depth)
-        hole.Diameter = diameter
+        hole = sf.AddNewHoleFromSketch(sketch, depth)
+        hole.Diameter.Value = diameter
         hole.BottomType = 0  # catFlatBottom
-
-        if args.get("threaded", False):
-            hole.ThreadingMode = 1  # catThreaded
+        if not math.isclose(float(hole.Diameter.Value), diameter, abs_tol=1e-7):
+            raise RuntimeError("Hole was created, but its diameter did not match the request")
 
         part.UpdateObject(hole)
         self.conn.refresh_display()
@@ -599,21 +716,31 @@ class PartDesignTools:
     def _rect_pattern(self, args: dict[str, Any]) -> str:
         self.conn.ensure_connected()
         part = self.conn.get_active_part()
-        body = self.conn.get_active_part_body()
         sf = part.ShapeFactory
 
-        feature = self._get_last_shape(args.get("feature_name"))
+        if not args.get("feature_name"):
+            raise ValueError("feature_name is required; the last feature is not an exact target")
+        feature = self._get_last_shape(args["feature_name"])
         d1_count = args["dir1_count"]
         d1_spacing = args["dir1_spacing"]
         d2_count = args.get("dir2_count", 1)
         d2_spacing = args.get("dir2_spacing", 0)
+        if any(isinstance(count, bool) or not isinstance(count, int) or count < 1
+               for count in (d1_count, d2_count)):
+            raise ValueError("Pattern counts must be positive integers including the source")
+        if any(not isinstance(spacing, (int, float)) or not math.isfinite(spacing)
+               for spacing in (d1_spacing, d2_spacing)):
+            raise ValueError("Pattern spacing must be finite in mm")
+        dir1_ref, dir2_ref = self._selected_support_references(("Line", "Line"))
 
         pattern = sf.AddNewRectPattern(
             feature,
             d1_count, d2_count,
             d1_spacing, d2_spacing,
-            1, 1,  # direction specification
-            True,   # keep specification
+            1, 1,
+            dir1_ref, dir2_ref,
+            True, True,
+            0,
         )
 
         part.UpdateObject(pattern)
@@ -626,21 +753,29 @@ class PartDesignTools:
     def _circ_pattern(self, args: dict[str, Any]) -> str:
         self.conn.ensure_connected()
         part = self.conn.get_active_part()
-        body = self.conn.get_active_part_body()
         sf = part.ShapeFactory
 
-        feature = self._get_last_shape(args.get("feature_name"))
+        if not args.get("feature_name"):
+            raise ValueError("feature_name is required; the last feature is not an exact target")
+        feature = self._get_last_shape(args["feature_name"])
         count = args["count"]
-        angular_spacing = args.get("angular_spacing", 360.0 / count)
+        if isinstance(count, bool) or not isinstance(count, int) or count < 2:
+            raise ValueError("Circular pattern count must be an integer >= 2")
+        angular_spacing = args.get("angular_spacing")
+        if angular_spacing is None:
+            angular_spacing = 360.0 / count
+        if not isinstance(angular_spacing, (int, float)) or not math.isfinite(angular_spacing) or angular_spacing <= 0:
+            raise ValueError("Angular spacing must be finite and positive")
+        center_ref, axis_ref = self._selected_support_references(("Point", "Line"))
 
         pattern = sf.AddNewCircPattern(
             feature,
-            count,
-            1,              # rows
-            angular_spacing,
-            0,              # row spacing
-            1, 1,           # direction specification
-            True,           # keep specification
+            1, count,
+            0, angular_spacing,
+            1, 1,
+            center_ref, axis_ref,
+            True, 0,
+            True,
         )
 
         part.UpdateObject(pattern)
@@ -651,6 +786,11 @@ class PartDesignTools:
         )
 
     def _mirror(self, args: dict[str, Any]) -> str:
+        if args.get("feature_name"):
+            raise ValueError(
+                "Mirroring one named feature is unsupported: AddNewMirror uses the current body. "
+                "Omit feature_name to operate on the active MainBody."
+            )
         self.conn.ensure_connected()
         part = self.conn.get_active_part()
         body = self.conn.get_active_part_body()
@@ -664,7 +804,6 @@ class PartDesignTools:
         mirror_plane = planes[plane_key]
         ref = part.CreateReferenceFromObject(mirror_plane)
 
-        feature = self._get_last_shape(args.get("feature_name"))
         mirror = sf.AddNewMirror(ref)
 
         part.UpdateObject(mirror)
@@ -676,49 +815,37 @@ class PartDesignTools:
             raise ValueError("Exact face removal by name is unsupported")
         self.conn.ensure_connected()
         part = self.conn.get_active_part()
-        body = self.conn.get_active_part_body()
         sf = part.ShapeFactory
 
         thickness = args["thickness"]
-        shell = sf.AddNewShell(self._get_last_shape(), 0, thickness, thickness)
+        if not isinstance(thickness, (int, float)) or not math.isfinite(thickness) or thickness <= 0:
+            raise ValueError("Shell wall thickness must be finite and positive in mm")
+        face_ref = self._selected_geometry_reference("Face")
+        shell = sf.AddNewShell(face_ref, thickness, 0)
 
         part.UpdateObject(shell)
         self.conn.refresh_display()
         return f"Shell created: {thickness} mm wall thickness. Feature: '{shell.Name}'"
 
     def _draft(self, args: dict[str, Any]) -> str:
-        if args.get("face_name"):
-            raise ValueError("Exact draft face targeting by name is unsupported")
-        self.conn.ensure_connected()
-        part = self.conn.get_active_part()
-        body = self.conn.get_active_part_body()
-        sf = part.ShapeFactory
-
-        angle = args["angle"]
-
-        plane_key = args.get("pulling_direction", "xy").lower()
-        planes = self.conn.get_origin_elements()
-        neutral = planes.get(plane_key)
-        if not neutral:
-            raise ValueError(f"Unknown pulling direction plane: {plane_key}")
-
-        neutral_ref = part.CreateReferenceFromObject(neutral)
-        draft = sf.AddNewDraft(self._get_last_shape(), neutral_ref, angle)
-
-        part.UpdateObject(draft)
-        self.conn.refresh_display()
-        return f"Draft created: {angle}° angle. Feature: '{draft.Name}'"
+        raise RuntimeError(
+            "UNSUPPORTED_DRAFT: AddNewDraft needs ten arguments including exact face, "
+            "neutral support, pulling vector and validated modes. The current angle/plane "
+            "schema cannot specify them, so no CATIA feature was created."
+        )
 
     def _thickness(self, args: dict[str, Any]) -> str:
         if args.get("face_name"):
             raise ValueError("Exact thickness face targeting by name is unsupported")
         self.conn.ensure_connected()
         part = self.conn.get_active_part()
-        body = self.conn.get_active_part_body()
         sf = part.ShapeFactory
 
         offset = args["offset"]
-        thickness = sf.AddNewThickness(self._get_last_shape(), 0, offset)
+        if not isinstance(offset, (int, float)) or not math.isfinite(offset) or offset == 0:
+            raise ValueError("Thickness offset must be finite and nonzero in mm")
+        face_ref = self._selected_geometry_reference("Face")
+        thickness = sf.AddNewThickness(face_ref, offset)
 
         part.UpdateObject(thickness)
         self.conn.refresh_display()
@@ -735,12 +862,15 @@ class PartDesignTools:
             features.append({
                 "index": i,
                 "name": shape.Name,
-                "type": shape.Type if hasattr(shape, "Type") else "unknown",
+                "container": body.Name,
+                "category": "solid_shape",
+                "type": str(shape.Type) if hasattr(shape, "Type") else None,
+                "type_status": "reported_by_com" if hasattr(shape, "Type") else "unavailable",
             })
 
         if not features:
             return "No features in the active body"
-        return json.dumps(features, indent=2)
+        return json.dumps({"scope": "MainBody.Shapes only", "features": features}, indent=2)
 
     def _list_edges(self) -> dict[str, Any]:
         return {

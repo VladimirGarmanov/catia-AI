@@ -639,22 +639,34 @@ class GSDTools:
         if key in PLANE_MAP:
             return getattr(part.OriginElements, PLANE_MAP[key])
 
+        matches: list[tuple[str, Any]] = []
         for hb in self._iter_geosets(part.HybridBodies):
-            for collection in ("HybridShapes", "HybridSketches"):
-                try:
-                    return getattr(hb, collection).Item(name)
-                except Exception:
-                    pass
+            for collection_name in ("HybridShapes", "HybridSketches"):
+                collection = getattr(hb, collection_name)
+                for index in range(1, collection.Count + 1):
+                    element = collection.Item(index)
+                    if str(element.Name) == name:
+                        matches.append((f"{hb.Name}/{collection_name}[{index}]", element))
 
         bodies = part.Bodies
         for i in range(1, bodies.Count + 1):
-            try:
-                return bodies.Item(i).Sketches.Item(name)
-            except Exception:
-                pass
+            body = bodies.Item(i)
+            sketches = body.Sketches
+            for index in range(1, sketches.Count + 1):
+                sketch = sketches.Item(index)
+                if str(sketch.Name) == name:
+                    matches.append((f"{body.Name}/Sketches[{index}]", sketch))
 
+        if len(matches) > 1:
+            locations = ", ".join(location for location, _ in matches)
+            raise RuntimeError(
+                f"Element name {name!r} is ambiguous ({locations}); rename the intended "
+                "element uniquely in CATIA before retrying. No geometry was created."
+            )
+        if matches:
+            return matches[0][1]
         raise RuntimeError(
-            f"Element '{name}' not found in geometrical sets or body sketches. "
+            f"Element {name!r} not found in geometrical sets or body sketches. "
             "Use catia_gsd_list_elements to see available element names."
         )
 
@@ -685,16 +697,23 @@ class GSDTools:
         try:
             part.UpdateObject(feature)
         except Exception as e:
+            cleanup_error = None
+            cleanup_verified = False
             try:
                 selection = self.conn.active_document.Selection
                 selection.Clear()
                 selection.Add(feature)
                 selection.Delete()
-            except Exception:
-                pass
+                # A successful Delete call is not sufficient proof that the
+                # failed feature disappeared from the model tree.
+                cleanup_verified = False
+            except Exception as exc:
+                cleanup_error = str(exc)
             raise RuntimeError(
-                f"CATIA rejected the feature (update failed) and it was removed "
-                f"from the tree: {e}"
+                f"CATIA rejected feature {getattr(feature, 'Name', '<unnamed>')!r} "
+                f"during UpdateObject: {e}. Cleanup attempted; "
+                f"cleanup_verified={cleanup_verified}; cleanup_error={cleanup_error!r}. "
+                "Inspect the model tree before retrying."
             ) from e
 
     def _finish(self, shape: Any, name: str | None, message: str) -> str:

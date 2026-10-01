@@ -54,8 +54,12 @@ For an authorized modeling request:
 - catia_update_selected_feature acts on the CURRENT selected COM feature/sketch.
   Reread selection immediately before use; names are not saved object IDs.
 - Selection names, positions and topology descriptions are transient, not stable
-  face/edge IDs. catia_list_edges explicitly reports unsupported exact addressing.
-  Do not promise selected-face/edge Fillet, Chamfer, Hole or Sketch.
+  face/edge IDs. catia_list_edges still cannot enumerate stable topology IDs.
+  Fillet, Chamfer, Shell and Thickness now attempt to consume the currently
+  selected exact edge/face through a live COM Reference. This path is experimental
+  until a Windows CATIA test proves the intended geometry was modified; reread
+  selection immediately before the call and stop if CATIA rejects it. Hole uses
+  a positioning sketch, not an arbitrary selected face. Never invent an edge ID.
 - Do not save, close, overwrite or export without explicit instruction. Saving
   requires an explicit path; overwriting additionally requires opt-in.
 - The user must not switch active documents or run another CATIA automation
