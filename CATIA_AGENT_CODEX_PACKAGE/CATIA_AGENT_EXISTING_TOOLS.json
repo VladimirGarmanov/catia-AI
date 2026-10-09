@@ -1,0 +1,574 @@
+{
+  "checkout": "/Users/vladimir/PycharmProjects/catia-v5-mcp-server",
+  "checked_on": "2026-10-08",
+  "tools": [
+    {
+      "name": "catia_add_component",
+      "description": "Add an existing CATPart or CATProduct file as a component in the active assembly. The component is inserted at the origin.",
+      "file": "catia_mcp/tools/assembly.py",
+      "line": 26,
+      "status": "declaration_found_only"
+    },
+    {
+      "name": "catia_add_new_part",
+      "description": "Create a new empty Part directly inside the active assembly. Returns the name of the created component.",
+      "file": "catia_mcp/tools/assembly.py",
+      "line": 43,
+      "status": "declaration_found_only"
+    },
+    {
+      "name": "catia_angle_constraint",
+      "description": "Create an Angle constraint between two exact selected assembly supports.",
+      "file": "catia_mcp/tools/assembly.py",
+      "line": 131,
+      "status": "declaration_found_only"
+    },
+    {
+      "name": "catia_chamfer",
+      "description": "Chamfer the one edge currently selected in CATIA using length+angle mode. Edge names and stale selections are unsupported.",
+      "file": "catia_mcp/tools/part_design.py",
+      "line": 160,
+      "status": "declaration_found_only"
+    },
+    {
+      "name": "catia_circ_pattern",
+      "description": "Pattern an explicitly named feature around a selected point and selected linear axis. Counts include source; default is a closed ring.",
+      "file": "catia_mcp/tools/part_design.py",
+      "line": 264,
+      "status": "declaration_found_only"
+    },
+    {
+      "name": "catia_close_document",
+      "description": "Close the active CATIA document without saving; save=true is rejected.",
+      "file": "catia_mcp/tools/document.py",
+      "line": 112,
+      "status": "declaration_found_only"
+    },
+    {
+      "name": "catia_close_sketch",
+      "description": "Close the active sketch and return to Part Design. Must be called after finishing sketch geometry before applying 3D features.",
+      "file": "catia_mcp/tools/sketcher.py",
+      "line": 74,
+      "status": "declaration_found_only"
+    },
+    {
+      "name": "catia_coincidence_constraint",
+      "description": "Constrain two currently selected exact assembly supports in selection order. Each selected support must belong to the named component; names do not resolve face or plane references.",
+      "file": "catia_mcp/tools/assembly.py",
+      "line": 76,
+      "status": "declaration_found_only"
+    },
+    {
+      "name": "catia_connect",
+      "description": "Connect to CATIA V5. Attaches to a running instance or launches a new one. Must be called before any other CATIA tool.",
+      "file": "catia_mcp/tools/document.py",
+      "line": 23,
+      "status": "declaration_found_only"
+    },
+    {
+      "name": "catia_create_sketch",
+      "description": "Create a new 2D sketch on a reference plane (xy, yz, or zx). The sketch is opened for editing. You must close it with catia_close_sketch before creating 3D features.",
+      "file": "catia_mcp/tools/sketcher.py",
+      "line": 55,
+      "status": "declaration_found_only"
+    },
+    {
+      "name": "catia_disconnect",
+      "description": "Disconnect from CATIA V5 (does not close CATIA).",
+      "file": "catia_mcp/tools/document.py",
+      "line": 34,
+      "status": "declaration_found_only"
+    },
+    {
+      "name": "catia_draft",
+      "description": "Draft is unavailable until a selected face, neutral plane, pulling vector and all CATIA mode arguments can be validated. No model change is made.",
+      "file": "catia_mcp/tools/part_design.py",
+      "line": 336,
+      "status": "declaration_found_only"
+    },
+    {
+      "name": "catia_export",
+      "description": "Export the active document to a file. Supported formats: STEP (.stp), IGES (.igs), STL (.stl), 3DXML (.3dxml), VRML (.wrl), PDF (2D drawings).",
+      "file": "catia_mcp/tools/export.py",
+      "line": 46,
+      "status": "declaration_found_only"
+    },
+    {
+      "name": "catia_fillet",
+      "description": "Fillet the one edge currently selected in CATIA. Selection is read immediately and is not a persistent edge ID. Edge names are unsupported.",
+      "file": "catia_mcp/tools/part_design.py",
+      "line": 136,
+      "status": "declaration_found_only"
+    },
+    {
+      "name": "catia_fit_all",
+      "description": "Fit all geometry in the current 3D view (zoom to fit).",
+      "file": "catia_mcp/tools/export.py",
+      "line": 115,
+      "status": "declaration_found_only"
+    },
+    {
+      "name": "catia_fix_constraint",
+      "description": "Fix the one currently selected assembly instance in place. Selection must be the component Product itself, not a face or feature.",
+      "file": "catia_mcp/tools/assembly.py",
+      "line": 59,
+      "status": "declaration_found_only"
+    },
+    {
+      "name": "catia_get_active_document_info",
+      "description": "Get detailed info about the active CATIA document: name, type, path, part bodies, features, etc.",
+      "file": "catia_mcp/tools/document.py",
+      "line": 137,
+      "status": "declaration_found_only"
+    },
+    {
+      "name": "catia_get_bounding_box",
+      "description": "Report that exact active-part AABB measurement is not yet supported. No fake min/max coordinates are returned.",
+      "file": "catia_mcp/tools/measurement.py",
+      "line": 62,
+      "status": "declaration_found_only"
+    },
+    {
+      "name": "catia_get_inertia",
+      "description": "Read MainBody volume and area in SI units; optional mass uses a supplied uniform density. An inertia tensor is reported only when available and scope-compatible.",
+      "file": "catia_mcp/tools/measurement.py",
+      "line": 45,
+      "status": "declaration_found_only"
+    },
+    {
+      "name": "catia_get_model_state",
+      "description": "Read the active document, bodies/sketches/features or components, parameters, and the current selection. This is not geometry verification.",
+      "file": "catia_mcp/tools/context.py",
+      "line": 34,
+      "status": "declaration_found_only"
+    },
+    {
+      "name": "catia_get_parameters",
+      "description": "List all user-defined and computed parameters of the active part. Includes dimensions, formulas, and design tables.",
+      "file": "catia_mcp/tools/measurement.py",
+      "line": 73,
+      "status": "declaration_found_only"
+    },
+    {
+      "name": "catia_get_selection",
+      "description": "Read the current CATIA selection: count, available element types/names, and document context. Names and positions are not stable face/edge IDs.",
+      "file": "catia_mcp/tools/context.py",
+      "line": 25,
+      "status": "declaration_found_only"
+    },
+    {
+      "name": "catia_groove",
+      "description": "Create a Groove (revolution cut). Removes material by revolving a 2D profile around an axis.",
+      "file": "catia_mcp/tools/part_design.py",
+      "line": 115,
+      "status": "declaration_found_only"
+    },
+    {
+      "name": "catia_gsd_blend",
+      "description": "Create a Blend surface connecting two curves.",
+      "file": "catia_mcp/tools/gsd.py",
+      "line": 391,
+      "status": "declaration_found_only"
+    },
+    {
+      "name": "catia_gsd_circle",
+      "description": "Create a full 3D circle from a center point, a support plane, and a radius. Useful as a section for multi-sections surfaces.",
+      "file": "catia_mcp/tools/gsd.py",
+      "line": 198,
+      "status": "declaration_found_only"
+    },
+    {
+      "name": "catia_gsd_close_surface",
+      "description": "Turn a closed (watertight) surface into a SOLID (Part Design CloseSurface). The solid is created in the active body.",
+      "file": "catia_mcp/tools/gsd.py",
+      "line": 528,
+      "status": "declaration_found_only"
+    },
+    {
+      "name": "catia_gsd_create_geoset",
+      "description": "Create a new Geometrical Set (HybridBody) in the active Part and make it the active target for subsequent GSD elements.",
+      "file": "catia_mcp/tools/gsd.py",
+      "line": 63,
+      "status": "declaration_found_only"
+    },
+    {
+      "name": "catia_gsd_extrude",
+      "description": "Extrude a profile (curve/sketch) into a surface along a direction vector. limit1/limit2 are the extents on each side (mm).",
+      "file": "catia_mcp/tools/gsd.py",
+      "line": 307,
+      "status": "declaration_found_only"
+    },
+    {
+      "name": "catia_gsd_fill",
+      "description": "Create a Fill surface bounded by a closed contour of curves (one closed curve or several connected curves).",
+      "file": "catia_mcp/tools/gsd.py",
+      "line": 371,
+      "status": "declaration_found_only"
+    },
+    {
+      "name": "catia_gsd_intersection",
+      "description": "Create the intersection of two elements (e.g. surface ∩ plane).",
+      "file": "catia_mcp/tools/gsd.py",
+      "line": 237,
+      "status": "declaration_found_only"
+    },
+    {
+      "name": "catia_gsd_join",
+      "description": "Join (assemble) two or more curves or surfaces into one element.",
+      "file": "catia_mcp/tools/gsd.py",
+      "line": 422,
+      "status": "declaration_found_only"
+    },
+    {
+      "name": "catia_gsd_line",
+      "description": "Create a 3D line between two points. Each point is an existing element name or [x, y, z] coordinates.",
+      "file": "catia_mcp/tools/gsd.py",
+      "line": 119,
+      "status": "declaration_found_only"
+    },
+    {
+      "name": "catia_gsd_list_elements",
+      "description": "List all geometrical sets with their wireframe/surface elements and sketches, plus sketches in solid bodies. Use this to find element names for other GSD tools.",
+      "file": "catia_mcp/tools/gsd.py",
+      "line": 96,
+      "status": "declaration_found_only"
+    },
+    {
+      "name": "catia_gsd_multi_section_surface",
+      "description": "Create a Multi-sections Surface (loft) through 2+ section curves (sketches, circles, splines...), optionally following guide curves. Sections should be listed in order along the lofting direction.",
+      "file": "catia_mcp/tools/gsd.py",
+      "line": 253,
+      "status": "declaration_found_only"
+    },
+    {
+      "name": "catia_gsd_offset_surface",
+      "description": "Create a surface offset from an existing surface.",
+      "file": "catia_mcp/tools/gsd.py",
+      "line": 404,
+      "status": "declaration_found_only"
+    },
+    {
+      "name": "catia_gsd_plane_3points",
+      "description": "Create a plane through three points (element names or [x,y,z]).",
+      "file": "catia_mcp/tools/gsd.py",
+      "line": 159,
+      "status": "declaration_found_only"
+    },
+    {
+      "name": "catia_gsd_plane_offset",
+      "description": "Create a plane offset from a reference plane. Reference is 'xy', 'yz', 'zx', or the name of an existing plane element.",
+      "file": "catia_mcp/tools/gsd.py",
+      "line": 135,
+      "status": "declaration_found_only"
+    },
+    {
+      "name": "catia_gsd_point",
+      "description": "Create a 3D point at (x, y, z). Coordinates in mm.",
+      "file": "catia_mcp/tools/gsd.py",
+      "line": 105,
+      "status": "declaration_found_only"
+    },
+    {
+      "name": "catia_gsd_project",
+      "description": "Project a curve/point onto a support surface or plane.",
+      "file": "catia_mcp/tools/gsd.py",
+      "line": 218,
+      "status": "declaration_found_only"
+    },
+    {
+      "name": "catia_gsd_revolve",
+      "description": "Revolve a profile curve around an axis line to create a surface of revolution. The straight axis must lie in the profile plane. Pass a unique axis name or select one line and set axis_from_selection=true. Angles in degrees.",
+      "file": "catia_mcp/tools/gsd.py",
+      "line": 335,
+      "status": "declaration_found_only"
+    },
+    {
+      "name": "catia_gsd_set_active_geoset",
+      "description": "Select which Geometrical Set receives subsequently created GSD elements.",
+      "file": "catia_mcp/tools/gsd.py",
+      "line": 80,
+      "status": "declaration_found_only"
+    },
+    {
+      "name": "catia_gsd_spline",
+      "description": "Create a 3D spline through a list of points. Each point is an existing element name or [x, y, z] coordinates in mm.",
+      "file": "catia_mcp/tools/gsd.py",
+      "line": 173,
+      "status": "declaration_found_only"
+    },
+    {
+      "name": "catia_gsd_split",
+      "description": "Split an element by a cutting element, keeping one side. Use orientation to flip which side is kept.",
+      "file": "catia_mcp/tools/gsd.py",
+      "line": 439,
+      "status": "declaration_found_only"
+    },
+    {
+      "name": "catia_gsd_sweep",
+      "description": "Create a swept surface by sweeping a profile curve along a guide curve (explicit sweep).",
+      "file": "catia_mcp/tools/gsd.py",
+      "line": 291,
+      "status": "declaration_found_only"
+    },
+    {
+      "name": "catia_gsd_symmetry",
+      "description": "Mirror an element about a plane ('xy', 'yz', 'zx', or plane name).",
+      "file": "catia_mcp/tools/gsd.py",
+      "line": 489,
+      "status": "declaration_found_only"
+    },
+    {
+      "name": "catia_gsd_thick_surface",
+      "description": "Turn a surface into a SOLID by adding thickness (Part Design ThickSurface). The solid is created in the active body.",
+      "file": "catia_mcp/tools/gsd.py",
+      "line": 505,
+      "status": "declaration_found_only"
+    },
+    {
+      "name": "catia_gsd_trim",
+      "description": "Mutually trim two elements, keeping one side of each. Use reverse flags to flip which sides are kept.",
+      "file": "catia_mcp/tools/gsd.py",
+      "line": 463,
+      "status": "declaration_found_only"
+    },
+    {
+      "name": "catia_hole",
+      "description": "Create a simple flat-bottom Hole from a named positioning sketch containing exactly one user point. The sketch and direction must be checked against the target solid. Threading is unsupported.",
+      "file": "catia_mcp/tools/part_design.py",
+      "line": 189,
+      "status": "declaration_found_only"
+    },
+    {
+      "name": "catia_list_components",
+      "description": "List all components in the active assembly/product with their names and positions.",
+      "file": "catia_mcp/tools/assembly.py",
+      "line": 176,
+      "status": "declaration_found_only"
+    },
+    {
+      "name": "catia_list_constraints",
+      "description": "List all assembly constraints in the active product.",
+      "file": "catia_mcp/tools/assembly.py",
+      "line": 184,
+      "status": "declaration_found_only"
+    },
+    {
+      "name": "catia_list_documents",
+      "description": "List all open documents in CATIA V5 with their types and paths.",
+      "file": "catia_mcp/tools/document.py",
+      "line": 129,
+      "status": "declaration_found_only"
+    },
+    {
+      "name": "catia_list_edges",
+      "description": "Report the exact-topology limitation without changing the user's selection. Names or indices cannot target a particular edge reliably.",
+      "file": "catia_mcp/tools/part_design.py",
+      "line": 392,
+      "status": "declaration_found_only"
+    },
+    {
+      "name": "catia_list_features",
+      "description": "List shapes in MainBody only; unknown COM types are reported honestly.",
+      "file": "catia_mcp/tools/part_design.py",
+      "line": 384,
+      "status": "declaration_found_only"
+    },
+    {
+      "name": "catia_measure_distance",
+      "description": "Measure minimum distance between two uniquely named geometry elements in the active CATPart. CATIA's raw length unit needs Windows calibration; the result is not labelled mm until then. Search clears the current selection.",
+      "file": "catia_mcp/tools/measurement.py",
+      "line": 23,
+      "status": "declaration_found_only"
+    },
+    {
+      "name": "catia_mirror",
+      "description": "Mirror the current MainBody about an origin plane. Mirroring one named feature is unsupported.",
+      "file": "catia_mcp/tools/part_design.py",
+      "line": 289,
+      "status": "declaration_found_only"
+    },
+    {
+      "name": "catia_move_component",
+      "description": "Move a component by translation and/or rotation. Translation in mm, rotation in degrees.",
+      "file": "catia_mcp/tools/assembly.py",
+      "line": 153,
+      "status": "declaration_found_only"
+    },
+    {
+      "name": "catia_new_part",
+      "description": "Create a new empty Part document in CATIA V5. A Part is used for single-body 3D modeling (sketches + features).",
+      "file": "catia_mcp/tools/document.py",
+      "line": 42,
+      "status": "declaration_found_only"
+    },
+    {
+      "name": "catia_new_product",
+      "description": "Create a new empty Product (assembly) document in CATIA V5. A Product is used to assemble multiple Parts together.",
+      "file": "catia_mcp/tools/document.py",
+      "line": 58,
+      "status": "declaration_found_only"
+    },
+    {
+      "name": "catia_offset_constraint",
+      "description": "Create an Offset constraint between two faces/planes of two components. Select both exact assembly supports in order before calling.",
+      "file": "catia_mcp/tools/assembly.py",
+      "line": 106,
+      "status": "declaration_found_only"
+    },
+    {
+      "name": "catia_open_document",
+      "description": "Open an existing CATIA document from a file path (.CATPart, .CATProduct, .CATDrawing).",
+      "file": "catia_mcp/tools/document.py",
+      "line": 74,
+      "status": "declaration_found_only"
+    },
+    {
+      "name": "catia_pad",
+      "description": "Create a Pad (extrusion) from the last sketch. Extrudes a 2D profile into a 3D solid along the normal to the sketch plane.",
+      "file": "catia_mcp/tools/part_design.py",
+      "line": 25,
+      "status": "declaration_found_only"
+    },
+    {
+      "name": "catia_pocket",
+      "description": "Create a Pocket (cut extrusion) from the last sketch. Removes material by extruding a 2D profile inward.",
+      "file": "catia_mcp/tools/part_design.py",
+      "line": 57,
+      "status": "declaration_found_only"
+    },
+    {
+      "name": "catia_rect_pattern",
+      "description": "Pattern an explicitly named feature. Select two linear direction supports in CATIA immediately before calling. Counts include source.",
+      "file": "catia_mcp/tools/part_design.py",
+      "line": 229,
+      "status": "declaration_found_only"
+    },
+    {
+      "name": "catia_save_document",
+      "description": "Save As to an explicit path. Existing files require allow_overwrite=true. Never silently overwrite the active CATPart/CATProduct.",
+      "file": "catia_mcp/tools/document.py",
+      "line": 91,
+      "status": "declaration_found_only"
+    },
+    {
+      "name": "catia_screenshot",
+      "description": "Capture the current 3D view, save it, and return the image as MCP image content. Supports JPG, BMP, TIFF (CATIA V5 cannot capture PNG; a .png path is saved as .jpg instead). Pixel size follows the CATIA viewer.",
+      "file": "catia_mcp/tools/export.py",
+      "line": 75,
+      "status": "declaration_found_only"
+    },
+    {
+      "name": "catia_set_parameter",
+      "description": "Set the value of a named parameter in the active part. Useful for parametric design modifications.",
+      "file": "catia_mcp/tools/measurement.py",
+      "line": 89,
+      "status": "declaration_found_only"
+    },
+    {
+      "name": "catia_set_view",
+      "description": "Set the 3D view orientation. Standard views: front, back, top, bottom, left, right, isometric.",
+      "file": "catia_mcp/tools/export.py",
+      "line": 94,
+      "status": "declaration_found_only"
+    },
+    {
+      "name": "catia_shaft",
+      "description": "Create a Shaft from a sketch. CATIA normally uses an axis inside the sketch. To override it, select one straight axis in CATIA and set axis_from_selection=true; the tool assigns its live Reference to RevoluteAxis.",
+      "file": "catia_mcp/tools/part_design.py",
+      "line": 84,
+      "status": "declaration_found_only"
+    },
+    {
+      "name": "catia_shell",
+      "description": "Shell the active solid inward by removing the one face currently selected in CATIA; inner thickness=t, outer thickness=0. Face names are unsupported.",
+      "file": "catia_mcp/tools/part_design.py",
+      "line": 311,
+      "status": "declaration_found_only"
+    },
+    {
+      "name": "catia_sketch_arc",
+      "description": "Draw a circular arc defined by center, radius, and start/end angles (degrees). Angles are measured counter-clockwise from the positive X axis.",
+      "file": "catia_mcp/tools/sketcher.py",
+      "line": 149,
+      "status": "declaration_found_only"
+    },
+    {
+      "name": "catia_sketch_centered_rectangle",
+      "description": "Draw a rectangle centered at (cx, cy) with given width and height. Coordinates and dimensions in mm.",
+      "file": "catia_mcp/tools/sketcher.py",
+      "line": 119,
+      "status": "declaration_found_only"
+    },
+    {
+      "name": "catia_sketch_circle",
+      "description": "Draw a circle in the active sketch. Coordinates and radius in mm.",
+      "file": "catia_mcp/tools/sketcher.py",
+      "line": 136,
+      "status": "declaration_found_only"
+    },
+    {
+      "name": "catia_sketch_constraint",
+      "description": "Add a dimensional or geometric constraint to the active sketch. Supported types: distance, radius, angle, coincidence, tangent, perpendicular, parallel, horizontal, vertical, fix. Refresh catia_sketch_get_geometry immediately before using indices; they are transient positions, not stable IDs. Radius needs a circle/arc. Distance with one element sets a line's length; with two it sets their separation. Angle needs two lines. Close the sketch and update the part after editing to check the solve.",
+      "file": "catia_mcp/tools/sketcher.py",
+      "line": 208,
+      "status": "declaration_found_only"
+    },
+    {
+      "name": "catia_sketch_get_geometry",
+      "description": "List all geometry elements in the active sketch with their indices and types.",
+      "file": "catia_mcp/tools/sketcher.py",
+      "line": 250,
+      "status": "declaration_found_only"
+    },
+    {
+      "name": "catia_sketch_line",
+      "description": "Draw a line in the active sketch from (x1, y1) to (x2, y2). Coordinates in mm.",
+      "file": "catia_mcp/tools/sketcher.py",
+      "line": 85,
+      "status": "declaration_found_only"
+    },
+    {
+      "name": "catia_sketch_point",
+      "description": "Create a point in the active sketch. Coordinates in mm.",
+      "file": "catia_mcp/tools/sketcher.py",
+      "line": 196,
+      "status": "declaration_found_only"
+    },
+    {
+      "name": "catia_sketch_rectangle",
+      "description": "Draw a rectangle in the active sketch defined by two opposite corners. Creates 4 lines forming a closed profile. Coordinates in mm.",
+      "file": "catia_mcp/tools/sketcher.py",
+      "line": 102,
+      "status": "declaration_found_only"
+    },
+    {
+      "name": "catia_sketch_spline",
+      "description": "Draw a spline through a list of control points. Each point is [x, y] in mm.",
+      "file": "catia_mcp/tools/sketcher.py",
+      "line": 167,
+      "status": "declaration_found_only"
+    },
+    {
+      "name": "catia_thickness",
+      "description": "Offset the one currently selected solid face; direction/sign still needs live CATIA validation. Face names are unsupported.",
+      "file": "catia_mcp/tools/part_design.py",
+      "line": 363,
+      "status": "declaration_found_only"
+    },
+    {
+      "name": "catia_update_part",
+      "description": "Force update/rebuild of the active part. Recalculates all features.",
+      "file": "catia_mcp/tools/measurement.py",
+      "line": 110,
+      "status": "declaration_found_only"
+    },
+    {
+      "name": "catia_update_selected_feature",
+      "description": "Update exactly one currently selected Part feature or sketch by its live CATIA COM object. Does not use a name or topology index, and does not save.",
+      "file": "catia_mcp/tools/context.py",
+      "line": 55,
+      "status": "declaration_found_only"
+    }
+  ],
+  "warning": "Static declarations only. Recheck current registration, transport, implementation and live availability."
+}

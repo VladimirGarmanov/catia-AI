@@ -32,8 +32,11 @@ async def probe_transports() -> dict:
     full = await inspect_transport(False)
     if inspection != INSPECTION_TOOL_NAMES:
         raise RuntimeError("Inspection MCP tool set does not match the allowlist")
-    if len(full) != 81 or not {"catia_new_part", "catia_pad"} <= full:
-        raise RuntimeError("Full MCP does not expose the expected 81 tools")
+    from importlib.resources import files
+    baseline = json.loads(files("CATIA_AGENT_CODEX_PACKAGE").joinpath("CATIA_AGENT_EXISTING_TOOLS.json").read_text(encoding="utf-8"))
+    missing = {entry["name"] for entry in baseline["tools"]} - full
+    if missing:
+        raise RuntimeError(f"Full MCP is missing baseline tools: {sorted(missing)}")
     return {
         "inspection_tools": len(inspection), "full_tools": len(full),
         "stdio_discovery": "PASS", "catia_com": "NOT_TESTED",

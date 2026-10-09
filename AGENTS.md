@@ -34,8 +34,9 @@ For an authorized modeling request:
    dimensions and ambiguous targets before writing. If the user already gave a
    complete modeling instruction, execute it; do not stop after only a plan or
    demand repeated authorization for that same scope.
-4. Execute one feature at a time yourself through MCP, serially. Update, reread
-   dimensions/state, capture and inspect a screenshot after each change. Stop
+4. Execute one feature at a time yourself through MCP, serially. Update and reread
+   dimensions/state. Use screenshots at meaningful checkpoints or when numeric
+   evidence cannot answer the question, not after every primitive. Stop
    on an error or failed postcondition; report the last successful operation.
 5. Compare the finished model against the drawing and agreed dimensions. Report
    verified and unverified items separately. This is self-verification, not an
@@ -47,7 +48,7 @@ For an authorized modeling request:
   acting. Never alter another open document. Do not switch documents blindly.
 - For a new part call catia_new_part once, then record the actual new document
   identity and verify CATPart type. Bind later operations to it.
-- After each mutation run catia_update_part and verify the active document and
+- After each Part mutation run catia_update_part and verify the active document and
   measurable dimensions. Take screenshots at meaningful feature checkpoints;
   a successful screenshot alone does not prove geometry.
 - Finish and close an edited sketch before accepting it as complete.
@@ -68,3 +69,43 @@ For an authorized modeling request:
 - Drawings are read by Codex, not by a paid AI API in the Python MCP server.
   The Claude skills in .claude/skills are engineering references, not automatic
   Codex instructions.
+
+## Package-based tools and references
+
+- `catia_capability_status` covers all 218 handbook entries, but handler presence
+  means scoped implementation, not full GUI equivalence or Windows validation.
+  `catia_capability_request` routes to typed tools or returns explicit unsupported;
+  it never executes geometry. Do not turn unsupported responses into scripts.
+- Use `catia_domain_objects` for Product/Drawing/relation handles and IDs of open
+  source documents. Drafting reads the explicit source document without activating
+  or modifying it. Only the bound drawing is written. Product/Drawing tools update
+  their own owner; do not call the Part-only update tool on them.
+- Sketch transform/trim/corner modes are restricted geometric composites, not
+  associative GUI commands. Copies do not inherit constraints. Line-edit tools
+  require explicit conversion of originals to construction and reject constrained
+  sketches. Close edition and verify before accepting them.
+- SAFEARRAY output requires Windows validation. If the adapter returns unavailable,
+  report it; never invent coordinates or run arbitrary VBA as a fallback.
+
+- Read `catia_get_model_state` before existing-document writes. It supplies a
+  session-local `document_id` and `revision`. Pass these as `document_id` and
+  `expected_revision`, with a unique `request_id` for each logical write.
+- New handle-based engineering tools require these three fields. Legacy tools
+  retain optional fields for compatibility, but calls without request_id cannot
+  be deduplicated. Never automatically repeat an uncertain write.
+- Use `catia_list_objects` for body/sketch/parameter/geometry handles. Selection
+  handles from model state or selection require the SAME current selection and
+  expire on writes and refreshed model state. They are not persistent BRep IDs.
+- `catia_select_objects` only selects whole objects; it cannot invent a face or
+  edge. Ask the user to select topology that cannot be resolved exactly.
+- After `partial_failure`, inspect the model before another mutation. Created
+  handles identify objects left behind. No automatic deletion/rollback occurs.
+- On `COM_TIMEOUT`, do not retry, run another COM script or launch a second
+  server. The original call may still be running. Resolve the CATIA modal/busy
+  condition, then inspect the state. Restart only after reconciling the model.
+- For Shaft/Groove use `catia_sketch_line(as_axis=true)` or
+  `catia_sketch_set_axis` with a fresh Line2D index. An ordinary extra line is
+  not automatically a construction axis and can invalidate the profile.
+- `catia_capability_status` searches the supplied API catalog without CATIA.
+  Documented API, implemented subset, tool availability, offline testing and
+  live validation are distinct. Read `IMPLEMENTATION_STATUS.md` for gaps.

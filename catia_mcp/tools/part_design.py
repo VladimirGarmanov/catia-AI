@@ -12,6 +12,7 @@ import ntpath
 from typing import Any
 
 from catia_mcp.connection import CATIAConnection
+from catia_mcp.runtime import CADOperationError
 
 
 class PartDesignTools:
@@ -21,7 +22,7 @@ class PartDesignTools:
         self.conn = connection
 
     def get_tool_definitions(self) -> list[dict[str, Any]]:
-        return [
+        definitions = [
             {
                 "name": "catia_pad",
                 "description": (
@@ -91,6 +92,8 @@ class PartDesignTools:
                 "inputSchema": {
                     "type": "object",
                     "properties": {
+                        "axis_geometry_index": {"type": "integer", "minimum": 1,
+                            "description": "Fresh Line2D index in this sketch; explicitly marks it Construction and CenterLine"},
                         "angle": {
                             "type": "number",
                             "description": "Revolution angle in degrees (default: 360 for full revolution)",
@@ -103,11 +106,11 @@ class PartDesignTools:
                         "axis_from_selection": {
                             "type": "boolean",
                             "description": (
-                                "Use the one currently selected straight axis/line. With no "
-                                "selection CATIA uses the sketch's own axis. A non-line or "
-                                "multiple selection is rejected."
+                                "When true, require exactly one currently selected straight axis/line. "
+                                "When false, require a construction Sketch.CenterLine, optionally "
+                                "assigned via axis_geometry_index."
                             ),
-                            "default": True,
+                            "default": False,
                         },
                     },
                 },
@@ -121,6 +124,8 @@ class PartDesignTools:
                 "inputSchema": {
                     "type": "object",
                     "properties": {
+                        "axis_from_selection": {"type": "boolean", "default": False},
+                        "axis_geometry_index": {"type": "integer", "minimum": 1},
                         "angle": {
                             "type": "number",
                             "description": "Revolution angle in degrees (default: 360)",
@@ -189,7 +194,7 @@ class PartDesignTools:
             {
                 "name": "catia_hole",
                 "description": (
-                    "Create a simple flat-bottom Hole from a named positioning sketch "
+                    "Create a simple, counterbored or countersunk flat-bottom Hole from a positioning sketch "
                     "containing exactly one user point. The sketch and direction must "
                     "be checked against the target solid. Threading is unsupported."
                 ),
@@ -207,10 +212,9 @@ class PartDesignTools:
                         "type": {
                             "type": "string",
                             "description": (
-                                "Only 'simple' is implemented; other values "
-                                "fail explicitly"
+                                "Head dimensions are mandatory for counterbored/countersunk modes"
                             ),
-                            "enum": ["simple", "counterbored", "countersunk", "tapered"],
+                            "enum": ["simple", "counterbored", "countersunk"],
                             "default": "simple",
                         },
                         "threaded": {
@@ -218,12 +222,15 @@ class PartDesignTools:
                             "description": "Whether to add threading (default: false)",
                             "default": False,
                         },
+                        "head_diameter": {"type": "number", "exclusiveMinimum": 0},
+                        "head_depth": {"type": "number", "exclusiveMinimum": 0},
+                        "head_angle": {"type": "number", "exclusiveMinimum": 0, "exclusiveMaximum": 180},
                         "sketch_name": {
                             "type": "string",
                             "description": "Sketch containing the hole center point",
                         },
                     },
-                    "required": ["diameter", "depth", "sketch_name"],
+                    "required": ["diameter", "depth"],
                 },
             },
             {
@@ -403,7 +410,40 @@ class PartDesignTools:
             },
         ]
 
+        for definition in definitions:
+            properties = definition["inputSchema"]["properties"]
+            if definition["name"] == "catia_draft":
+                definition["description"] = "Standard Draft with explicit face, neutral and parting References and a Part-frame pulling vector. No guessed supports or DraftDomains.Add."
+                properties.clear()
+                properties.update({
+                    "face_handle": {"type": "string"}, "neutral_handle": {"type": "string"},
+                    "parting_handle": {"type": "string"},
+                    "pulling_direction": {"type": "array", "items": {"type": "number"}, "minItems": 3, "maxItems": 3},
+                    "frame_id": {"const": "part"},
+                    "angle": {"type": "number", "exclusiveMinimum": 0, "exclusiveMaximum": 90},
+                    "neutral_propagation": {"enum": ["none", "smooth"], "default": "none"},
+                })
+                definition["inputSchema"]["required"] = ["face_handle", "neutral_handle", "parting_handle", "pulling_direction", "frame_id", "angle"]
+            if definition["name"] in {"catia_pad", "catia_pocket"}:
+                properties["limit_mode"] = {"enum": ["dimension", "up_to_next", "up_to_last", "up_to_plane", "up_to_surface"], "default": "dimension"}
+                properties["limit_handle"] = {"type": "string"}
+                length_key = "height" if definition["name"] == "catia_pad" else "depth"
+                definition["inputSchema"]["required"] = []
+                properties[length_key]["description"] += "; required only for dimension mode"
+            if definition["name"] not in {"catia_list_features", "catia_list_edges"}:
+                properties["body_handle"] = {"type": "string", "minLength": 1}
+            if "sketch_name" in properties:
+                properties["sketch_handle"] = {"type": "string", "minLength": 1}
+            if definition["name"] in {"catia_fillet", "catia_chamfer", "catia_shell", "catia_thickness"}:
+                properties["selection_handle"] = {"type": "string", "minLength": 1}
+        return definitions
+
     def execute(self, tool_name: str, arguments: dict[str, Any]) -> str | dict[str, Any]:
+        self._arguments = arguments
+        if arguments.get("body_handle"):
+            self.conn.operation_body = self.conn.session.resolve(arguments["body_handle"], {"body"}).value
+        if tool_name not in {"catia_list_features", "catia_list_edges"}:
+            self.conn.get_active_part().InWorkObject = self.conn.get_active_part_body()
         match tool_name:
             case "catia_pad":
                 return self._pad(arguments)
@@ -443,6 +483,15 @@ class PartDesignTools:
         part = self.conn.get_active_part()
         body = self.conn.get_active_part_body()
         sketches = body.Sketches
+        handle = getattr(self, "_arguments", {}).get("sketch_handle")
+        if handle:
+            if sketch_name:
+                raise ValueError("Choose sketch_handle OR sketch_name")
+            sketch = self.conn.session.resolve(handle, {"sketch"}).value
+            from catia_mcp.runtime import same_object
+            if not any(same_object(sketches.Item(i), sketch) for i in range(1, sketches.Count + 1)):
+                raise ValueError("Sketch must belong to the target body")
+            return sketch
 
         if sketch_name:
             matches = [sketches.Item(index) for index in range(1, sketches.Count + 1)
@@ -480,6 +529,9 @@ class PartDesignTools:
 
     def _selected_geometry_reference(self, expected: str) -> Any:
         """Resolve the current CATIA selection once, never by a feature name/index."""
+        handle = getattr(self, "_arguments", {}).get("selection_handle")
+        if handle:
+            return self.conn.session.reference(handle, {expected.lower()})
         document = self.conn.active_document
         selection = document.Selection
         if selection.Count2 != 1:
@@ -510,7 +562,7 @@ class PartDesignTools:
                 return reference
         except Exception:
             pass
-        return part.CreateReferenceFromObject(selected.Value)
+        raise CADOperationError("STALE_REFERENCE", "Selected BRep Reference unavailable; refusing to substitute its parent feature")
 
     def _selected_support_references(self, expected: tuple[str, str]) -> tuple[Any, Any]:
         """Capture two exact selected supports, in their current selection order."""
@@ -556,11 +608,19 @@ class PartDesignTools:
         sf = part.ShapeFactory
 
         sketch = self._get_last_sketch(args.get("sketch_name"))
-        height = args["height"]
+        mode, limit_reference, height = self._limit_arguments(args, "height")
         direction = args.get("direction", "normal")
         symmetric = args.get("symmetric", False)
 
-        pad = sf.AddNewPad(sketch, height)
+        if isinstance(height, bool) or not math.isfinite(height) or height <= 0:
+            raise ValueError("Pad height must be finite and positive in mm")
+        if symmetric and direction == "reverse":
+            raise ValueError("Symmetric and reverse are incompatible")
+        part.InWorkObject = body
+        symmetric = symmetric or direction == "both"
+        pad = sf.AddNewPad(sketch, height / 2 if symmetric else height)
+        self._created(pad)
+        self._apply_limit(pad, mode, limit_reference)
 
         if symmetric:
             pad.IsSymmetric = True
@@ -569,9 +629,9 @@ class PartDesignTools:
         elif direction == "both":
             pad.IsSymmetric = True
 
-        part.UpdateObject(pad)
+        self._updated(part, pad)
         self.conn.refresh_display()
-        return f"Pad created: {height} mm ({direction}). Feature: '{pad.Name}'"
+        return f"Pad created: limit={args.get('limit_mode', 'dimension')}, requested height={args.get('height')} mm ({direction}). Feature: '{pad.Name}'"
 
     def _pocket(self, args: dict[str, Any]) -> str:
         self.conn.ensure_connected()
@@ -580,16 +640,108 @@ class PartDesignTools:
         sf = part.ShapeFactory
 
         sketch = self._get_last_sketch(args.get("sketch_name"))
-        depth = args["depth"]
+        mode, limit_reference, depth = self._limit_arguments(args, "depth")
 
+        if isinstance(depth, bool) or not math.isfinite(depth) or depth <= 0:
+            raise ValueError("Pocket depth must be finite and positive in mm")
+        before = self._volume(part, body)
+        part.InWorkObject = body
         pocket = sf.AddNewPocket(sketch, depth)
+        self._created(pocket)
+        self._apply_limit(pocket, mode, limit_reference)
 
         if args.get("direction") == "reverse":
             pocket.DirectionOrientation = 1
 
-        part.UpdateObject(pocket)
+        self._updated(part, pocket)
+        after = self._volume(part, body)
+        if before is not None and after is not None and not after < before - max(abs(before) * 1e-10, 1e-15):
+            raise CADOperationError("POSTCONDITION_FAILED", f"Pocket {pocket.Name!r} exists but removed no measurable material: {before} -> {after} m^3; inspect direction/intersection")
         self.conn.refresh_display()
-        return f"Pocket created: {depth} mm deep. Feature: '{pocket.Name}'"
+        return f"Pocket created: limit={args.get('limit_mode', 'dimension')}, requested depth={args.get('depth')} mm. Feature: '{pocket.Name}'. Volume m^3: {before} -> {after}; None means unverified"
+
+    def _created(self, obj):
+        state = getattr(self.conn, "session", None)
+        if state is not None:
+            state.mark_created(obj, "feature")
+
+    def _limit_arguments(self, args, length_key):
+        mode = args.get("limit_mode", "dimension")
+        codes = {"dimension": 0, "up_to_next": 1, "up_to_last": 2,
+                 "up_to_plane": 3, "up_to_surface": 4}
+        if mode not in codes:
+            raise ValueError("Unsupported prism limit")
+        reference = None
+        if mode == "dimension":
+            if length_key not in args or "limit_handle" in args:
+                raise ValueError(f"Dimension limit needs {length_key} and no limit_handle")
+            length = args[length_key]
+        else:
+            if length_key in args or args.get("symmetric") or args.get("direction") == "both":
+                raise ValueError("Non-dimensional limits reject length/symmetric extent")
+            length = 1.0  # constructor seed only; final extent is the explicit limit
+            if mode in {"up_to_plane", "up_to_surface"}:
+                if not args.get("limit_handle"):
+                    raise ValueError("This limit needs limit_handle")
+                reference = self.conn.session.reference(args["limit_handle"], {"plane"} if mode == "up_to_plane" else {"surface", "face"})
+            elif "limit_handle" in args:
+                raise ValueError("Next/last limit does not accept a support")
+        return codes[mode], reference, length
+
+    @staticmethod
+    def _apply_limit(feature, mode, reference):
+        feature.FirstLimit.LimitMode = mode
+        if reference is not None:
+            feature.FirstLimit.LimitingElement = reference
+        if int(feature.FirstLimit.LimitMode) != mode:
+            raise CADOperationError("POSTCONDITION_FAILED", "Prism limit mode readback differs")
+
+    def _updated(self, part, obj):
+        try:
+            part.UpdateObject(obj)
+            part.Update()
+        except Exception as exc:
+            raise CADOperationError("UPDATE_FAILED", f"Feature {obj.Name!r} exists; update failed: {exc}") from exc
+        if not part.IsUpToDate(obj):
+            raise CADOperationError("POSTCONDITION_FAILED", f"Feature {obj.Name!r} is not up to date")
+        state = getattr(self.conn, "session", None)
+        if state is not None:
+            state.updated = True
+
+    def _volume(self, part, body):
+        try:
+            reference = part.CreateReferenceFromObject(body)
+            return float(self.conn.active_document.GetWorkbench("SPAWorkbench").GetMeasurable(reference).Volume)
+        except Exception:
+            return None
+
+    def _prepare_revolution_axis(self, sketch, args):
+        index = args.get("axis_geometry_index")
+        if index is not None:
+            if args.get("axis_from_selection", False):
+                raise ValueError("Choose sketch axis index OR current selection, not both")
+            geometry = sketch.GeometricElements
+            if not 1 <= index <= geometry.Count:
+                raise ValueError("Axis index is out of range; reread sketch geometry")
+            line = geometry.Item(index)
+            if int(line.GeometricType) != 3:
+                raise ValueError("Revolution axis must be a Line2D")
+            sketch.OpenEdition()
+            try:
+                line.Construction = True
+                sketch.CenterLine = line
+            finally:
+                sketch.CloseEdition()
+            self.conn.get_active_part().UpdateObject(sketch)
+        if args.get("axis_from_selection", False):
+            return self._selected_axis_reference(required=True)
+        try:
+            line = sketch.CenterLine
+            if line is None or not bool(line.Construction):
+                raise ValueError("CenterLine must be construction geometry")
+            return (self.conn.get_active_part().CreateReferenceFromObject(line), str(line.Name), "Line2D")
+        except Exception as exc:
+            raise ValueError("Sketch has no verified construction CenterLine. Use catia_sketch_line(as_axis=true) or axis_geometry_index before Shaft/Groove") from exc
 
     def _shaft(self, args: dict[str, Any]) -> str:
         self.conn.ensure_connected()
@@ -602,15 +754,15 @@ class PartDesignTools:
         if not isinstance(angle, (int, float)) or not math.isfinite(angle) or not 0 < angle <= 360:
             raise ValueError("Shaft angle must be finite and in (0, 360] degrees")
 
-        use_selection = args.get("axis_from_selection", True)
+        use_selection = args.get("axis_from_selection", False)
         if not isinstance(use_selection, bool):
             raise ValueError("axis_from_selection must be a boolean")
-        axis_info = None
-        if use_selection:
-            axis_info = self._selected_axis_reference(required=False)
+        axis_info = self._prepare_revolution_axis(sketch, args)
+        part.InWorkObject = body
 
         try:
             shaft = sf.AddNewShaft(sketch)
+            self._created(shaft)
         except Exception as exc:
             axis_note = (
                 " A selected axis was captured, but AddNewShaft failed before CATIA could "
@@ -633,7 +785,7 @@ class PartDesignTools:
                     f"axis {axis_name!r} ({selection_type}): {exc}. Inspect the feature "
                     "tree before retrying."
                 ) from exc
-        shaft.FirstAngle.Value = angle
+        shaft.FirstAngle.ValuateFromString(f"{angle}deg")
         if not math.isclose(float(shaft.FirstAngle.Value), angle, abs_tol=1e-7):
             raise RuntimeError(
                 f"Shaft {shaft.Name!r} was created, but CATIA did not apply the requested "
@@ -719,6 +871,8 @@ class PartDesignTools:
         except Exception:
             reference = None
         if reference is None:
+            if normalized_type.endswith("edge"):
+                raise CADOperationError("STALE_REFERENCE", "Exact edge Reference unavailable; parent feature cannot replace an axis edge")
             reference = part.CreateReferenceFromObject(value)
         if reference is None:
             raise RuntimeError("CATIA could not create a Reference for the selected axis")
@@ -735,12 +889,16 @@ class PartDesignTools:
         if not isinstance(angle, (int, float)) or not math.isfinite(angle) or not 0 < angle <= 360:
             raise ValueError("Groove angle must be finite and in (0, 360] degrees")
 
+        axis_reference, _, _ = self._prepare_revolution_axis(sketch, args)
+        part.InWorkObject = body
         groove = sf.AddNewGroove(sketch)
-        groove.FirstAngle.Value = angle
+        self._created(groove)
+        groove.RevoluteAxis = axis_reference
+        groove.FirstAngle.ValuateFromString(f"{angle}deg")
         if not math.isclose(float(groove.FirstAngle.Value), angle, abs_tol=1e-7):
             raise RuntimeError("Groove was created, but CATIA did not apply the requested angle")
 
-        part.UpdateObject(groove)
+        self._updated(part, groove)
         self.conn.refresh_display()
         return f"Groove (revolution cut) created: {angle}°. Feature: '{groove.Name}'"
 
@@ -765,7 +923,8 @@ class PartDesignTools:
             radius,
         )
 
-        part.UpdateObject(fillet)
+        self._created(fillet)
+        self._updated(part, fillet)
         self.conn.refresh_display()
         return f"Fillet created: R{radius} mm. Feature: '{fillet.Name}'"
 
@@ -792,16 +951,28 @@ class PartDesignTools:
             angle,
         )
 
-        part.UpdateObject(chamfer)
+        self._created(chamfer)
+        self._updated(part, chamfer)
         self.conn.refresh_display()
         return f"Chamfer created: {length} mm at {angle}°. Feature: '{chamfer.Name}'"
 
     def _hole(self, args: dict[str, Any]) -> str:
-        if args.get("type", "simple") != "simple":
-            raise ValueError("Only a simple hole is implemented; requested type is unsupported")
+        hole_type = args.get("type", "simple")
+        codes = {"simple": 0, "counterbored": 2, "countersunk": 3}
+        if hole_type not in codes:
+            raise ValueError("Unsupported hole type")
+        expected_head = {"simple": set(), "counterbored": {"head_diameter", "head_depth"},
+                         "countersunk": {"head_diameter", "head_angle"}}[hole_type]
+        supplied_head = {k for k in ("head_diameter", "head_depth", "head_angle") if k in args}
+        if supplied_head != expected_head:
+            raise ValueError(f"{hole_type} requires exactly these head fields: {sorted(expected_head)}")
+        if expected_head and args["head_diameter"] <= args["diameter"]:
+            raise ValueError("Head diameter must exceed the bore diameter")
+        if hole_type == "counterbored" and args["head_depth"] >= args["depth"]:
+            raise ValueError("Counterbore head depth must be less than bore depth")
         if args.get("threaded", False):
             raise ValueError("Threaded holes need explicit thread parameters and are unsupported")
-        if not args.get("sketch_name"):
+        if not args.get("sketch_name") and not args.get("sketch_handle"):
             raise ValueError("A named positioning sketch with one user point is required")
         self.conn.ensure_connected()
         part = self.conn.get_active_part()
@@ -817,7 +988,7 @@ class PartDesignTools:
         point_count = 0
         for index in range(1, geometry.Count + 1):
             element = geometry.Item(index)
-            if str(element.Name).lower().startswith("point."):
+            if int(element.GeometricType) == 2 and not bool(element.Construction):
                 point_count += 1
         if point_count != 1:
             raise ValueError(
@@ -825,15 +996,27 @@ class PartDesignTools:
                 f"found {point_count}. Built-in sketch axes are not positioning points."
             )
 
+        before = self._volume(part, self.conn.get_active_part_body())
         hole = sf.AddNewHoleFromSketch(sketch, depth)
-        hole.Diameter.Value = diameter
+        self._created(hole)
+        hole.Type = codes[hole_type]
+        hole.Diameter.ValuateFromString(f"{diameter}mm")
+        if expected_head:
+            hole.HeadDiameter.ValuateFromString(f"{args['head_diameter']}mm")
+        if hole_type == "counterbored":
+            hole.HeadDepth.ValuateFromString(f"{args['head_depth']}mm")
+        if hole_type == "countersunk":
+            hole.HeadAngle.ValuateFromString(f"{args['head_angle']}deg")
         hole.BottomType = 0  # catFlatBottom
         if not math.isclose(float(hole.Diameter.Value), diameter, abs_tol=1e-7):
             raise RuntimeError("Hole was created, but its diameter did not match the request")
 
-        part.UpdateObject(hole)
+        self._updated(part, hole)
+        after = self._volume(part, self.conn.get_active_part_body())
+        if before is not None and after is not None and after >= before:
+            raise CADOperationError("POSTCONDITION_FAILED", "Hole updated but did not remove material; inspect the existing feature before retrying")
         self.conn.refresh_display()
-        return f"Hole created: D{diameter} mm, depth {depth} mm. Feature: '{hole.Name}'"
+        return f"{hole_type} Hole: D{diameter} mm, depth {depth} mm. Feature: '{hole.Name}'; volume m^3 {before} -> {after} (None=unverified)"
 
     def _rect_pattern(self, args: dict[str, Any]) -> str:
         self.conn.ensure_connected()
@@ -865,7 +1048,8 @@ class PartDesignTools:
             0,
         )
 
-        part.UpdateObject(pattern)
+        self._created(pattern)
+        self._updated(part, pattern)
         self.conn.refresh_display()
         return (
             f"Rectangular pattern created: {d1_count}x{d2_count}, "
@@ -900,7 +1084,8 @@ class PartDesignTools:
             True,
         )
 
-        part.UpdateObject(pattern)
+        self._created(pattern)
+        self._updated(part, pattern)
         self.conn.refresh_display()
         return (
             f"Circular pattern created: {count} instances, "
@@ -928,7 +1113,8 @@ class PartDesignTools:
 
         mirror = sf.AddNewMirror(ref)
 
-        part.UpdateObject(mirror)
+        self._created(mirror)
+        self._updated(part, mirror)
         self.conn.refresh_display()
         return f"Mirror created about {plane_key.upper()} plane. Feature: '{mirror.Name}'"
 
@@ -945,16 +1131,28 @@ class PartDesignTools:
         face_ref = self._selected_geometry_reference("Face")
         shell = sf.AddNewShell(face_ref, thickness, 0)
 
-        part.UpdateObject(shell)
+        self._created(shell)
+        self._updated(part, shell)
         self.conn.refresh_display()
         return f"Shell created: {thickness} mm wall thickness. Feature: '{shell.Name}'"
 
     def _draft(self, args: dict[str, Any]) -> str:
-        raise RuntimeError(
-            "UNSUPPORTED_DRAFT: AddNewDraft needs ten arguments including exact face, "
-            "neutral support, pulling vector and validated modes. The current angle/plane "
-            "schema cannot specify them, so no CATIA feature was created."
-        )
+        state = self.conn.session
+        face = state.reference(args["face_handle"], {"face"})
+        neutral = state.reference(args["neutral_handle"], {"face", "plane"})
+        parting = state.reference(args["parting_handle"], {"face", "plane"})
+        direction = args["pulling_direction"]
+        norm = math.sqrt(sum(v*v for v in direction))
+        if not math.isfinite(norm) or norm == 0:
+            raise ValueError("Draft pulling vector must be finite and nonzero")
+        direction = [v/norm for v in direction]
+        part = self.conn.get_active_part()
+        draft = part.ShapeFactory.AddNewDraft(face, neutral,
+            1 if args.get("neutral_propagation") == "smooth" else 0,
+            parting, *direction, 0, args["angle"], 0)
+        self._created(draft)
+        self._updated(part, draft)
+        return f"Standard Draft {draft.Name!r} updated; exact face geometry requires Windows verification"
 
     def _thickness(self, args: dict[str, Any]) -> str:
         if args.get("face_name"):
@@ -969,7 +1167,8 @@ class PartDesignTools:
         face_ref = self._selected_geometry_reference("Face")
         thickness = sf.AddNewThickness(face_ref, offset)
 
-        part.UpdateObject(thickness)
+        self._created(thickness)
+        self._updated(part, thickness)
         self.conn.refresh_display()
         return f"Thickness added: {offset} mm offset. Feature: '{thickness.Name}'"
 

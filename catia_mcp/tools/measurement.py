@@ -103,8 +103,11 @@ class MeasurementTools:
                             "type": "number",
                             "description": "New value for the parameter",
                         },
+                        "parameter_handle": {"type": "string"},
+                        "unit": {"enum": ["mm", "deg", "native"], "default": "native",
+                                 "description": "Prefer explicit mm/deg for dimensions; native retains legacy raw Value semantics"},
                     },
-                    "required": ["name", "value"],
+                    "required": ["value"],
                 },
             },
             {
@@ -128,7 +131,7 @@ class MeasurementTools:
             case "catia_get_parameters":
                 return self._get_parameters(arguments.get("filter"))
             case "catia_set_parameter":
-                return self._set_parameter(arguments["name"], arguments["value"])
+                return self._set_parameter(arguments.get("name"), arguments["value"], arguments.get("unit", "native"), arguments.get("parameter_handle"))
             case "catia_update_part":
                 return self._update_part()
             case _:
@@ -140,23 +143,31 @@ class MeasurementTools:
         doc = self.conn.active_document
         spa = doc.GetWorkbench("SPAWorkbench")
 
-        sel = doc.Selection
         references = []
+        candidates = []
+
+        def collect(collection):
+            for index in range(1, collection.Count + 1):
+                candidates.append(collection.Item(index))
+
+        for index in range(1, part.Bodies.Count + 1):
+            body = part.Bodies.Item(index)
+            collect(body.Shapes)
+            collect(body.Sketches)
+
+        def geosets(collection):
+            for index in range(1, collection.Count + 1):
+                container = collection.Item(index)
+                collect(container.HybridShapes)
+                collect(container.HybridSketches)
+                geosets(container.HybridBodies)
+
+        geosets(part.HybridBodies)
         for name in (elem1_name, elem2_name):
-            if not name or any(char in name for char in ",*=\r\n"):
-                raise ValueError("Element names must be nonempty literal names without search syntax")
-            try:
-                sel.Clear()
-                sel.Search(f"Name={name},all")
-                count = sel.Count2
-                selected = sel.Item2(1) if count == 1 else None
-                if count != 1:
-                    raise RuntimeError(
-                        f"Element {name!r} matched {count} objects; exact target is ambiguous"
-                    )
-                references.append(part.CreateReferenceFromObject(selected.Value))
-            finally:
-                sel.Clear()
+            matches = [obj for obj in candidates if str(obj.Name) == name]
+            if len(matches) != 1:
+                raise ValueError(f"Name {name!r} matched {len(matches)} whole geometries; faces/edges cannot be identified by name")
+            references.append(part.CreateReferenceFromObject(matches[0]))
 
         # Measure
         measurable = spa.GetMeasurable(references[0])
@@ -167,7 +178,7 @@ class MeasurementTools:
             "unit": "CATIA_SPA_length_unverified",
             "target_names": [elem1_name, elem2_name],
             "document": doc.Name,
-            "selection_cleared": True,
+            "selection_cleared": False,
             "note": "Calibrate against known geometry on this CATIA installation before treating the raw value as mm.",
         })
 
@@ -254,18 +265,42 @@ class MeasurementTools:
             return "No parameters found" + (f" matching '{name_filter}'" if name_filter else "")
         return json.dumps(result, indent=2, ensure_ascii=False)
 
-    def _set_parameter(self, name: str, value: float) -> str:
+    def _set_parameter(self, name: str | None, value: float, unit="native", handle=None) -> dict:
         self.conn.ensure_connected()
         part = self.conn.get_active_part()
         params = part.Parameters
 
-        param = params.Item(name)
+        if bool(name) == bool(handle):
+            raise ValueError("Specify exactly one of name or parameter_handle")
+        if not math.isfinite(value):
+            raise ValueError("Parameter value must be finite")
+        if handle:
+            param = self.conn.session.resolve(handle, {"parameter"}).value
+        else:
+            matches = [params.Item(i) for i in range(1, params.Count + 1) if str(params.Item(i).Name) == name]
+            if len(matches) != 1:
+                raise ValueError(f"Parameter name matched {len(matches)} objects; use an exact handle")
+            param = matches[0]
         old_value = param.Value
-        param.Value = value
+        state = getattr(self.conn, "session", None)
+        if state is not None:
+            handle = handle or state.register(param, "parameter")
+            state.modified.append(handle)
+        if unit == "native":
+            param.Value = value
+        else:
+            param.ValuateFromString(f"{value}{unit}")
         part.Update()
+        readback = str(param.ValueAsString())
+        if unit == "native" and not math.isclose(float(param.Value), value, rel_tol=1e-9, abs_tol=1e-9):
+            raise RuntimeError("Parameter readback differs from requested native value")
+        if state is not None:
+            state.updated = True
 
         self.conn.refresh_display()
-        return f"Parameter '{name}' changed: {old_value} -> {value}"
+        return {"ok": True, "handle": handle, "name": str(param.Name), "old_native_value": old_value,
+                "requested_value": value, "requested_unit": unit, "readback": readback,
+                "warnings": ["Dependent geometric effect not measured; native unit is parameter-specific"]}
 
     def _update_part(self) -> str:
         self.conn.ensure_connected()
@@ -273,5 +308,7 @@ class MeasurementTools:
         part.Update()
         if not part.IsUpToDate(part.MainBody):
             raise RuntimeError("CATIA reports the main body is not up to date after Part.Update")
+        if getattr(self.conn, "session", None) is not None:
+            self.conn.session.updated = True
         self.conn.refresh_display()
         return "Part updated; CATIA reports the main body is up to date"

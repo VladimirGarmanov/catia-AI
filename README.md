@@ -9,17 +9,27 @@ with the original MIT license retained.
 
 ## What it does
 
-This MCP server exposes **81 tools** that let Claude or Codex:
+This MCP server registers **124 tools** (including the original 81 names).
+Registration is not live CATIA validation. See [implementation status](IMPLEMENTATION_STATUS.md)
+for the implemented subset of the supplied 218-capability catalog and remaining gaps.
+
+The tool groups let Claude or Codex:
 
 - **Create and manage documents** — new Part, Product (assembly), open, save, close
 - **2D Sketching** — lines, rectangles, circles, arcs, splines, points, constraints
 - **Part Design** — Pad, Pocket, Shaft, Groove, Fillet, Chamfer, Hole, Shell, Draft, Thickness, Patterns (rectangular/circular), Mirror
 - **Generative Shape Design (GSD)** — 3D wireframe (points, lines, planes, splines, circles), Multi-sections Surface (loft), Sweep, Extrude, Revolve, Fill, Blend, Offset, Join, Split, Trim, Symmetry, ThickSurface/CloseSurface to solids
 - **Assembly** — add components, Fix/Coincidence/Offset/Angle constraints, move/rotate
-- **Measurement** — distance, inertia, bounding box, parameters
+- **Measurement** — area/volume, partial inertia, parameters; exact bounding box remains unsupported
 - **Export** — STEP, IGES, STL, 3DXML, VRML, screenshots
 - **View control** — set standard views, fit all, capture screenshots
 - **Current context** — inspect the active model and CATIA selection
+- **Handle-based engineering** — explicit containers, reference planes/points, Rib/Slot,
+  solid lofts, body booleans, typed parameters/formulas and API-catalog lookup
+
+COM access is serialized on one STA worker. Read model state before existing-document
+writes; use its document ID/revision and a unique request ID. Handles are session-local,
+not durable topology IDs. Failed/uncertain writes require inspection, not blind retries.
 
 ## Requirements
 
@@ -52,7 +62,7 @@ project files in place, preserving the local runtime and Codex config. It needs
 GitHub access; bundled runtime dependencies are updated by installing a newer EXE.
 `DIAGNOSE.cmd` creates a report without calling CATIA tools.
 The CATIA connection still requires Windows COM automation.
-The default is now **one Codex agent with all 81 tools**: it reads the drawing and
+The default is now **one Codex agent with all 124 tools**: it reads the drawing and
 selection, plans, models and verifies the result itself. No subagent is required.
 `START_WITH_DRAWING.cmd` opens a PNG/JPEG/PDF picker; PDF pages are rendered locally
 and attached as images (optional `drawings` dependencies installed by INSTALL).

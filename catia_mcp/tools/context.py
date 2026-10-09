@@ -306,6 +306,23 @@ class ContextTools:
             if owner is not None:
                 item["document"] = self._document_label(owner)
 
+            state = getattr(self.conn, "session", None)
+            if state is not None and value is not None:
+                try:
+                    from catia_mcp.runtime import same_object
+                    if owner is None or not same_object(owner, doc):
+                        raise ValueError("Selection document ownership is unavailable or differs from active document")
+                    kind = str(selected_type).lower()
+                    if kind.endswith("face"):
+                        kind = "face"
+                    elif kind.endswith("edge"):
+                        kind = "edge"
+                    item["handle"] = state.register(value, kind, reference=selected.Reference,
+                        topology=True, selection_index=position)
+                    item["handle_scope"] = "same document, revision and live selection only"
+                except Exception as exc:
+                    warnings.append(f"Selection position {position}: exact handle unavailable: {exc}")
+
             try:
                 leaf_product = selected.LeafProduct
                 product_name = str(leaf_product.Name)

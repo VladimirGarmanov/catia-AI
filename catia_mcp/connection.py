@@ -31,6 +31,7 @@ class CATIAConnection:
         self.app: Any | None = None
         self._initialized_com = False
         self.allow_launch = allow_launch
+        self.operation_body = None
 
     @property
     def is_connected(self) -> bool:
@@ -62,7 +63,7 @@ class CATIAConnection:
 
         # Initialize COM for this thread
         if not self._initialized_com:
-            pythoncom.CoInitialize()
+            pythoncom.CoInitializeEx(pythoncom.COINIT_APARTMENTTHREADED)
             self._initialized_com = True
 
         # Phase 1: Try to attach to a running CATIA instance
@@ -200,7 +201,7 @@ class CATIAConnection:
     def get_active_part_body(self) -> Any:
         """Get the main PartBody from the active Part document."""
         part = self.get_active_part()
-        return part.MainBody
+        return self.operation_body if self.operation_body is not None else part.MainBody
 
     def get_origin_elements(self) -> dict[str, Any]:
         """Get the origin planes (XY, YZ, ZX) from the active Part."""

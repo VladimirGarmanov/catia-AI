@@ -15,6 +15,7 @@ authors = [
 keywords = ["catia", "catia-v5", "mcp", "claude", "dassault-systemes", "cao", "cad", "automation"]
 
 dependencies = [
+    "jsonschema>=4.20,<5",
     "mcp>=1.0.0,<2",
     "pywin32>=306; sys_platform == 'win32'",
     "tomli>=2; python_version < '3.11'",
@@ -34,7 +35,10 @@ dev = [
 catia-mcp = "catia_mcp.server:main"
 
 [tool.setuptools.packages.find]
-include = ["catia_mcp*"]
+include = ["catia_mcp*", "CATIA_AGENT_CODEX_PACKAGE"]
+
+[tool.setuptools.package-data]
+CATIA_AGENT_CODEX_PACKAGE = ["*.json", "*.md", "*.csv", "*.txt"]
 
 [tool.ruff]
 line-length = 100

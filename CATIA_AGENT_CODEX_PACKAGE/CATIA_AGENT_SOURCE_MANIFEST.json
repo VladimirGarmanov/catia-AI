@@ -1,0 +1,1428 @@
+{
+  "spec_version": "1.0",
+  "checked_on": "2026-10-08",
+  "documentation_version": "0.10.1",
+  "documentation_index": "https://pycatia.readthedocs.io/en/latest/api_index.html",
+  "documentation_snapshot_note": "latest URLs are mutable; archived HTML hashes and official wheel pin the checked inputs",
+  "html_pages": [
+    {
+      "url": "https://pycatia.readthedocs.io/en/latest/api/pycatia/analysis_interfaces/analysis_adaptivity_manager.html",
+      "sha256": "b002d8bb5a91f964865801d4c95ce0c4d149a3c92f085ff83d12eb008f1534f9"
+    },
+    {
+      "url": "https://pycatia.readthedocs.io/en/latest/api/pycatia/analysis_interfaces/analysis_case.html",
+      "sha256": "a8a556e0b07469b9a42a9dac2b790e608d8bb832fe34420a0c06e468911a3c4f"
+    },
+    {
+      "url": "https://pycatia.readthedocs.io/en/latest/api/pycatia/analysis_interfaces/analysis_cases.html",
+      "sha256": "b9b54b3240d0cb2a342956866228410ff891e9a6dd32b164380a7b632aaa7042"
+    },
+    {
+      "url": "https://pycatia.readthedocs.io/en/latest/api/pycatia/analysis_interfaces/analysis_color_map.html",
+      "sha256": "edaf30021fdb3ab5077efcd19b454a45aea1ed790c0c636e10d2dc2fdd1d095f"
+    },
+    {
+      "url": "https://pycatia.readthedocs.io/en/latest/api/pycatia/analysis_interfaces/analysis_document.html",
+      "sha256": "233c9914d0a54fb4545a343f31f0eeb988566111bc84e9573d420939f7cf8856"
+    },
+    {
+      "url": "https://pycatia.readthedocs.io/en/latest/api/pycatia/analysis_interfaces/analysis_entities.html",
+      "sha256": "db10e0bd3744283195bd7091f3171a8d203adcddd27f1f16263eef65a34f2c63"
+    },
+    {
+      "url": "https://pycatia.readthedocs.io/en/latest/api/pycatia/analysis_interfaces/analysis_entity.html",
+      "sha256": "0e01f9006f878557b3444c7a3ae61436a9c4a548cf91cb2ad9371624d7c9dd47"
+    },
+    {
+      "url": "https://pycatia.readthedocs.io/en/latest/api/pycatia/analysis_interfaces/analysis_export.html",
+      "sha256": "d38a7ca16762755b291fe11751ada4e5fbb26c0d12a2356043614af0149d4b61"
+    },
+    {
+      "url": "https://pycatia.readthedocs.io/en/latest/api/pycatia/analysis_interfaces/analysis_general_setting_att.html",
+      "sha256": "ef82d060cfadcfeb78c4d7b0bd85ab6e795d605612ac761873780b85ac4f32cf"
+    },
+    {
+      "url": "https://pycatia.readthedocs.io/en/latest/api/pycatia/analysis_interfaces/analysis_global_sensor.html",
+      "sha256": "fdc40dff3f01bcd429efaf9eaa93d2b53522e62612fd763bdd6e0189ebf7d82e"
+    },
+    {
+      "url": "https://pycatia.readthedocs.io/en/latest/api/pycatia/analysis_interfaces/analysis_image.html",
+      "sha256": "d3cac4586acda6b4b3fdb82948e7f828be8cb2f6c2b4be5356b1ed1aacfe9801"
+    },
+    {
+      "url": "https://pycatia.readthedocs.io/en/latest/api/pycatia/analysis_interfaces/analysis_images.html",
+      "sha256": "19927d65207fcbbcfab277aeeab67f8a7a809a63fc86d856bf5fe03e531bf485"
+    },
+    {
+      "url": "https://pycatia.readthedocs.io/en/latest/api/pycatia/analysis_interfaces/analysis_import.html",
+      "sha256": "ca654d69c5b8be060d05d2612675f4b04968fd3af81f4ad08d206b47ba3aa3ad"
+    },
+    {
+      "url": "https://pycatia.readthedocs.io/en/latest/api/pycatia/analysis_interfaces/analysis_linked_documents.html",
+      "sha256": "faf529fcbadf6d95f4e360bdb1ebbe63c4f9d69f8bd075be2b4e827f8fab1c08"
+    },
+    {
+      "url": "https://pycatia.readthedocs.io/en/latest/api/pycatia/analysis_interfaces/analysis_local_entities.html",
+      "sha256": "cfa1280aa9f0a008513f2faa03ee77aa2502039e39f9628efc9f6095cb59a246"
+    },
+    {
+      "url": "https://pycatia.readthedocs.io/en/latest/api/pycatia/analysis_interfaces/analysis_local_entity.html",
+      "sha256": "e282460a0c42cde85a4eb9e1d1a3f9858d8a1e392552b620b9f5b1a7327706e0"
+    },
+    {
+      "url": "https://pycatia.readthedocs.io/en/latest/api/pycatia/analysis_interfaces/analysis_local_sensor.html",
+      "sha256": "5127e686f3b96266caec52db7be9e31cff8d1aca374ae50681ca6b6dd2fa55c4"
+    },
+    {
+      "url": "https://pycatia.readthedocs.io/en/latest/api/pycatia/analysis_interfaces/analysis_manager.html",
+      "sha256": "60cf35e7257186c9dd708827826dcca139a2b31b8fb7d1eb92d784c312a9aba8"
+    },
+    {
+      "url": "https://pycatia.readthedocs.io/en/latest/api/pycatia/analysis_interfaces/analysis_mesh_element.html",
+      "sha256": "119c0819bef1f07ef8ea460719b9773be21de7c0e9471436ff1ac14a6b968f52"
+    },
+    {
+      "url": "https://pycatia.readthedocs.io/en/latest/api/pycatia/analysis_interfaces/analysis_mesh_local_specification.html",
+      "sha256": "b2ee2358cf6fffffab6a387d18e7d329c9f2710ad18a2987a18d0f936b94a1d5"
+    },
+    {
+      "url": "https://pycatia.readthedocs.io/en/latest/api/pycatia/analysis_interfaces/analysis_mesh_local_specifications.html",
+      "sha256": "c42283076518f8ac7d11a2e2d69553bfc652683817feeed031c3e9cee33e83bd"
+    },
+    {
+      "url": "https://pycatia.readthedocs.io/en/latest/api/pycatia/analysis_interfaces/analysis_mesh_manager.html",
+      "sha256": "6016355748733c6dc43ec4d3018266463c2f99a6fb47b3e5790ba725a8355bfd"
+    },
+    {
+      "url": "https://pycatia.readthedocs.io/en/latest/api/pycatia/analysis_interfaces/analysis_mesh_node.html",
+      "sha256": "037b0ca571bbda848d3049622cd700cbb306ab21ccae254275b4a92a9e913418"
+    },
+    {
+      "url": "https://pycatia.readthedocs.io/en/latest/api/pycatia/analysis_interfaces/analysis_mesh_part.html",
+      "sha256": "5a28d7b60fa7bdece1bb8109a612c43cf23c37f2cb5e61c2b1fd4232cc04a0b1"
+    },
+    {
+      "url": "https://pycatia.readthedocs.io/en/latest/api/pycatia/analysis_interfaces/analysis_mesh_parts.html",
+      "sha256": "70f3766e4a10e91bbd678a689a0f0a41c25af2eafa3552e6c91ff6152bd810f1"
+    },
+    {
+      "url": "https://pycatia.readthedocs.io/en/latest/api/pycatia/analysis_interfaces/analysis_model.html",
+      "sha256": "b9c03d4e9711091db0804274a7a6689734312fcc1aab033ad7483d4945987c14"
+    },
+    {
+      "url": "https://pycatia.readthedocs.io/en/latest/api/pycatia/analysis_interfaces/analysis_models.html",
+      "sha256": "60567eea6a013bdad361bb41ce746fd158fda7663c0ec95ff6306d06b1b9329b"
+    },
+    {
+      "url": "https://pycatia.readthedocs.io/en/latest/api/pycatia/analysis_interfaces/analysis_output_entities.html",
+      "sha256": "035712994f27222cad8b8878c22e54c0c2f0c3795fce04504ea3c15dfef27677"
+    },
+    {
+      "url": "https://pycatia.readthedocs.io/en/latest/api/pycatia/analysis_interfaces/analysis_post_manager.html",
+      "sha256": "a3dbf432db225e7772224768b5db7763012310d05f3d96678e5dbbf7f8d0f3cf"
+    },
+    {
+      "url": "https://pycatia.readthedocs.io/en/latest/api/pycatia/analysis_interfaces/analysis_post_pro_anr_setting_att.html",
+      "sha256": "e30ff05029b45d580a18d90be9ecded03a92c2ab5502133f21cc5894ecb05bbf"
+    },
+    {
+      "url": "https://pycatia.readthedocs.io/en/latest/api/pycatia/analysis_interfaces/analysis_post_pro_setting_att.html",
+      "sha256": "0abee0a772925f2c6d1390f3c02dbf3d0f0b44bd3476f5dfbbf61d1e82bbd4e2"
+    },
+    {
+      "url": "https://pycatia.readthedocs.io/en/latest/api/pycatia/analysis_interfaces/analysis_reporting_setting_att.html",
+      "sha256": "089f75f97f10a25a2a1da13d78ae70df85b2c0a89e14bac30c2587bc68055047"
+    },
+    {
+      "url": "https://pycatia.readthedocs.io/en/latest/api/pycatia/analysis_interfaces/analysis_sensor.html",
+      "sha256": "2b0954657c433fb208c9c20ee7a6cc5eb1c0ab4f57bf98c9eac31a9458c0e6c1"
+    },
+    {
+      "url": "https://pycatia.readthedocs.io/en/latest/api/pycatia/analysis_interfaces/analysis_set.html",
+      "sha256": "0c3a34b6a2162814b53da7e3fbe63d3d1f55ade7760647843e79c2df73e5e0fc"
+    },
+    {
+      "url": "https://pycatia.readthedocs.io/en/latest/api/pycatia/analysis_interfaces/analysis_sets.html",
+      "sha256": "def8b12c560acf423b92ce1bc68d90ac242e49c7bed742754a3448a411893cc3"
+    },
+    {
+      "url": "https://pycatia.readthedocs.io/en/latest/api/pycatia/analysis_interfaces/analysis_supports.html",
+      "sha256": "0f56fa81a8e2938e95638d623f362d70070af734119e58fed3fdfa7ee3feac4e"
+    },
+    {
+      "url": "https://pycatia.readthedocs.io/en/latest/api/pycatia/analysis_interfaces/analysis_v4_services.html",
+      "sha256": "55f44e12815786fb1d2746f7fc550a071352fb36ac51ca0c1b71b85bcfa036cc"
+    },
+    {
+      "url": "https://pycatia.readthedocs.io/en/latest/api/pycatia/analysis_interfaces/basic_component.html",
+      "sha256": "76b4b5f11fd1e434c406a1812ecf37a7b396fb8f3a78a637382ced9d89c924e3"
+    },
+    {
+      "url": "https://pycatia.readthedocs.io/en/latest/api/pycatia/analysis_interfaces/basic_components.html",
+      "sha256": "a50cca17e5eb530b2680399a2c49198cf9e5922b0d541d40ecc01498f653fc5c"
+    },
+    {
+      "url": "https://pycatia.readthedocs.io/en/latest/api/pycatia/assembly_interfaces/assembly_boolean.html",
+      "sha256": "d1fbbfa245ff601a56bdf643513baac7494ae598909736d2a29d1488baa54ed6"
+    },
+    {
+      "url": "https://pycatia.readthedocs.io/en/latest/api/pycatia/assembly_interfaces/assembly_constraint_setting_att.html",
+      "sha256": "1fe5a94a3771845c63f46f6b736f1c5268f9512d74762c69808290d6dc02afb5"
+    },
+    {
+      "url": "https://pycatia.readthedocs.io/en/latest/api/pycatia/assembly_interfaces/assembly_feature.html",
+      "sha256": "813f7e2e46711d733a18fe6516ab5769cbea334c8d5a98e470657398e452954a"
+    },
+    {
+      "url": "https://pycatia.readthedocs.io/en/latest/api/pycatia/assembly_interfaces/assembly_features.html",
+      "sha256": "22c93412f77a79700c09a9b4966037d6f148af7fdc41fb604abe0536700dbac3"
+    },
+    {
+      "url": "https://pycatia.readthedocs.io/en/latest/api/pycatia/assembly_interfaces/assembly_general_setting_att.html",
+      "sha256": "cc7f16a4b827e3861564a22874797b2caf56d92e50b05814f2522502560cc4e3"
+    },
+    {
+      "url": "https://pycatia.readthedocs.io/en/latest/api/pycatia/assembly_interfaces/assembly_hole.html",
+      "sha256": "80b1bf0c2c4a1a757e5d45ec66f3c43b59e00157ef6e7947cce865e4f4dd74ec"
+    },
+    {
+      "url": "https://pycatia.readthedocs.io/en/latest/api/pycatia/assembly_interfaces/assembly_pocket.html",
+      "sha256": "1ab4936c21d8fcacd3813cc0e44774bdc660f4aaa2f34300b7a8f3f50558f8cc"
+    },
+    {
+      "url": "https://pycatia.readthedocs.io/en/latest/api/pycatia/assembly_interfaces/assembly_split.html",
+      "sha256": "a16fcf49b7ff229fe2f6fce3d0d56b2169428107500691eb20c84f26ac63bd87"
+    },
+    {
+      "url": "https://pycatia.readthedocs.io/en/latest/api/pycatia/cat_mat_interfaces/analysis_material.html",
+      "sha256": "23f0f9bbc08d8e73026b11026e20865b080998fac708b1b17d35cd1411aa904a"
+    },
+    {
+      "url": "https://pycatia.readthedocs.io/en/latest/api/pycatia/cat_mat_interfaces/material.html",
+      "sha256": "86e7bfb036af8d32dd14f9eccbf012eb54048ec99e40918fc48e94784d99139f"
+    },
+    {
+      "url": "https://pycatia.readthedocs.io/en/latest/api/pycatia/cat_mat_interfaces/material_document.html",
+      "sha256": "6d518d01039e1fb3e11c6f9d01619ae59ad93e6997544e5216b994ee3acf4bb8"
+    },
+    {
+      "url": "https://pycatia.readthedocs.io/en/latest/api/pycatia/cat_mat_interfaces/material_families.html",
+      "sha256": "19e2380fe720451854e3cfeb83843994b9e73129aa000415307f0aac99e9b2b8"
+    },
+    {
+      "url": "https://pycatia.readthedocs.io/en/latest/api/pycatia/cat_mat_interfaces/material_family.html",
+      "sha256": "495b65beff386b333392ddf931326a63584fb14890463e87dd96f4f02651b69f"
+    },
+    {
+      "url": "https://pycatia.readthedocs.io/en/latest/api/pycatia/cat_mat_interfaces/material_manager.html",
+      "sha256": "b7bb5234c567da6a8c4a397d9092a4438e3a32d0842de3a6f15c91829c0ddd1f"
+    },
+    {
+      "url": "https://pycatia.readthedocs.io/en/latest/api/pycatia/cat_mat_interfaces/materials.html",
+      "sha256": "b6c3fbadaaa62ea8c67c924f0f2bd5ae7e35f8a865d7024a2971fc195fdc2de7"
+    },
+    {
+      "url": "https://pycatia.readthedocs.io/en/latest/api/pycatia/cat_mat_interfaces/positioned_material.html",
+      "sha256": "f42f4bef33725cc1ebf1c904ec4ac48ba6d471be1587b09f6fc7a2c2c20ca2a1"
+    },
+    {
+      "url": "https://pycatia.readthedocs.io/en/latest/api/pycatia/cat_sm_interfaces/catalog_shm_object_setting_att.html",
+      "sha256": "8cc71fb6c89617402898f6c05f923a6dd6916e2a01a8c08344ff4756bfb0333a"
+    },
+    {
+      "url": "https://pycatia.readthedocs.io/en/latest/api/pycatia/cat_sm_interfaces/view_characteristic_curves_setting_att.html",
+      "sha256": "daebc7375dad180c33f0bbbaaff37f524b14cf96889c396f6f0c4fef08105546"
+    },
+    {
+      "url": "https://pycatia.readthedocs.io/en/latest/api/pycatia/cat_tps_interfaces/annotation.html",
+      "sha256": "fba4eeb1a1ea29933d6d7f4bcdb8c7510db24d255d00d3a141116ea093ad9776"
+    },
+    {
+      "url": "https://pycatia.readthedocs.io/en/latest/api/pycatia/cat_tps_interfaces/annotation_2.html",
+      "sha256": "943d8af442e2c606b420585eb1e2b7761673b5768709a206346391c2a2498197"
+    },
+    {
+      "url": "https://pycatia.readthedocs.io/en/latest/api/pycatia/cat_tps_interfaces/annotation_factory.html",
+      "sha256": "ad03471ff284c79bd9815503f19331bec2676adf55a09cb49ba879514be33370"
+    },
+    {
+      "url": "https://pycatia.readthedocs.io/en/latest/api/pycatia/cat_tps_interfaces/annotation_factory_2.html",
+      "sha256": "ac0296decb21165ae32071a283dd576ebb03ea7a8381b142ceb56eaef574abb1"
+    },
+    {
+      "url": "https://pycatia.readthedocs.io/en/latest/api/pycatia/cat_tps_interfaces/annotation_set.html",
+      "sha256": "87b6f01f3f3ec07742187d01ea5a5a1608588833cd72a5bc2c0a7f42fa7509ed"
+    },
+    {
+      "url": "https://pycatia.readthedocs.io/en/latest/api/pycatia/cat_tps_interfaces/annotation_set_transform_into_assembly_set.html",
+      "sha256": "f23ec0eb5ad25f763dfca8fb9625d75c28f972846ff84835c476375cb4269914"
+    },
+    {
+      "url": "https://pycatia.readthedocs.io/en/latest/api/pycatia/cat_tps_interfaces/annotation_sets.html",
+      "sha256": "a37daa4ba947011701173ba14525a0e82fa5ef6a9d1abd64d472e1779ba1b66a"
+    },
+    {
+      "url": "https://pycatia.readthedocs.io/en/latest/api/pycatia/cat_tps_interfaces/annotations.html",
+      "sha256": "1266a84a1aa5faf2bb11e7037f52d8549aa470e0607ea7069054a1c38a9aa229"
+    },
+    {
+      "url": "https://pycatia.readthedocs.io/en/latest/api/pycatia/cat_tps_interfaces/assembly_annotation_sets.html",
+      "sha256": "39a16ebe509ba077e1be8e3a7b7a0bb01d54911d7ac0d79747929eca6179d7db"
+    },
+    {
+      "url": "https://pycatia.readthedocs.io/en/latest/api/pycatia/cat_tps_interfaces/associated_ref_frame.html",
+      "sha256": "20216bbf11c546821eea240fba8699ea5dd8e0ac67c3756f62996d9512d069f9"
+    },
+    {
+      "url": "https://pycatia.readthedocs.io/en/latest/api/pycatia/cat_tps_interfaces/capture.html",
+      "sha256": "6fc4f89a2363d7372178f48335783544ec2c6fee70bfb829b4d256b4e9730946"
+    },
+    {
+      "url": "https://pycatia.readthedocs.io/en/latest/api/pycatia/cat_tps_interfaces/capture_factory.html",
+      "sha256": "a8a630840e50aa537e38e401fbdb2411569bcf30283c56f24b2aeb7d8b816c10"
+    },
+    {
+      "url": "https://pycatia.readthedocs.io/en/latest/api/pycatia/cat_tps_interfaces/captures.html",
+      "sha256": "2debf385cc1380a9de35381f3aef5ea6473c8db77bb6ab596abfe1e5269b69cb"
+    },
+    {
+      "url": "https://pycatia.readthedocs.io/en/latest/api/pycatia/cat_tps_interfaces/composite_tolerance.html",
+      "sha256": "c499fb247828b01501e88eff072585f33fd7c5cd099a292496528ec7d57c2cc5"
+    },
+    {
+      "url": "https://pycatia.readthedocs.io/en/latest/api/pycatia/cat_tps_interfaces/controlled_radius.html",
+      "sha256": "a8321ef957cbaadfe32727be70a7c4d448c980a79fac19ff6751c2aa5ee1d4e1"
+    },
+    {
+      "url": "https://pycatia.readthedocs.io/en/latest/api/pycatia/cat_tps_interfaces/datum_simple.html",
+      "sha256": "37c958e402c63826b4ad973862127ce5448fb6ffa9ddcfae86e6aaf23c3e35b9"
+    },
+    {
+      "url": "https://pycatia.readthedocs.io/en/latest/api/pycatia/cat_tps_interfaces/datum_target.html",
+      "sha256": "fd17a343132e79aeeff88b2b6909d4f700d59e5a5aa45b5655ee7f5e383b49aa"
+    },
+    {
+      "url": "https://pycatia.readthedocs.io/en/latest/api/pycatia/cat_tps_interfaces/default_annotation.html",
+      "sha256": "f7c0e023365f8cf8c3e724fed702d186b1f08404f5e4cb8dd0d0812a74c83c5e"
+    },
+    {
+      "url": "https://pycatia.readthedocs.io/en/latest/api/pycatia/cat_tps_interfaces/dimension_3d.html",
+      "sha256": "9058f82b06ff996eb776823cebc4c7c81c7042f30937236978ec1e1de5ada853"
+    },
+    {
+      "url": "https://pycatia.readthedocs.io/en/latest/api/pycatia/cat_tps_interfaces/dimension_limit.html",
+      "sha256": "090ac7e5995ec1bd02da8f45ebdf6bbaea62b1fcafdb296c0ae969ccee6356ba"
+    },
+    {
+      "url": "https://pycatia.readthedocs.io/en/latest/api/pycatia/cat_tps_interfaces/dimension_pattern.html",
+      "sha256": "f0f522dd8654d26d9fe17c594d9181a6f815f3cafa3421db599161259f1c7163"
+    },
+    {
+      "url": "https://pycatia.readthedocs.io/en/latest/api/pycatia/cat_tps_interfaces/dmu_tol_setting_att.html",
+      "sha256": "2d6aea6764d9779f9ce0c66cea5f337c7979a5a83c260aa2e20526451f6fdf8f"
+    },
+    {
+      "url": "https://pycatia.readthedocs.io/en/latest/api/pycatia/cat_tps_interfaces/envelope_condition.html",
+      "sha256": "2c08253bf39a286935d2461037d1095fbe531c699c05c4dfbc8d79bccea6d2c9"
+    },
+    {
+      "url": "https://pycatia.readthedocs.io/en/latest/api/pycatia/cat_tps_interfaces/flag_note.html",
+      "sha256": "8d3879413d6dcd76f8a57e47547b3acf99e7a8e466c708caaa82a4af553ec893"
+    },
+    {
+      "url": "https://pycatia.readthedocs.io/en/latest/api/pycatia/cat_tps_interfaces/free_state.html",
+      "sha256": "dac24e0ca9eead5b04441ed4d9d5b829304b6cace1339fa7eb60f58831f2d98a"
+    },
+    {
+      "url": "https://pycatia.readthedocs.io/en/latest/api/pycatia/cat_tps_interfaces/fta_infra_setting_att.html",
+      "sha256": "b458782cbfdee10a091d46f5d905413550bb05f9aacbf176986077c7165522aa"
+    },
+    {
+      "url": "https://pycatia.readthedocs.io/en/latest/api/pycatia/cat_tps_interfaces/fta_setting_att.html",
+      "sha256": "9ac677adcf9b2cb219c3023f5458de226107d5cb182d4fcc45c5e878e853cee3"
+    },
+    {
+      "url": "https://pycatia.readthedocs.io/en/latest/api/pycatia/cat_tps_interfaces/material_condition.html",
+      "sha256": "bf74846814ff748ffc78d4c6d3a3568faba82a089ff22f86985c81af3081cb3b"
+    },
+    {
+      "url": "https://pycatia.readthedocs.io/en/latest/api/pycatia/cat_tps_interfaces/noa.html",
+      "sha256": "cfdfc474790fe96adc66d6dd976d9a57e4994d6f86f66f8ff7c828e677bc3543"
+    },
+    {
+      "url": "https://pycatia.readthedocs.io/en/latest/api/pycatia/cat_tps_interfaces/non_semantic_datum.html",
+      "sha256": "f105a9c7b8a20fc692e022a382c72a140a307765fdc8a3c91fdf0328c187e6c1"
+    },
+    {
+      "url": "https://pycatia.readthedocs.io/en/latest/api/pycatia/cat_tps_interfaces/non_semantic_datum_target.html",
+      "sha256": "86fd3a20671d985434ad9b5ddca39eccc25378c24dfdd18d70dc6aea0d637f7b"
+    },
+    {
+      "url": "https://pycatia.readthedocs.io/en/latest/api/pycatia/cat_tps_interfaces/non_semantic_dimension.html",
+      "sha256": "f8a3364bc0844728502d7b3840ac16caae15dca79806c28696d4737d0de44885"
+    },
+    {
+      "url": "https://pycatia.readthedocs.io/en/latest/api/pycatia/cat_tps_interfaces/non_semantic_gdt.html",
+      "sha256": "24ab05e753d2156af41f3c93a738d60525ad885aafb7e567832c9963da2021e9"
+    },
+    {
+      "url": "https://pycatia.readthedocs.io/en/latest/api/pycatia/cat_tps_interfaces/particular_tol_elem.html",
+      "sha256": "d011129c6a26a35854f9b122087a29573d98bfc8a70faf7170ad6e8f25262bff"
+    },
+    {
+      "url": "https://pycatia.readthedocs.io/en/latest/api/pycatia/cat_tps_interfaces/projected_tolerance_zone.html",
+      "sha256": "26fa01c1bc000b5da8f4ab8bd5ac6b1ed2289a92919aa2cb32bb949137bc3fa8"
+    },
+    {
+      "url": "https://pycatia.readthedocs.io/en/latest/api/pycatia/cat_tps_interfaces/reference_frame.html",
+      "sha256": "6d99f61827549156f4fc68f74574f58ec36f4410591dbc503d0f0270f76f51a2"
+    },
+    {
+      "url": "https://pycatia.readthedocs.io/en/latest/api/pycatia/cat_tps_interfaces/roughness.html",
+      "sha256": "81d6f3515228d177af3db8e0f5a19a470569f25fdedc0943a1266c465497c5fd"
+    },
+    {
+      "url": "https://pycatia.readthedocs.io/en/latest/api/pycatia/cat_tps_interfaces/semantic_gdt.html",
+      "sha256": "ed7a67611a4fd870b790a693240b3039e079007e667ed54162653328a22a6e7a"
+    },
+    {
+      "url": "https://pycatia.readthedocs.io/en/latest/api/pycatia/cat_tps_interfaces/shifted_profile_tolerance.html",
+      "sha256": "b87baef8beef94bdf12b3efe5aa5db698aced98c8e04e4b4e0d2223ff18f0113"
+    },
+    {
+      "url": "https://pycatia.readthedocs.io/en/latest/api/pycatia/cat_tps_interfaces/tangent_plane.html",
+      "sha256": "bdd763ad767d1229012d4d1eef506eddbdfb5ffb5d04859c85a2d4594620b9d2"
+    },
+    {
+      "url": "https://pycatia.readthedocs.io/en/latest/api/pycatia/cat_tps_interfaces/text.html",
+      "sha256": "95d37872967b62803aded1327acb3c50e68addf12c7d4bf06ba5f2f05d4a833f"
+    },
+    {
+      "url": "https://pycatia.readthedocs.io/en/latest/api/pycatia/cat_tps_interfaces/tolerance_per_unit_basis_restrictive_value.html",
+      "sha256": "53160b19cffd5d138889e3687d3c9abe22496cf2ae230cdd33d2ff6c3bf9a123"
+    },
+    {
+      "url": "https://pycatia.readthedocs.io/en/latest/api/pycatia/cat_tps_interfaces/tolerance_unit_basis_value.html",
+      "sha256": "adc211882361963c1424f9b94d4e86db02e5995491b63ddb6858162c9a5221be"
+    },
+    {
+      "url": "https://pycatia.readthedocs.io/en/latest/api/pycatia/cat_tps_interfaces/tolerance_zone.html",
+      "sha256": "7d0009ee22150ed955131304a513c27fc6c3d116a7e134bb1e2d0f2599e2cd21"
+    },
+    {
+      "url": "https://pycatia.readthedocs.io/en/latest/api/pycatia/cat_tps_interfaces/tps_parallel_on_screen.html",
+      "sha256": "af24c3b0be9569f89ad699f70891bbc6c4e2dbfb249fce92fd335ebd9a1dc57f"
+    },
+    {
+      "url": "https://pycatia.readthedocs.io/en/latest/api/pycatia/cat_tps_interfaces/tps_view.html",
+      "sha256": "3560254250a0e4929ddacf7bf3795e1e101af2649fd41f04cb4963a8a037535e"
+    },
+    {
+      "url": "https://pycatia.readthedocs.io/en/latest/api/pycatia/cat_tps_interfaces/tps_view_factory.html",
+      "sha256": "9f90131144c1926403ba8a6b7184c3150fb92b28eb89526d1622cc5b08c39312"
+    },
+    {
+      "url": "https://pycatia.readthedocs.io/en/latest/api/pycatia/cat_tps_interfaces/tps_views.html",
+      "sha256": "47cc7bcdf0ea4e20a6e7159c2d0dde01ff06e57556829cc684f8ea6f993ef31f"
+    },
+    {
+      "url": "https://pycatia.readthedocs.io/en/latest/api/pycatia/cat_tps_interfaces/user_surface.html",
+      "sha256": "47422b0681d7aae477f69eadf49a7988bedd78b40d6c5e7570e35fe756fafd9c"
+    },
+    {
+      "url": "https://pycatia.readthedocs.io/en/latest/api/pycatia/cat_tps_interfaces/user_surfaces.html",
+      "sha256": "7cea4ea264c1fb6e7b12b3ff6ca647d9844ef4b2c9579236a1ea796c7cf55a29"
+    },
+    {
+      "url": "https://pycatia.readthedocs.io/en/latest/api/pycatia/cat_tps_interfaces/weld.html",
+      "sha256": "a6b611446b2ff69fe2b419099ce8ba8d3bc6106b737f054d78f24762aa1ef364"
+    },
+    {
+      "url": "https://pycatia.readthedocs.io/en/latest/api/pycatia/composites_interfaces/composites_material.html",
+      "sha256": "86ab3e49fb90d65e228cc3f187364fe4a1010c70560df4d8a5d3558a94a271d0"
+    },
+    {
+      "url": "https://pycatia.readthedocs.io/en/latest/api/pycatia/drafting_interfaces/drafting_setting_att.html",
+      "sha256": "ded1ce4d0da21c7b4155867775517d198aeeb7be377f28b4ff2ca3cea7316d74"
+    },
+    {
+      "url": "https://pycatia.readthedocs.io/en/latest/api/pycatia/drafting_interfaces/drawing_arrow.html",
+      "sha256": "7c4b4c2b5d61403d929ae459be58b83ba147abe2abda0a612354ce4a6a6bcba1"
+    },
+    {
+      "url": "https://pycatia.readthedocs.io/en/latest/api/pycatia/drafting_interfaces/drawing_arrows.html",
+      "sha256": "2e2258c17b91d168cbed5030a3aeb51a5ff4bf1e89c60e6f32713f1f2fea412a"
+    },
+    {
+      "url": "https://pycatia.readthedocs.io/en/latest/api/pycatia/drafting_interfaces/drawing_component.html",
+      "sha256": "c150d4c90d7443d47ed7872fff9d698a6b99e3394954ada603198750050e9918"
+    },
+    {
+      "url": "https://pycatia.readthedocs.io/en/latest/api/pycatia/drafting_interfaces/drawing_components.html",
+      "sha256": "d489c4d4c68ffa4a54b3163105cfc5f865d936103805282fb9b4e9d302303b2f"
+    },
+    {
+      "url": "https://pycatia.readthedocs.io/en/latest/api/pycatia/drafting_interfaces/drawing_dim_ext_line.html",
+      "sha256": "3e75cc22fbc998f2b5a4ef6af3011b8c381d049b732f84f382853f3c121bc0cb"
+    },
+    {
+      "url": "https://pycatia.readthedocs.io/en/latest/api/pycatia/drafting_interfaces/drawing_dim_line.html",
+      "sha256": "7e62a74d08091013df1b22280e553ee24ace7e67b4f0c8cb71bb8a83aa127635"
+    },
+    {
+      "url": "https://pycatia.readthedocs.io/en/latest/api/pycatia/drafting_interfaces/drawing_dim_value.html",
+      "sha256": "064f8de14983586cadc3c3f4f7a82dfc0ba408f577c17ce038799f83f9d35ba3"
+    },
+    {
+      "url": "https://pycatia.readthedocs.io/en/latest/api/pycatia/drafting_interfaces/drawing_dimension.html",
+      "sha256": "5a9caf63934380745d8aefbf73549a70bb16e09efeae55fca1f1e8c98bcec694"
+    },
+    {
+      "url": "https://pycatia.readthedocs.io/en/latest/api/pycatia/drafting_interfaces/drawing_dimensions.html",
+      "sha256": "199c265b6d7ca5c62290f66a807f93866f440a6517f7e6509c5e4c4dea85f243"
+    },
+    {
+      "url": "https://pycatia.readthedocs.io/en/latest/api/pycatia/drafting_interfaces/drawing_document.html",
+      "sha256": "9167203e49eca943a3811bb932e8419fd6fba346c52e723a3db8de6576004073"
+    },
+    {
+      "url": "https://pycatia.readthedocs.io/en/latest/api/pycatia/drafting_interfaces/drawing_leader.html",
+      "sha256": "c40ad6aba9317a11059975d153fd12ed39307583cb35429433db6d31c4d6863a"
+    },
+    {
+      "url": "https://pycatia.readthedocs.io/en/latest/api/pycatia/drafting_interfaces/drawing_leaders.html",
+      "sha256": "369dc82d84be70acca5a16a64214884ce680fb995e89868bc788cdfd0cbaa0b3"
+    },
+    {
+      "url": "https://pycatia.readthedocs.io/en/latest/api/pycatia/drafting_interfaces/drawing_page_setup.html",
+      "sha256": "e0e486d5b739ddda34be9d465b6aef34d591199afb36c34fba2ebb2833f52be1"
+    },
+    {
+      "url": "https://pycatia.readthedocs.io/en/latest/api/pycatia/drafting_interfaces/drawing_picture.html",
+      "sha256": "6cd9623e58b660a7974c48da12e8a6b662f603640dfe18388497cb7b741a1bac"
+    },
+    {
+      "url": "https://pycatia.readthedocs.io/en/latest/api/pycatia/drafting_interfaces/drawing_pictures.html",
+      "sha256": "cb3524f344792b101c9eb2a18c481ebc584dbf6f701b9bf90a8312a297572187"
+    },
+    {
+      "url": "https://pycatia.readthedocs.io/en/latest/api/pycatia/drafting_interfaces/drawing_root.html",
+      "sha256": "3805a2f347cadcee14784fc3792c3fc07ac1b378e283f85247aaf6eafc0b3f24"
+    },
+    {
+      "url": "https://pycatia.readthedocs.io/en/latest/api/pycatia/drafting_interfaces/drawing_sheet.html",
+      "sha256": "06a57981b8494099a49afefdfede7b7093971ef0deb3b2af724d60382ae63400"
+    },
+    {
+      "url": "https://pycatia.readthedocs.io/en/latest/api/pycatia/drafting_interfaces/drawing_sheets.html",
+      "sha256": "62f44ed8926ab16723c3443c6e90038f94f9391d4ae5ce972a263a10655b20df"
+    },
+    {
+      "url": "https://pycatia.readthedocs.io/en/latest/api/pycatia/drafting_interfaces/drawing_table.html",
+      "sha256": "57021aeaa0c05e13d74372ac27e75d7d981ca2acfb422bb2b593d278f8aff36a"
+    },
+    {
+      "url": "https://pycatia.readthedocs.io/en/latest/api/pycatia/drafting_interfaces/drawing_tables.html",
+      "sha256": "91651b097a8a1be93fffca68f3e5214e4b5599f9e19378ba0e50167031335a65"
+    },
+    {
+      "url": "https://pycatia.readthedocs.io/en/latest/api/pycatia/drafting_interfaces/drawing_text.html",
+      "sha256": "5e0b5dacefc76198a88e65b909bb2fa4c280fe1d0ea4167eb524774c9fde4a1a"
+    },
+    {
+      "url": "https://pycatia.readthedocs.io/en/latest/api/pycatia/drafting_interfaces/drawing_text_properties.html",
+      "sha256": "101515950c077ff3553dab10b6d1f2f5ee649a027e3590e447a24a8d7297633a"
+    },
+    {
+      "url": "https://pycatia.readthedocs.io/en/latest/api/pycatia/drafting_interfaces/drawing_text_range.html",
+      "sha256": "262b4f47966ff5ad9e6ceefb269557477748296ea5e4ebfb0519c5ce19a68570"
+    },
+    {
+      "url": "https://pycatia.readthedocs.io/en/latest/api/pycatia/drafting_interfaces/drawing_texts.html",
+      "sha256": "36dc382d8e311e8c782d6e20aad31edc562fa76ee5357b7f2cd8692340e2f70b"
+    },
+    {
+      "url": "https://pycatia.readthedocs.io/en/latest/api/pycatia/drafting_interfaces/drawing_thread.html",
+      "sha256": "dc7f63d500030f998dd66d6d7fd5d00c6c6214981b8047b51f7fff807a9cd32d"
+    },
+    {
+      "url": "https://pycatia.readthedocs.io/en/latest/api/pycatia/drafting_interfaces/drawing_threads.html",
+      "sha256": "44924991cc8d15eb05a13cc6e35b93450cef87b133261c283c8acca1fbab8cc7"
+    },
+    {
+      "url": "https://pycatia.readthedocs.io/en/latest/api/pycatia/drafting_interfaces/drawing_view.html",
+      "sha256": "96c24113376f222d2083d4477b337a8f74f41d4f649764e4d332622e94c8e47e"
+    },
+    {
+      "url": "https://pycatia.readthedocs.io/en/latest/api/pycatia/drafting_interfaces/drawing_view_generative_behavior.html",
+      "sha256": "a4d9caf4ce24a1c5ce056bdc3f9ea4e942193646a9ba0429b512f9f98a342987"
+    },
+    {
+      "url": "https://pycatia.readthedocs.io/en/latest/api/pycatia/drafting_interfaces/drawing_view_generative_links.html",
+      "sha256": "a55f45cf2028cd72feedd42a0f1dffa4f61e1f5354babf3e2cc635a0b2d6c2ce"
+    },
+    {
+      "url": "https://pycatia.readthedocs.io/en/latest/api/pycatia/drafting_interfaces/drawing_views.html",
+      "sha256": "65314c2b9d944db9854f46ad4b58d43b27965d64e01179a3eec2daa1d0da475a"
+    },
+    {
+      "url": "https://pycatia.readthedocs.io/en/latest/api/pycatia/drafting_interfaces/drawing_welding.html",
+      "sha256": "2c8f475a80f0532b1842e70dc92fcd0360749c41ccd1299ed8e7376977a968c8"
+    },
+    {
+      "url": "https://pycatia.readthedocs.io/en/latest/api/pycatia/drafting_interfaces/drawing_weldings.html",
+      "sha256": "c4f2732d3121a07eab46ffc5e175c30485ea15a47f40491ce7df563b310679e7"
+    },
+    {
+      "url": "https://pycatia.readthedocs.io/en/latest/api/pycatia/drafting_interfaces/print_area.html",
+      "sha256": "334f6ca635fcfc4b9b8b5321e4bc74813e90a97a9577cc9f000963f7027ccd11"
+    },
+    {
+      "url": "https://pycatia.readthedocs.io/en/latest/api/pycatia/hybrid_shape_interfaces/hybrid_shape_3d_curve_offset.html",
+      "sha256": "60c0f8e849911329300e7376718b16d8db713113c164c138a9cb42ddbe68ac07"
+    },
+    {
+      "url": "https://pycatia.readthedocs.io/en/latest/api/pycatia/hybrid_shape_interfaces/hybrid_shape_affinity.html",
+      "sha256": "58996a37bead9980fe56cee1a904c8200e23de3e7cd135c2e66390c92d155348"
+    },
+    {
+      "url": "https://pycatia.readthedocs.io/en/latest/api/pycatia/hybrid_shape_interfaces/hybrid_shape_assemble.html",
+      "sha256": "1753859f8a2c861ec32eaf794541ad4fd4d54fedad7c0e58a27d0052b08c8cf3"
+    },
+    {
+      "url": "https://pycatia.readthedocs.io/en/latest/api/pycatia/hybrid_shape_interfaces/hybrid_shape_axis_line.html",
+      "sha256": "dab7aa82ee23a4291a206ef5d0b02e1e47f1f266b12ba44b4c18942779ce6b3f"
+    },
+    {
+      "url": "https://pycatia.readthedocs.io/en/latest/api/pycatia/hybrid_shape_interfaces/hybrid_shape_axis_to_axis.html",
+      "sha256": "57e2e982c333a7780a152bc9abfd8085bfbe1489fa4ceaee24621ba4d7d0f318"
+    },
+    {
+      "url": "https://pycatia.readthedocs.io/en/latest/api/pycatia/hybrid_shape_interfaces/hybrid_shape_blend.html",
+      "sha256": "64eaec9b6dfe5346a2f9d59c046f5d91d7ec643e06a15244634329f3b5b1d78c"
+    },
+    {
+      "url": "https://pycatia.readthedocs.io/en/latest/api/pycatia/hybrid_shape_interfaces/hybrid_shape_boundary.html",
+      "sha256": "e473b7c9f87d04035b3f039aa616f9b4416f7146907e9050e8ca9251bac16f81"
+    },
+    {
+      "url": "https://pycatia.readthedocs.io/en/latest/api/pycatia/hybrid_shape_interfaces/hybrid_shape_bump.html",
+      "sha256": "3209424bb5d7e8a6309b58ce5bdf4aba8ddfea5a321e67aa5ebb36ebe57a8029"
+    },
+    {
+      "url": "https://pycatia.readthedocs.io/en/latest/api/pycatia/hybrid_shape_interfaces/hybrid_shape_circle.html",
+      "sha256": "85f92f5c272c5433a4574ba20a3e537aa686beafcb5b7bfa054ee0d7b7f4b147"
+    },
+    {
+      "url": "https://pycatia.readthedocs.io/en/latest/api/pycatia/hybrid_shape_interfaces/hybrid_shape_circle2_points_rad.html",
+      "sha256": "79d4a8e008c749e105d1670411d50fcbb2e6f9f567c73c2d1b44a42785ed8333"
+    },
+    {
+      "url": "https://pycatia.readthedocs.io/en/latest/api/pycatia/hybrid_shape_interfaces/hybrid_shape_circle3_points.html",
+      "sha256": "a035209d36fdb6e44f2e95d4f6473939f8803a47ddd6f701cdb4f16dcc2f258d"
+    },
+    {
+      "url": "https://pycatia.readthedocs.io/en/latest/api/pycatia/hybrid_shape_interfaces/hybrid_shape_circle_bitangent_point.html",
+      "sha256": "27666b3bdaab7c940831d48edd788a7c0919192ab6ed0238c571fa10d833abdf"
+    },
+    {
+      "url": "https://pycatia.readthedocs.io/en/latest/api/pycatia/hybrid_shape_interfaces/hybrid_shape_circle_bitangent_radius.html",
+      "sha256": "707862cfe3b811f8f2bed7dcea71c117dc8e8cb614fc5a8e321c3bb343819373"
+    },
+    {
+      "url": "https://pycatia.readthedocs.io/en/latest/api/pycatia/hybrid_shape_interfaces/hybrid_shape_circle_center_axis.html",
+      "sha256": "7581f124d822a3d43a81017c900d639e69baf2e404274bca0b0223ffef1161ab"
+    },
+    {
+      "url": "https://pycatia.readthedocs.io/en/latest/api/pycatia/hybrid_shape_interfaces/hybrid_shape_circle_center_tangent.html",
+      "sha256": "39784a8c897579aa48b6b5ef595b5c222a9c4a22d372b61af321e9f5d46ce642"
+    },
+    {
+      "url": "https://pycatia.readthedocs.io/en/latest/api/pycatia/hybrid_shape_interfaces/hybrid_shape_circle_ctr_pt.html",
+      "sha256": "1d48212379975b4e4d8a9e0a26cac89ac0719bc2b2fdda6c034362bc2d4e6c9d"
+    },
+    {
+      "url": "https://pycatia.readthedocs.io/en/latest/api/pycatia/hybrid_shape_interfaces/hybrid_shape_circle_ctr_rad.html",
+      "sha256": "5280843f416b69b749e44860008d0f6ed26de1c4d25a332e2baf910035550ebb"
+    },
+    {
+      "url": "https://pycatia.readthedocs.io/en/latest/api/pycatia/hybrid_shape_interfaces/hybrid_shape_circle_explicit.html",
+      "sha256": "373c3ff91c551aa6c3ed3908786be6ae451cb4ff542d9583e2fbef2ed228bdc7"
+    },
+    {
+      "url": "https://pycatia.readthedocs.io/en/latest/api/pycatia/hybrid_shape_interfaces/hybrid_shape_circle_tritangent.html",
+      "sha256": "76c7fafcfe56902460b1c3a6cf3fb1f49cd1b541d6d52da39b696a7c0993b992"
+    },
+    {
+      "url": "https://pycatia.readthedocs.io/en/latest/api/pycatia/hybrid_shape_interfaces/hybrid_shape_combine.html",
+      "sha256": "b333cccd7b75f2315f73d75495e6a984961779b2fbdc7fdfa13f63be894fa3ca"
+    },
+    {
+      "url": "https://pycatia.readthedocs.io/en/latest/api/pycatia/hybrid_shape_interfaces/hybrid_shape_conic.html",
+      "sha256": "393985762801cf3bd63736e42ecbbb0370b57893d47123142f8810f66d8f0787"
+    },
+    {
+      "url": "https://pycatia.readthedocs.io/en/latest/api/pycatia/hybrid_shape_interfaces/hybrid_shape_connect.html",
+      "sha256": "1bc773eaa1f92c7bba3e6fd605846968553a38f1edfecfac0b5a19fa1e49b2e0"
+    },
+    {
+      "url": "https://pycatia.readthedocs.io/en/latest/api/pycatia/hybrid_shape_interfaces/hybrid_shape_corner.html",
+      "sha256": "725359cd4cd59bf3702265e78b0fc747ff7766fb2e016bcdb70b1eb0cad7f921"
+    },
+    {
+      "url": "https://pycatia.readthedocs.io/en/latest/api/pycatia/hybrid_shape_interfaces/hybrid_shape_curve_explicit.html",
+      "sha256": "fe03f0e5831ce415387628cba74fc5e9497a93d8028baf9aabc126b24a7a49f1"
+    },
+    {
+      "url": "https://pycatia.readthedocs.io/en/latest/api/pycatia/hybrid_shape_interfaces/hybrid_shape_curve_par.html",
+      "sha256": "90aa6b54af463ce79aa7325cb6ee64b7b916dcc1c4400ed3a4e42bdbbf4e3d99"
+    },
+    {
+      "url": "https://pycatia.readthedocs.io/en/latest/api/pycatia/hybrid_shape_interfaces/hybrid_shape_curve_smooth.html",
+      "sha256": "ec9f02ffc7ab24bc9b1a2eefd657fc57dc3c8e4b5cb967814e4d71b9fdb1fc45"
+    },
+    {
+      "url": "https://pycatia.readthedocs.io/en/latest/api/pycatia/hybrid_shape_interfaces/hybrid_shape_cylinder.html",
+      "sha256": "45ae1645f35743a1ca944e23cfc09788cab1550de1d9b5659f623fc9fb1403fc"
+    },
+    {
+      "url": "https://pycatia.readthedocs.io/en/latest/api/pycatia/hybrid_shape_interfaces/hybrid_shape_develop.html",
+      "sha256": "06cc71f491f8337a981ac2d3b86a5224d4a36aa5570c0af22f579d76b947c4d5"
+    },
+    {
+      "url": "https://pycatia.readthedocs.io/en/latest/api/pycatia/hybrid_shape_interfaces/hybrid_shape_direction.html",
+      "sha256": "a1c5e4ed8a8db6b2e5fde27d6ae40874fa4ab4b7859b4408338223fb946b161c"
+    },
+    {
+      "url": "https://pycatia.readthedocs.io/en/latest/api/pycatia/hybrid_shape_interfaces/hybrid_shape_extract.html",
+      "sha256": "2ae24f7bca93ebd0dde76058b3382ac704d170d8e8ec71761a87ea36c55c499e"
+    },
+    {
+      "url": "https://pycatia.readthedocs.io/en/latest/api/pycatia/hybrid_shape_interfaces/hybrid_shape_extract_multi.html",
+      "sha256": "6cf3c81b7f19baec6442b8b2c404fd789e46251938310ae1b5d977ce48205242"
+    },
+    {
+      "url": "https://pycatia.readthedocs.io/en/latest/api/pycatia/hybrid_shape_interfaces/hybrid_shape_extrapol.html",
+      "sha256": "33a12acdb33e7077136abfc983b9c7fefbd22916c164af727c9194b4049c8142"
+    },
+    {
+      "url": "https://pycatia.readthedocs.io/en/latest/api/pycatia/hybrid_shape_interfaces/hybrid_shape_extremum.html",
+      "sha256": "08d07fdb9514c05b8d480864c48dea57610da8970fcf7ae65e07b522b413ef14"
+    },
+    {
+      "url": "https://pycatia.readthedocs.io/en/latest/api/pycatia/hybrid_shape_interfaces/hybrid_shape_extremum_polar.html",
+      "sha256": "39377f49a2eca0773385a68beabda2387651c2652fed9fada291b9f1b789d345"
+    },
+    {
+      "url": "https://pycatia.readthedocs.io/en/latest/api/pycatia/hybrid_shape_interfaces/hybrid_shape_extrude.html",
+      "sha256": "7df92faf50f92d54a7a3218dbbe9e38a85a738607aca7ee35539a0cf701c64c5"
+    },
+    {
+      "url": "https://pycatia.readthedocs.io/en/latest/api/pycatia/hybrid_shape_interfaces/hybrid_shape_factory.html",
+      "sha256": "e0e3fb7741e6de94541008326b1765b3de9741094c3b304ef3a34e615cd44906"
+    },
+    {
+      "url": "https://pycatia.readthedocs.io/en/latest/api/pycatia/hybrid_shape_interfaces/hybrid_shape_fill.html",
+      "sha256": "666ade8cd08eb6f56db0ab78f151fb3ba51412feb49453b4268bb2f403ad67d6"
+    },
+    {
+      "url": "https://pycatia.readthedocs.io/en/latest/api/pycatia/hybrid_shape_interfaces/hybrid_shape_fillet_bi_tangent.html",
+      "sha256": "bc71f796a1cf05025c9f63a53a32ed4ad91dc67bc70d00f697d2adb8c39503b9"
+    },
+    {
+      "url": "https://pycatia.readthedocs.io/en/latest/api/pycatia/hybrid_shape_interfaces/hybrid_shape_fillet_tri_tangent.html",
+      "sha256": "be6516e90a2064883e05fe16e94256fbbaa74c062d60e7d52f22741f8a22d2ca"
+    },
+    {
+      "url": "https://pycatia.readthedocs.io/en/latest/api/pycatia/hybrid_shape_interfaces/hybrid_shape_healing.html",
+      "sha256": "d4ebcb832f41288e9a50a9327c88a51c7c682271e18199824916331c61e273e0"
+    },
+    {
+      "url": "https://pycatia.readthedocs.io/en/latest/api/pycatia/hybrid_shape_interfaces/hybrid_shape_helix.html",
+      "sha256": "8ef564c1003f8e2e2ef79bcd147ebaf3dabadeff1c23803d7156e3741728632c"
+    },
+    {
+      "url": "https://pycatia.readthedocs.io/en/latest/api/pycatia/hybrid_shape_interfaces/hybrid_shape_integrated_law.html",
+      "sha256": "c43493726c2ddfcb2d5c5600abc5223756812a34fcf235c21573b68b79b3f171"
+    },
+    {
+      "url": "https://pycatia.readthedocs.io/en/latest/api/pycatia/hybrid_shape_interfaces/hybrid_shape_intersection.html",
+      "sha256": "e5a791b666154d7b653e1dd0c86c6f35453d3f58bae7734962cf876744b37e44"
+    },
+    {
+      "url": "https://pycatia.readthedocs.io/en/latest/api/pycatia/hybrid_shape_interfaces/hybrid_shape_inverse.html",
+      "sha256": "5031795f9a28a0d5d167863786e7d47d2c94070e99e6bfc8ce17c091279f3b15"
+    },
+    {
+      "url": "https://pycatia.readthedocs.io/en/latest/api/pycatia/hybrid_shape_interfaces/hybrid_shape_law_dist_proj.html",
+      "sha256": "ed72d35cb1521ed1b24f015245c2b14a1a6ea333485a5307b13b4cdf5bfa1ece"
+    },
+    {
+      "url": "https://pycatia.readthedocs.io/en/latest/api/pycatia/hybrid_shape_interfaces/hybrid_shape_line_angle.html",
+      "sha256": "cf16c9eab771a35ba5ab56670e5a739028066ac15de6ae0d7f9b6044e4c52f40"
+    },
+    {
+      "url": "https://pycatia.readthedocs.io/en/latest/api/pycatia/hybrid_shape_interfaces/hybrid_shape_line_bi_tangent.html",
+      "sha256": "2b3422c9d323a981b805fe62095179dda173a094ced6bfd5df92e25bdc030660"
+    },
+    {
+      "url": "https://pycatia.readthedocs.io/en/latest/api/pycatia/hybrid_shape_interfaces/hybrid_shape_line_bisecting.html",
+      "sha256": "bedc6186fe75c0fe42e92b5b6dea6635267c3a5ab318d61f3d62d163024f341c"
+    },
+    {
+      "url": "https://pycatia.readthedocs.io/en/latest/api/pycatia/hybrid_shape_interfaces/hybrid_shape_line_explicit.html",
+      "sha256": "c9fcc72220f1149474de086896bae971cd9970302d7d0cd1e9c724da056a2f27"
+    },
+    {
+      "url": "https://pycatia.readthedocs.io/en/latest/api/pycatia/hybrid_shape_interfaces/hybrid_shape_line_normal.html",
+      "sha256": "682be412a6d090124115e570e41e6a047cd4c29615e2d56b47c6dbb48daea31a"
+    },
+    {
+      "url": "https://pycatia.readthedocs.io/en/latest/api/pycatia/hybrid_shape_interfaces/hybrid_shape_line_pt_dir.html",
+      "sha256": "cacd3680f2d954db39886c437d889ca4f3b72243dfd9cb01930194f28b6d0af8"
+    },
+    {
+      "url": "https://pycatia.readthedocs.io/en/latest/api/pycatia/hybrid_shape_interfaces/hybrid_shape_line_pt_pt.html",
+      "sha256": "45e132accf84761e436d5b49ce47beac04756a687956ae4c36e1def0b99e5634"
+    },
+    {
+      "url": "https://pycatia.readthedocs.io/en/latest/api/pycatia/hybrid_shape_interfaces/hybrid_shape_line_tangency.html",
+      "sha256": "641528eaee0e5a85c577c5a18ba9e5c2b1481041dea1dd744c90d16daba79d2b"
+    },
+    {
+      "url": "https://pycatia.readthedocs.io/en/latest/api/pycatia/hybrid_shape_interfaces/hybrid_shape_loft.html",
+      "sha256": "667b9dcc2d555c264fe4a6e64f1b8d2acbb5b78817d8935df291e5e798fee543"
+    },
+    {
+      "url": "https://pycatia.readthedocs.io/en/latest/api/pycatia/hybrid_shape_interfaces/hybrid_shape_mid_surface.html",
+      "sha256": "333db75883832f657bec528e9d90a46f2ba045b1f719ef8ed9476ca0c54de3e7"
+    },
+    {
+      "url": "https://pycatia.readthedocs.io/en/latest/api/pycatia/hybrid_shape_interfaces/hybrid_shape_near.html",
+      "sha256": "07a73414db6f12a5d510be2b623bd95563124c72fd29300a8ec6cd0b4548a0ad"
+    },
+    {
+      "url": "https://pycatia.readthedocs.io/en/latest/api/pycatia/hybrid_shape_interfaces/hybrid_shape_offset.html",
+      "sha256": "dae63c7c12bfa9130df7590325199af867e80550878ae56d883a8b5d5a36f02d"
+    },
+    {
+      "url": "https://pycatia.readthedocs.io/en/latest/api/pycatia/hybrid_shape_interfaces/hybrid_shape_plane1_curve.html",
+      "sha256": "ff2f45931f83562983cb88cd228af2187a617035626ec7a1201c42174b31dd59"
+    },
+    {
+      "url": "https://pycatia.readthedocs.io/en/latest/api/pycatia/hybrid_shape_interfaces/hybrid_shape_plane1_line1_pt.html",
+      "sha256": "9eec2c0caa4c3b046e446ac8ab6ded198349b2e380eaaf3b30cb55ef01fc3643"
+    },
+    {
+      "url": "https://pycatia.readthedocs.io/en/latest/api/pycatia/hybrid_shape_interfaces/hybrid_shape_plane2_lines.html",
+      "sha256": "32230661f6b6681e59a7c42490e3a2b40a7f66fbc4a64656253ce523bde4792d"
+    },
+    {
+      "url": "https://pycatia.readthedocs.io/en/latest/api/pycatia/hybrid_shape_interfaces/hybrid_shape_plane3_points.html",
+      "sha256": "b9110fded1cb129ab2c6410c6e739302882e605d275ab783ef1772a4715258f2"
+    },
+    {
+      "url": "https://pycatia.readthedocs.io/en/latest/api/pycatia/hybrid_shape_interfaces/hybrid_shape_plane_angle.html",
+      "sha256": "e427001d30f94b3a57bfab0e5f988ed403bb8dcc5c64c3d9045e9258687be1cb"
+    },
+    {
+      "url": "https://pycatia.readthedocs.io/en/latest/api/pycatia/hybrid_shape_interfaces/hybrid_shape_plane_equation.html",
+      "sha256": "85234c266505785543a417ad1bfbb7610146cbf3225528cc818e766627b55e19"
+    },
+    {
+      "url": "https://pycatia.readthedocs.io/en/latest/api/pycatia/hybrid_shape_interfaces/hybrid_shape_plane_explicit.html",
+      "sha256": "286e1d5a36f06f8758a704a28b06f053de7ab98336bca8ed040c519e2c5e0eb0"
+    },
+    {
+      "url": "https://pycatia.readthedocs.io/en/latest/api/pycatia/hybrid_shape_interfaces/hybrid_shape_plane_mean.html",
+      "sha256": "a79fdd173da3838b040b7df6afab14c7e387b0a9f73066dd5c187f67e7277da4"
+    },
+    {
+      "url": "https://pycatia.readthedocs.io/en/latest/api/pycatia/hybrid_shape_interfaces/hybrid_shape_plane_normal.html",
+      "sha256": "9bccadc415a540c0ee4d0898e09b2678b9ff0ba8f4d7fccaebea34e4bb5b2230"
+    },
+    {
+      "url": "https://pycatia.readthedocs.io/en/latest/api/pycatia/hybrid_shape_interfaces/hybrid_shape_plane_offset.html",
+      "sha256": "da7aca011875469dafa65e480c9a1de3822d19ae5efee3de6dff4070dc3542f1"
+    },
+    {
+      "url": "https://pycatia.readthedocs.io/en/latest/api/pycatia/hybrid_shape_interfaces/hybrid_shape_plane_offset_pt.html",
+      "sha256": "d41133b2cc64ad1c84fcee8735b2f401742405f6df6028bf12524cc8125e3cb4"
+    },
+    {
+      "url": "https://pycatia.readthedocs.io/en/latest/api/pycatia/hybrid_shape_interfaces/hybrid_shape_plane_tangent.html",
+      "sha256": "21934b98c81e8c41b2be1d81522cd162d15d135467905428c9008bdbf1dbf771"
+    },
+    {
+      "url": "https://pycatia.readthedocs.io/en/latest/api/pycatia/hybrid_shape_interfaces/hybrid_shape_point_between.html",
+      "sha256": "75a181f673c1482a8d173cfbe9ea36f10664a038b3dea92825e2b8bcde8dcb25"
+    },
+    {
+      "url": "https://pycatia.readthedocs.io/en/latest/api/pycatia/hybrid_shape_interfaces/hybrid_shape_point_center.html",
+      "sha256": "067aedd928ae00fece10c65f92e695e66e3ae07c9e61a8f8b84d328cb613c740"
+    },
+    {
+      "url": "https://pycatia.readthedocs.io/en/latest/api/pycatia/hybrid_shape_interfaces/hybrid_shape_point_coord.html",
+      "sha256": "38e12178e5a99f630989f5fd68c1212dcd4c64e75833be36c211e50ce40017ad"
+    },
+    {
+      "url": "https://pycatia.readthedocs.io/en/latest/api/pycatia/hybrid_shape_interfaces/hybrid_shape_point_explicit.html",
+      "sha256": "fd904e4cea197be3a4cbc8264396d6c186aacc4b440fb2db5c8b04c8ff523fb8"
+    },
+    {
+      "url": "https://pycatia.readthedocs.io/en/latest/api/pycatia/hybrid_shape_interfaces/hybrid_shape_point_on_curve.html",
+      "sha256": "17270e97253efc8255151b5983cb2765f94b2e8ffede9987965485d91821cefc"
+    },
+    {
+      "url": "https://pycatia.readthedocs.io/en/latest/api/pycatia/hybrid_shape_interfaces/hybrid_shape_point_on_plane.html",
+      "sha256": "4a05dc611cef2fb6c7a901c5103312ec19d27213889f281a7095cb7e5489fd75"
+    },
+    {
+      "url": "https://pycatia.readthedocs.io/en/latest/api/pycatia/hybrid_shape_interfaces/hybrid_shape_point_on_surface.html",
+      "sha256": "d7cf6415e0a9e48a3884e401c2d8fc17ac834e85f0d90ae5ae7feb1a30d4be08"
+    },
+    {
+      "url": "https://pycatia.readthedocs.io/en/latest/api/pycatia/hybrid_shape_interfaces/hybrid_shape_point_tangent.html",
+      "sha256": "28621742dbb1c05b799588444d8e0d53ea43318d7ac3a3fe945fe5d63fc05fe4"
+    },
+    {
+      "url": "https://pycatia.readthedocs.io/en/latest/api/pycatia/hybrid_shape_interfaces/hybrid_shape_polyline.html",
+      "sha256": "89611072ec43c81bcabdd8737da6579644cb0726fec2ba5cac8a3ba185021e0f"
+    },
+    {
+      "url": "https://pycatia.readthedocs.io/en/latest/api/pycatia/hybrid_shape_interfaces/hybrid_shape_position_transfo.html",
+      "sha256": "33f5032e3b42a4ca1b723e24a998613c63e991d665531c282bbce787bd054a46"
+    },
+    {
+      "url": "https://pycatia.readthedocs.io/en/latest/api/pycatia/hybrid_shape_interfaces/hybrid_shape_project.html",
+      "sha256": "b2a1c0e1b63f24a16960b97227a09a6e3e5cdac59bf4909df956dcfadb0bc96c"
+    },
+    {
+      "url": "https://pycatia.readthedocs.io/en/latest/api/pycatia/hybrid_shape_interfaces/hybrid_shape_reflect_line.html",
+      "sha256": "5933ffdc5dd5312fef9363fa45699dcef6889d8ca9483ad86bad834163d26e34"
+    },
+    {
+      "url": "https://pycatia.readthedocs.io/en/latest/api/pycatia/hybrid_shape_interfaces/hybrid_shape_revol.html",
+      "sha256": "1c92f026cf7b35f52b8d28efe30abfb3939a27a30cb95f862403453a1cbab8e8"
+    },
+    {
+      "url": "https://pycatia.readthedocs.io/en/latest/api/pycatia/hybrid_shape_interfaces/hybrid_shape_rolling_offset.html",
+      "sha256": "a01f968814011e122adbd380a26f1a79ee7ad2182922300b2cf8111ab36eabcf"
+    },
+    {
+      "url": "https://pycatia.readthedocs.io/en/latest/api/pycatia/hybrid_shape_interfaces/hybrid_shape_rotate.html",
+      "sha256": "3b92d8b3c62dc2ecf9136c3d28acc0146594dfda62fb1a9de98e3c7791445927"
+    },
+    {
+      "url": "https://pycatia.readthedocs.io/en/latest/api/pycatia/hybrid_shape_interfaces/hybrid_shape_scaling.html",
+      "sha256": "e9d2fa7be1985d0e0906e4a18e0d6466d863dbd7cc1f53c69ca0df24007ad3d0"
+    },
+    {
+      "url": "https://pycatia.readthedocs.io/en/latest/api/pycatia/hybrid_shape_interfaces/hybrid_shape_section.html",
+      "sha256": "345d66781858d3eaf4484eca6034657882aa902180ade9021a8404ac68c98749"
+    },
+    {
+      "url": "https://pycatia.readthedocs.io/en/latest/api/pycatia/hybrid_shape_interfaces/hybrid_shape_sphere.html",
+      "sha256": "9bbe82c89dbe06237b54b7f68565a5e4627094d8761d558b8114917d546c6dc1"
+    },
+    {
+      "url": "https://pycatia.readthedocs.io/en/latest/api/pycatia/hybrid_shape_interfaces/hybrid_shape_spine.html",
+      "sha256": "13af38d8967e53bd1f10d7478edf215875bf90757d80fa0e62af9465f060d906"
+    },
+    {
+      "url": "https://pycatia.readthedocs.io/en/latest/api/pycatia/hybrid_shape_interfaces/hybrid_shape_spiral.html",
+      "sha256": "25875884526701e04b87f84076b0b1666a60dd7df74a407b3baa3a9e7addf2e0"
+    },
+    {
+      "url": "https://pycatia.readthedocs.io/en/latest/api/pycatia/hybrid_shape_interfaces/hybrid_shape_spline.html",
+      "sha256": "a386b968bafb578cba414d9152fbaa3887496b30e3d972c98063d0d5a3744a38"
+    },
+    {
+      "url": "https://pycatia.readthedocs.io/en/latest/api/pycatia/hybrid_shape_interfaces/hybrid_shape_split.html",
+      "sha256": "ae38fb180a25ca1aed1bbb42b500455a88376092a51704a3ba5021c6c8a6ee35"
+    },
+    {
+      "url": "https://pycatia.readthedocs.io/en/latest/api/pycatia/hybrid_shape_interfaces/hybrid_shape_surface_explicit.html",
+      "sha256": "85c7f2c4b679468cbd9faea44ec279f47c200864ae443e83637aeffb438fec93"
+    },
+    {
+      "url": "https://pycatia.readthedocs.io/en/latest/api/pycatia/hybrid_shape_interfaces/hybrid_shape_sweep.html",
+      "sha256": "677122b0d86858ee3a70de6c0646de728ba9f7f1c747a3be9e002b3c10424e01"
+    },
+    {
+      "url": "https://pycatia.readthedocs.io/en/latest/api/pycatia/hybrid_shape_interfaces/hybrid_shape_sweep_circle.html",
+      "sha256": "e2c30fcf9f46a82ed7c34ca99fb87bbb2d3eac2d410d699f4ad18516b44a78d1"
+    },
+    {
+      "url": "https://pycatia.readthedocs.io/en/latest/api/pycatia/hybrid_shape_interfaces/hybrid_shape_sweep_conic.html",
+      "sha256": "e874a7efddd7f9b0ade07317829a74bdfa9ccbafe38a8b7cf549b077d71d9b34"
+    },
+    {
+      "url": "https://pycatia.readthedocs.io/en/latest/api/pycatia/hybrid_shape_interfaces/hybrid_shape_sweep_explicit.html",
+      "sha256": "a83010ccd55d7136ce39bcdb0ddf88e127e78654187d68966efef7245569c2b7"
+    },
+    {
+      "url": "https://pycatia.readthedocs.io/en/latest/api/pycatia/hybrid_shape_interfaces/hybrid_shape_sweep_line.html",
+      "sha256": "17f0e61fe5e015238a0b36d4972151025d9c69ea739507a30264a9f65d30350c"
+    },
+    {
+      "url": "https://pycatia.readthedocs.io/en/latest/api/pycatia/hybrid_shape_interfaces/hybrid_shape_symmetry.html",
+      "sha256": "3ae45c9208b0862f17e71c45d9533d52f8c71d92770076ee3f107f8822b466d3"
+    },
+    {
+      "url": "https://pycatia.readthedocs.io/en/latest/api/pycatia/hybrid_shape_interfaces/hybrid_shape_thickness.html",
+      "sha256": "3e9a9318488f309f866148b769c51c2b93c50cd65b5122b9e4d45ec59557ade2"
+    },
+    {
+      "url": "https://pycatia.readthedocs.io/en/latest/api/pycatia/hybrid_shape_interfaces/hybrid_shape_transfer.html",
+      "sha256": "eabdc8c3a2165b292d90f7cf4e241203e7c7e91129c27b92eab7f1dd29e5bacd"
+    },
+    {
+      "url": "https://pycatia.readthedocs.io/en/latest/api/pycatia/hybrid_shape_interfaces/hybrid_shape_translate.html",
+      "sha256": "5b361ec228642139443b14e8dc68c9815026e9873e4e98f2b347b0fa9428c91e"
+    },
+    {
+      "url": "https://pycatia.readthedocs.io/en/latest/api/pycatia/hybrid_shape_interfaces/hybrid_shape_trim.html",
+      "sha256": "6b6a562e839ec48af5b412d91e77239cf29f331fd98d81c8e5d088b1dda2af87"
+    },
+    {
+      "url": "https://pycatia.readthedocs.io/en/latest/api/pycatia/hybrid_shape_interfaces/hybrid_shape_unfold.html",
+      "sha256": "7fa546051ac111153df89c3e88eb2ae5f65f416892fc4ad37eaff6883eae52bc"
+    },
+    {
+      "url": "https://pycatia.readthedocs.io/en/latest/api/pycatia/hybrid_shape_interfaces/hybrid_shape_volume_explicit.html",
+      "sha256": "b6767e108e0633ea8d67f9252fdce506de6eb54dbab8b14bc8afec10ae0bc4a0"
+    },
+    {
+      "url": "https://pycatia.readthedocs.io/en/latest/api/pycatia/hybrid_shape_interfaces/hybrid_shape_wrap_curve.html",
+      "sha256": "0d6393cc5af76af9e83b43fe63bc1c1fe0812f6f2ea73b4be69e6da76f061f0a"
+    },
+    {
+      "url": "https://pycatia.readthedocs.io/en/latest/api/pycatia/hybrid_shape_interfaces/hybrid_shape_wrap_surface.html",
+      "sha256": "c63cd1e6ae6b5a8729f78104bcc95fc4d3eda5b354c43eb698ca67295ed56004"
+    },
+    {
+      "url": "https://pycatia.readthedocs.io/en/latest/api/pycatia/hybrid_shape_interfaces/line.html",
+      "sha256": "29fa1826d3d8b6b56b1ee334ad9f5eda708001e0c2eb5c5b4e667fb0620037ae"
+    },
+    {
+      "url": "https://pycatia.readthedocs.io/en/latest/api/pycatia/hybrid_shape_interfaces/plane.html",
+      "sha256": "37f36f5b46cbbe24f6d9fe30e186bbced5169093d02f7bfa8432572240324588"
+    },
+    {
+      "url": "https://pycatia.readthedocs.io/en/latest/api/pycatia/hybrid_shape_interfaces/point.html",
+      "sha256": "e06b8a60222a6c2d6423031f5c02f6446e15a82b8289ec77d7ecc38d4e32180c"
+    },
+    {
+      "url": "https://pycatia.readthedocs.io/en/latest/api/pycatia/in_interfaces/application.html",
+      "sha256": "228bc8ee1dd74d22f5b9d4de00543550f4f83cd0544e39dc6a2588f8f53d4fc1"
+    },
+    {
+      "url": "https://pycatia.readthedocs.io/en/latest/api/pycatia/in_interfaces/camera.html",
+      "sha256": "8b15a4fad9b4797d61faa76eb16ac74a02ae5522917c28a5981d795e6c59458c"
+    },
+    {
+      "url": "https://pycatia.readthedocs.io/en/latest/api/pycatia/in_interfaces/camera_2d.html",
+      "sha256": "baf4ce8eddae59ef0d5e96326c7d8ce887c7aa7eca76da1dd0fba999fff9329b"
+    },
+    {
+      "url": "https://pycatia.readthedocs.io/en/latest/api/pycatia/in_interfaces/camera_3d.html",
+      "sha256": "1c7889f132c45dd794c5c36df5f625eaa6ab70f74e97a62ed2cca6a7c3838475"
+    },
+    {
+      "url": "https://pycatia.readthedocs.io/en/latest/api/pycatia/in_interfaces/cameras.html",
+      "sha256": "9250810b5944c25c783c35c27a4043ce81ab9138675008527d2abd5d59f7430b"
+    },
+    {
+      "url": "https://pycatia.readthedocs.io/en/latest/api/pycatia/in_interfaces/cgr_adhesion_setting_att.html",
+      "sha256": "d8b10548ffdecbfc989abf89dc40ef6d13bc0816908a6a0cdb3e6ce430fc4d7c"
+    },
+    {
+      "url": "https://pycatia.readthedocs.io/en/latest/api/pycatia/in_interfaces/document.html",
+      "sha256": "ac8c44fd949fcfed72d77bfdb60b89c3e2e57fa1f8d56637cb9725119fa988e6"
+    },
+    {
+      "url": "https://pycatia.readthedocs.io/en/latest/api/pycatia/in_interfaces/documentation_setting_att.html",
+      "sha256": "92149362831823f85be15ee41e1567c5224292fa84b83bd37981d6d77a5221e5"
+    },
+    {
+      "url": "https://pycatia.readthedocs.io/en/latest/api/pycatia/in_interfaces/documents.html",
+      "sha256": "43c245a5ddd9503bf07fbdf0cf23983504008ede269f81c3bf57825f2824d39c"
+    },
+    {
+      "url": "https://pycatia.readthedocs.io/en/latest/api/pycatia/in_interfaces/drafting_page_setup.html",
+      "sha256": "6823008e28e994380d2d6b27e424525e70b76867d935fb1cec33fd3e628aa9f8"
+    },
+    {
+      "url": "https://pycatia.readthedocs.io/en/latest/api/pycatia/in_interfaces/file.html",
+      "sha256": "2fbc8d68508152693df2be37d24e0d83b4140ce84da22e73c11f25871a8744d7"
+    },
+    {
+      "url": "https://pycatia.readthedocs.io/en/latest/api/pycatia/in_interfaces/file_component.html",
+      "sha256": "e5266a863c0c9833f72a9e53c633faf6b23b92336dc3d407c33a7f3f4be3334c"
+    },
+    {
+      "url": "https://pycatia.readthedocs.io/en/latest/api/pycatia/in_interfaces/file_system.html",
+      "sha256": "7e28ac012ff7a60983a73c6d53917ef108feaefa239a9f8bced75918ca51964d"
+    },
+    {
+      "url": "https://pycatia.readthedocs.io/en/latest/api/pycatia/in_interfaces/files.html",
+      "sha256": "c93c198ae1e9665ef91aaa8dab2f09ffdc76e5d142ccfd133ca9736a535d9143"
+    },
+    {
+      "url": "https://pycatia.readthedocs.io/en/latest/api/pycatia/in_interfaces/folder.html",
+      "sha256": "7d591474c1088459bded32d5a6f2537946149aa082c8f3f51c80991acf39f109"
+    },
+    {
+      "url": "https://pycatia.readthedocs.io/en/latest/api/pycatia/in_interfaces/folders.html",
+      "sha256": "ffde4de9fc95fcfbbc1b4c6533e8b81d9bdfa520b2e41f4f0ca173afcd788acf"
+    },
+    {
+      "url": "https://pycatia.readthedocs.io/en/latest/api/pycatia/in_interfaces/general_session_setting_att.html",
+      "sha256": "5d452e51321e224a081eab7789f00f7035c33961fc0d4ff8bd7daf4f79f6279a"
+    },
+    {
+      "url": "https://pycatia.readthedocs.io/en/latest/api/pycatia/in_interfaces/light_source.html",
+      "sha256": "7c3a1a49707c35b73c5f6f4950857a2ca036fb1e671681ceffd3dac6a585a43f"
+    },
+    {
+      "url": "https://pycatia.readthedocs.io/en/latest/api/pycatia/in_interfaces/light_sources.html",
+      "sha256": "1ae01fb7fb636820c531a7addb2fbfedc77f8f4bb0f2ca9740511abb5ba30a08"
+    },
+    {
+      "url": "https://pycatia.readthedocs.io/en/latest/api/pycatia/in_interfaces/macros_setting_att.html",
+      "sha256": "72d475191b64270276bb840cd6b907ec6b4e85725e750b6ed7b6647618e74294"
+    },
+    {
+      "url": "https://pycatia.readthedocs.io/en/latest/api/pycatia/in_interfaces/move.html",
+      "sha256": "a3416d082911f665524675acf84edb93d253307db0dc2dee669da61d8425c564"
+    },
+    {
+      "url": "https://pycatia.readthedocs.io/en/latest/api/pycatia/in_interfaces/page_setup.html",
+      "sha256": "8246fbfb31df867d628a13c1be9befad04b2a1a4d5e5e4618b75b07e37cc4ecf"
+    },
+    {
+      "url": "https://pycatia.readthedocs.io/en/latest/api/pycatia/in_interfaces/position.html",
+      "sha256": "b11fb752459b9454ea0f5818a3e97fccaa1c691cbc2a9d1c469fcd54e878f496"
+    },
+    {
+      "url": "https://pycatia.readthedocs.io/en/latest/api/pycatia/in_interfaces/printer.html",
+      "sha256": "b8f32f22fbee4b8e6b6f9c25793521543f4a5948dafb1d6b2f31be02c8a1daf7"
+    },
+    {
+      "url": "https://pycatia.readthedocs.io/en/latest/api/pycatia/in_interfaces/printers.html",
+      "sha256": "6be7ff43a6bd8d0fb56db92210af03c9f573f157854f9c535837dd5ed76b797c"
+    },
+    {
+      "url": "https://pycatia.readthedocs.io/en/latest/api/pycatia/in_interfaces/printers_setting_att.html",
+      "sha256": "4cef07dac3e8d2d4ccc4c62153ead566c398be141d8d650e5c2fb1f12b900eac"
+    },
+    {
+      "url": "https://pycatia.readthedocs.io/en/latest/api/pycatia/in_interfaces/reference.html",
+      "sha256": "e0b8ac5e946b3acf82b2ac814174c732160ab08374ad059cff79b6d26ec3ab3c"
+    },
+    {
+      "url": "https://pycatia.readthedocs.io/en/latest/api/pycatia/in_interfaces/references.html",
+      "sha256": "7c62475577cc6f656689bd7db74f8ebf681333b4c2a0828c04aea9ef6465186e"
+    },
+    {
+      "url": "https://pycatia.readthedocs.io/en/latest/api/pycatia/in_interfaces/search_setting_att.html",
+      "sha256": "a0d5f9cc017a877d0ca2865fbb75f183a6d61ffbd3d10b665c71701854043147"
+    },
+    {
+      "url": "https://pycatia.readthedocs.io/en/latest/api/pycatia/in_interfaces/selected_element.html",
+      "sha256": "4cd4b2060ee729b5f071257b424bfca35bd1166f833e9d99cf5ea44f07670c3d"
+    },
+    {
+      "url": "https://pycatia.readthedocs.io/en/latest/api/pycatia/in_interfaces/selection.html",
+      "sha256": "5999f02edc0c0205f8dbe28fe93b94da0d2672a0fe3a7b5872d6e7cfd7e333ee"
+    },
+    {
+      "url": "https://pycatia.readthedocs.io/en/latest/api/pycatia/in_interfaces/selection_sets.html",
+      "sha256": "cd38918a087fd4884a1fbd45abfe9c8e228ac937f7dd3a3c65930e82be18c33d"
+    },
+    {
+      "url": "https://pycatia.readthedocs.io/en/latest/api/pycatia/in_interfaces/send_to_service.html",
+      "sha256": "c41e39782fc3d196177a76b8ae6cdcfe4a270b6626e96a51c70289da21ec56e7"
+    },
+    {
+      "url": "https://pycatia.readthedocs.io/en/latest/api/pycatia/in_interfaces/setting_controllers.html",
+      "sha256": "081a0aae1c1d41f1d888d6c659e35ab7e364058f2e12b8633d3fcd879381bbee"
+    },
+    {
+      "url": "https://pycatia.readthedocs.io/en/latest/api/pycatia/in_interfaces/specs_and_geom_window.html",
+      "sha256": "0356e121aa1fbc34686acb9f803de0bf69b241591edba43c6634e51b8389d8e1"
+    },
+    {
+      "url": "https://pycatia.readthedocs.io/en/latest/api/pycatia/in_interfaces/specs_viewer.html",
+      "sha256": "55beebdcfe935b10ac1c716ad72d5777359a71547800bc9103a75470565a9348"
+    },
+    {
+      "url": "https://pycatia.readthedocs.io/en/latest/api/pycatia/in_interfaces/system_configuration.html",
+      "sha256": "c2d184872ab634c9eea6f9e06ef67b53a12cb54fa70d03ffba95b9d661fd7b5a"
+    },
+    {
+      "url": "https://pycatia.readthedocs.io/en/latest/api/pycatia/in_interfaces/text_stream.html",
+      "sha256": "b4dea3aa1bcef9e49b2b7ae09570c6e7b7b0ccacb3fb4892142dbe8a4bb79a77"
+    },
+    {
+      "url": "https://pycatia.readthedocs.io/en/latest/api/pycatia/in_interfaces/tree_viz_manip_setting_att.html",
+      "sha256": "2a7f176c046674bfdcc1acd35b634a345b868fcedb78a570247bfdbeeac6ddc8"
+    },
+    {
+      "url": "https://pycatia.readthedocs.io/en/latest/api/pycatia/in_interfaces/viewer.html",
+      "sha256": "cbb3a4a561dbeae3cd182333780a74d9cf23fbd814ce2ce44845fc2a2b395906"
+    },
+    {
+      "url": "https://pycatia.readthedocs.io/en/latest/api/pycatia/in_interfaces/viewer_2d.html",
+      "sha256": "01ccbf605e7ce18e714c49924f4b8586088f2df5cf5b02b4d3d184ed79285ba8"
+    },
+    {
+      "url": "https://pycatia.readthedocs.io/en/latest/api/pycatia/in_interfaces/viewer_3d.html",
+      "sha256": "134b04b79668d403e86be3a459074c0a9a246a1c04447a3f84a1bb3c7049605b"
+    },
+    {
+      "url": "https://pycatia.readthedocs.io/en/latest/api/pycatia/in_interfaces/viewers.html",
+      "sha256": "78de70492aefe316cbc8af0788ecf5bbb10e8ac0640d6949b38aec4057e09821"
+    },
+    {
+      "url": "https://pycatia.readthedocs.io/en/latest/api/pycatia/in_interfaces/viewpoint_2d.html",
+      "sha256": "8c60e9ff0e45a5cb9dbec20ca2e66810eda0751611901c57dcd4bc37e349208a"
+    },
+    {
+      "url": "https://pycatia.readthedocs.io/en/latest/api/pycatia/in_interfaces/viewpoint_3d.html",
+      "sha256": "892cd8890330e5693c77939d80e67c0d4606fb792fdd63a7582960013cfe44db"
+    },
+    {
+      "url": "https://pycatia.readthedocs.io/en/latest/api/pycatia/in_interfaces/vis_property_set.html",
+      "sha256": "a7ccdd87cb63c32c58582051c5c91a9e2f8666ade9a1f537e8ed7b79518a63b7"
+    },
+    {
+      "url": "https://pycatia.readthedocs.io/en/latest/api/pycatia/in_interfaces/visualization_setting_att.html",
+      "sha256": "dea805740815b9f48115ba59315eee50ab2e6b4a63e43f05a3ff694aab239979"
+    },
+    {
+      "url": "https://pycatia.readthedocs.io/en/latest/api/pycatia/in_interfaces/vrml_setting_att.html",
+      "sha256": "d0be902f4560b177dbc0a54377f7a20357a50c44e78d366bc036beebbdfdb0e5"
+    },
+    {
+      "url": "https://pycatia.readthedocs.io/en/latest/api/pycatia/in_interfaces/window.html",
+      "sha256": "d89f471c5a458ee1d397365c201480deb0ae77761cad0000813489407b372a6f"
+    },
+    {
+      "url": "https://pycatia.readthedocs.io/en/latest/api/pycatia/in_interfaces/windows.html",
+      "sha256": "37aa8f2d712e2a8f725d6ba94cce1efbf408289855c2a6b1ecf2b869603110cd"
+    },
+    {
+      "url": "https://pycatia.readthedocs.io/en/latest/api/pycatia/in_interfaces/workbench.html",
+      "sha256": "4b9c41a461aa48c57b43101d0e56afaac8219bce9633d814508974953baa8df2"
+    },
+    {
+      "url": "https://pycatia.readthedocs.io/en/latest/api/pycatia/kinematics_interfaces/dressup.html",
+      "sha256": "db6d5017cd1c1a76e06ebf0f503b47ed5d64e825a39cd450831e75eb11f26b9c"
+    },
+    {
+      "url": "https://pycatia.readthedocs.io/en/latest/api/pycatia/kinematics_interfaces/dressups.html",
+      "sha256": "330fb2a99da97d36bbfd59c5da2f5bb443ed728e28260b830cea0d3f185fd436"
+    },
+    {
+      "url": "https://pycatia.readthedocs.io/en/latest/api/pycatia/kinematics_interfaces/joint.html",
+      "sha256": "90a0cc8accc0a8cf7d3c37e705163bc6850e4b9fd139c3dac7a2b03f90a2ada7"
+    },
+    {
+      "url": "https://pycatia.readthedocs.io/en/latest/api/pycatia/kinematics_interfaces/joints.html",
+      "sha256": "52543acafce544a09fa352528eb3dcc0ce3feb2de638028d2410aed5412ca84e"
+    },
+    {
+      "url": "https://pycatia.readthedocs.io/en/latest/api/pycatia/kinematics_interfaces/kinematics_workbench.html",
+      "sha256": "5e0b140f362974625b698e622e562359d0cf6effd619aff6760691819b912a95"
+    },
+    {
+      "url": "https://pycatia.readthedocs.io/en/latest/api/pycatia/kinematics_interfaces/mechanism.html",
+      "sha256": "9cdaac16599be8022658475a54d1e413e9fa4c7b44e4f11971aed4c4450fb942"
+    },
+    {
+      "url": "https://pycatia.readthedocs.io/en/latest/api/pycatia/kinematics_interfaces/mechanism_command.html",
+      "sha256": "a24fe2c3691595464945416e346688d31404c910f750a788f34976ecfd683739"
+    },
+    {
+      "url": "https://pycatia.readthedocs.io/en/latest/api/pycatia/kinematics_interfaces/mechanism_commands.html",
+      "sha256": "34bac68a77f3b6e50cf8a4199deba0b218809ab1862717442ab09447e4467689"
+    },
+    {
+      "url": "https://pycatia.readthedocs.io/en/latest/api/pycatia/kinematics_interfaces/mechanisms.html",
+      "sha256": "3444c31e9eac31a65d5aaf6b8dc55c69a755f3b263be63f6a09f688ae7c5eaa1"
+    },
+    {
+      "url": "https://pycatia.readthedocs.io/en/latest/api/pycatia/knowledge_interfaces/angle.html",
+      "sha256": "156ce95af3312c8976e6e4e4907c66afc1e53c8c0f8e38042c059a5f6612ca7d"
+    },
+    {
+      "url": "https://pycatia.readthedocs.io/en/latest/api/pycatia/knowledge_interfaces/bool_param.html",
+      "sha256": "5280c6ba91308a5b8c6b28f690c3c2b149907b9c2f101f2b34b24306572db509"
+    },
+    {
+      "url": "https://pycatia.readthedocs.io/en/latest/api/pycatia/knowledge_interfaces/check.html",
+      "sha256": "d2778c042dadf3f9b21a42581bb2ae720fb6659360054f37179446c98336996a"
+    },
+    {
+      "url": "https://pycatia.readthedocs.io/en/latest/api/pycatia/knowledge_interfaces/constraint_satisfaction.html",
+      "sha256": "d6f70feffbc287e14084c75a4384d387930d4de538d606c4a7db58fdfaa28f73"
+    },
+    {
+      "url": "https://pycatia.readthedocs.io/en/latest/api/pycatia/knowledge_interfaces/design_table.html",
+      "sha256": "4b46ae6757d531be74a0aa4d5d9c832f15d219ec64de597b854f76d01478b65a"
+    },
+    {
+      "url": "https://pycatia.readthedocs.io/en/latest/api/pycatia/knowledge_interfaces/dimension.html",
+      "sha256": "e719c76bcc5f2c77ab55f23e9498687babb8877b03623ebfbe45dfa3bc6a69fe"
+    },
+    {
+      "url": "https://pycatia.readthedocs.io/en/latest/api/pycatia/knowledge_interfaces/enum_param.html",
+      "sha256": "363bad90f90b80aa964252ccdfdfbb7d7cdc47e08a541b06d69a096a60c17c6c"
+    },
+    {
+      "url": "https://pycatia.readthedocs.io/en/latest/api/pycatia/knowledge_interfaces/feature_generator.html",
+      "sha256": "5b62389d7cf73cab410c0b8f900c6486765b92b70b1cfdc5833bef276097e9fd"
+    },
+    {
+      "url": "https://pycatia.readthedocs.io/en/latest/api/pycatia/knowledge_interfaces/formula.html",
+      "sha256": "a446109da82e8d6cb0b47afd6f17b1313c5ed17752c79e765e9455b79c870bda"
+    },
+    {
+      "url": "https://pycatia.readthedocs.io/en/latest/api/pycatia/knowledge_interfaces/free_parameter.html",
+      "sha256": "1fdbd946233978e9a3ea2250f9d428015c37e5e0422e5fe14f26b6a4b6594b0a"
+    },
+    {
+      "url": "https://pycatia.readthedocs.io/en/latest/api/pycatia/knowledge_interfaces/free_parameters.html",
+      "sha256": "3a6f6a2b2323b697ab6ea297ff8d93974fe68ee9b01b1a4e288faf590fe46a19"
+    },
+    {
+      "url": "https://pycatia.readthedocs.io/en/latest/api/pycatia/knowledge_interfaces/int_param.html",
+      "sha256": "3e5636b8e7b4e54c526fdfe43288b875165f9fd17b99fbfbeb5dd6e41f38b243"
+    },
+    {
+      "url": "https://pycatia.readthedocs.io/en/latest/api/pycatia/knowledge_interfaces/knowledge_activate_object.html",
+      "sha256": "7403ab57a63c4f7d22c544f93b024e1dc434aedbf66634c6d11dcbe2cb83f78d"
+    },
+    {
+      "url": "https://pycatia.readthedocs.io/en/latest/api/pycatia/knowledge_interfaces/knowledge_object.html",
+      "sha256": "96432a068e4976275f9252eea081be5152a58c8452e72f9c1aa85ea1751bc75c"
+    },
+    {
+      "url": "https://pycatia.readthedocs.io/en/latest/api/pycatia/knowledge_interfaces/knowledge_sheet_setting_att.html",
+      "sha256": "dbd6cc7b8343c8ea2a8bcfbccf3278d4826a63ef8c2725da57325af2f66913d4"
+    },
+    {
+      "url": "https://pycatia.readthedocs.io/en/latest/api/pycatia/knowledge_interfaces/language_sheet_setting_att.html",
+      "sha256": "a3d2a576eecd8698c37c3c018ec978818d3ebe7fa6e772025b6a6b9afc43cb12"
+    },
+    {
+      "url": "https://pycatia.readthedocs.io/en/latest/api/pycatia/knowledge_interfaces/law.html",
+      "sha256": "0e8a5cdf8a1557c23fd0006943528dc83455b25d2a30d33793854d1774fb6076"
+    },
+    {
+      "url": "https://pycatia.readthedocs.io/en/latest/api/pycatia/knowledge_interfaces/length.html",
+      "sha256": "b11f74c540a24aaca2c4cb44fa90a20d30c3260d8214faa8a1cac3f530480ddf"
+    },
+    {
+      "url": "https://pycatia.readthedocs.io/en/latest/api/pycatia/knowledge_interfaces/list.html",
+      "sha256": "ff2a86f01e00f07feb2c27867c35df54203d467b5055bb82e8098dda7c47a29b"
+    },
+    {
+      "url": "https://pycatia.readthedocs.io/en/latest/api/pycatia/knowledge_interfaces/list_parameter.html",
+      "sha256": "c8b63e716064f17e558c511ba53e59275248e8138c375941e5a8aa0f4e417b7f"
+    },
+    {
+      "url": "https://pycatia.readthedocs.io/en/latest/api/pycatia/knowledge_interfaces/loop.html",
+      "sha256": "2d31ae3ea0f89b05ada7d036950652ff5861a6672c33e1c1de7f66fc19731835"
+    },
+    {
+      "url": "https://pycatia.readthedocs.io/en/latest/api/pycatia/knowledge_interfaces/optimization.html",
+      "sha256": "16fb60870c625089641b8105ae641399bac2d3a30c06a54d36fe4f2f809552b2"
+    },
+    {
+      "url": "https://pycatia.readthedocs.io/en/latest/api/pycatia/knowledge_interfaces/optimization_constraint.html",
+      "sha256": "c35e24076dec19fabae56362ca925949505ce1cc4aa25e2165c2098e87f394eb"
+    },
+    {
+      "url": "https://pycatia.readthedocs.io/en/latest/api/pycatia/knowledge_interfaces/optimization_constraints.html",
+      "sha256": "3758a4e5455e6a24c0525bfede9319a315a07aa187e4f23af52ec530a29a85fc"
+    },
+    {
+      "url": "https://pycatia.readthedocs.io/en/latest/api/pycatia/knowledge_interfaces/optimizations.html",
+      "sha256": "f743796f724454492db9aa3baad147f1258057eeec3d3765f910dfb02120276d"
+    },
+    {
+      "url": "https://pycatia.readthedocs.io/en/latest/api/pycatia/knowledge_interfaces/parameter.html",
+      "sha256": "3f291f186da8cb0c6ff9e5c39368136a3b5cd854c9c298bb39465e9e5ed2e46e"
+    },
+    {
+      "url": "https://pycatia.readthedocs.io/en/latest/api/pycatia/knowledge_interfaces/parameter_set.html",
+      "sha256": "6c7f8eea36ee7ac2b48f6770aec61090511c399fee6cc8507d60fa6e6e5a7fca"
+    },
+    {
+      "url": "https://pycatia.readthedocs.io/en/latest/api/pycatia/knowledge_interfaces/parameter_sets.html",
+      "sha256": "7a0cb511d254b12953ea31471eb373751d1bbcc8e854d8049d2ef228d032899f"
+    },
+    {
+      "url": "https://pycatia.readthedocs.io/en/latest/api/pycatia/knowledge_interfaces/parameters.html",
+      "sha256": "d4fe12817a93744f3e6d57473aed062cec269a21fc2406620bc0e7e1cc7a7bba"
+    },
+    {
+      "url": "https://pycatia.readthedocs.io/en/latest/api/pycatia/knowledge_interfaces/real_param.html",
+      "sha256": "8232d321b731f8606e9eeb10bd82a10e04cd2d92cec400275f3a78f47d9a717d"
+    },
+    {
+      "url": "https://pycatia.readthedocs.io/en/latest/api/pycatia/knowledge_interfaces/relation.html",
+      "sha256": "55915777e192c9cda3027b4749103197e7f6ee3af277afc2e31041a2677d0601"
+    },
+    {
+      "url": "https://pycatia.readthedocs.io/en/latest/api/pycatia/knowledge_interfaces/relations.html",
+      "sha256": "77adb3a9cb6e99b8892bee92d179fb716221b21dde165fa7c9664959e86f7ebb"
+    },
+    {
+      "url": "https://pycatia.readthedocs.io/en/latest/api/pycatia/knowledge_interfaces/report_generation_sheet_setting_att.html",
+      "sha256": "0055ae10842fd086df2d879176a1331957f56b026a507d84f3f5cae884715e5d"
+    },
+    {
+      "url": "https://pycatia.readthedocs.io/en/latest/api/pycatia/knowledge_interfaces/rule.html",
+      "sha256": "5f2fa239259df062a9c45b27eea3df86c841fbc59f47752506a76c699fcac537"
+    },
+    {
+      "url": "https://pycatia.readthedocs.io/en/latest/api/pycatia/knowledge_interfaces/set_of_equation.html",
+      "sha256": "27066314210f5dc95520fbe0e9804979e46fe919fd56ae918c18a7872c450005"
+    },
+    {
+      "url": "https://pycatia.readthedocs.io/en/latest/api/pycatia/knowledge_interfaces/str_param.html",
+      "sha256": "6108f6d0b9a995f7c6520d7adb625fbbb47e74276b57387985a802894c2e1bb2"
+    },
+    {
+      "url": "https://pycatia.readthedocs.io/en/latest/api/pycatia/knowledge_interfaces/tolerance_sheet_setting_att.html",
+      "sha256": "8de1a49fccff253091e944369693a7d9fc2792b1e368a588b8547c78f25d75dd"
+    },
+    {
+      "url": "https://pycatia.readthedocs.io/en/latest/api/pycatia/knowledge_interfaces/unit.html",
+      "sha256": "4019b81be5e42b5d666f15890dba84d460af8b1b70ed2781daad4912f7306206"
+    },
+    {
+      "url": "https://pycatia.readthedocs.io/en/latest/api/pycatia/knowledge_interfaces/units.html",
+      "sha256": "9d8657de3bed7d3a87f604e31a9afb7a019a2b727ceb748f7bd9abb891161842"
+    },
+    {
+      "url": "https://pycatia.readthedocs.io/en/latest/api/pycatia/part_interfaces/shape_factory.html",
+      "sha256": "f361956daacf39a6e834d64739cf5e2f1e204a86c65f0de535d08dd4b292b636"
+    }
+  ],
+  "package_source": {
+    "project": "https://github.com/evereux/pycatia",
+    "release": "https://pypi.org/project/pycatia/0.10.1/",
+    "version": "0.10.1",
+    "url": "https://files.pythonhosted.org/packages/8d/09/e0f616b1268b8117b9c049b9fabad135576813f8f4d6ebaa672de8361e9e/pycatia-0.10.1-py3-none-any.whl",
+    "sha256": "c5aba02cebad582639f83795b3efe2eb1125ae319e29d981ef4b057e4a81c1ad",
+    "extraction": "AST only; package was not imported or installed"
+  },
+  "scope": "All 218 numbered positions of previous handbook; selected supporting APIs and enum metadata. No claim to exhaust all CATIA interfaces.",
+  "live_catia_validation": "not_run",
+  "license_note": "Names, signatures and enum values extracted from official pycatia; no full third-party documentation reproduced."
+}

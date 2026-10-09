@@ -1,0 +1,14 @@
+{
+  "checked_on": "2026-10-08",
+  "catalog_entries": 218,
+  "unique_candidate_names": 218,
+  "resolved_api_bindings": 465,
+  "api_symbols": 1529,
+  "enum_families": 42,
+  "json_schema_validation": "Draft 2020-12 schema valid; 3 valid request examples and 1 response accepted; negative length and invented uv rejected",
+  "cross_file_validation": "passed",
+  "source_symbol_validation": "all mapped symbols exist in official 0.10.1 source",
+  "live_catia_tests": "not_run",
+  "model_mutations": "none",
+  "repository_mutations": "none"
+}

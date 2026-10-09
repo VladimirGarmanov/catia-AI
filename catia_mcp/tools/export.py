@@ -24,6 +24,7 @@ FORMAT_MAP = {
     "wrl": "wrl",
     "vrml": "wrl",
     "pdf": "pdf",
+    "dxf": "dxf",
     "cgr": "cgr",
 }
 
@@ -66,8 +67,9 @@ class ExportTools:
                                 "Export format (optional if file extension is provided). "
                                 "One of: step, iges, stl, 3dxml, vrml"
                             ),
-                            "enum": ["step", "iges", "stl", "3dxml", "vrml"],
+                            "enum": ["step", "iges", "stl", "3dxml", "vrml", "pdf", "dxf"],
                         },
+                        "allow_overwrite": {"type": "boolean", "default": False},
                     },
                     "required": ["file_path"],
                 },
@@ -125,7 +127,7 @@ class ExportTools:
     def execute(self, tool_name: str, arguments: dict[str, Any]) -> str | ScreenshotCapture:
         match tool_name:
             case "catia_export":
-                return self._export(arguments["file_path"], arguments.get("format"))
+                return self._export(arguments["file_path"], arguments.get("format"), arguments.get("allow_overwrite", False))
             case "catia_screenshot":
                 if "width" in arguments or "height" in arguments:
                     raise ValueError(
@@ -140,7 +142,13 @@ class ExportTools:
             case _:
                 raise ValueError(f"Unknown export tool: {tool_name}")
 
-    def _export(self, file_path: str, fmt: str | None = None) -> str:
+    def _export(self, file_path: str, fmt: str | None = None, allow_overwrite=False) -> str:
+        if not file_path or not os.path.isabs(file_path):
+            raise ValueError("Export requires an explicit absolute output path")
+        if os.path.splitext(file_path)[1].lower() in {".catpart", ".catproduct", ".catdrawing"}:
+            raise ValueError("Export cannot overwrite a native CATIA document; use explicit save instead")
+        if os.path.exists(file_path) and not allow_overwrite:
+            raise FileExistsError("Output exists; explicit allow_overwrite=true is required")
         self.conn.ensure_connected()
         doc = self.conn.active_document
 
@@ -155,6 +163,11 @@ class ExportTools:
             raise ValueError(
                 f"Unsupported export format: '{fmt}'. Supported: {supported}"
             )
+        if fmt_key in {"pdf", "dxf"}:
+            try:
+                doc.Sheets
+            except Exception as exc:
+                raise ValueError("PDF/DXF export requires an active CATDrawing") from exc
 
         # Ensure output directory exists
         output_dir = os.path.dirname(file_path)
@@ -163,6 +176,8 @@ class ExportTools:
 
         # CATIA V5 export via SaveAs with format specification
         doc.ExportData(file_path, FORMAT_MAP[fmt_key])
+        if not os.path.isfile(file_path) or os.path.getsize(file_path) == 0:
+            raise RuntimeError("ExportData returned but the requested nonempty file was not found; inspect the output directory before retrying")
 
         size_info = ""
         if os.path.exists(file_path):

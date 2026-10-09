@@ -1,0 +1,323 @@
+{
+  "version": "0.10.1",
+  "source_file": "pycatia/enumeration/enums.py",
+  "sha256": "9a3a580c1ef758232bf6c2c2cec381d44edf02de0e4df55151563dd2a2cea213",
+  "enums": {
+    "CatChamferMode": {
+      "catTwoLengthChamfer": 0,
+      "catLengthAngleChamfer": 1
+    },
+    "CatChamferOrientation": {
+      "catNoReverseChamfer": 0,
+      "catReverseChamfer": 1
+    },
+    "CatChamferPropagation": {
+      "catTangencyChamfer": 0,
+      "catMinimalChamfer": 1
+    },
+    "CatClashComputationType": {
+      "catClashComputationTypeBetweenAll": 0,
+      "catClashComputationTypeInsideOne": 1,
+      "catClashComputationTypeAgainstAll": 2,
+      "catClashComputationTypeBetweenTwo": 3
+    },
+    "CatClashExportType": {
+      "CatClashExportTypeXMLResultOnly": 0
+    },
+    "CatClashInterferenceType": {
+      "catClashInterferenceTypeContact": 0,
+      "catClashInterferenceTypeClearance": 1,
+      "catClashInterferenceAuthorizedPenetration": 2,
+      "catClashInterferenceCaseRule": 3
+    },
+    "CatConstraintMode": {
+      "catCstModeDrivingDimension": 0,
+      "catCstModeDrivenDimension": 1
+    },
+    "CatConstraintStatus": {
+      "catCstStatusOK": 0,
+      "catCstStatusKOStronglyNotSatisfied": 1,
+      "catCstStatusKOWrongOrientOrSide": 2,
+      "catCstStatusKOWrongValue": 3,
+      "catCstStatusKOWrongGeomEltType": 4,
+      "catCstStatusKOBroken": 5
+    },
+    "CatConstraintType": {
+      "catCstTypeReference": 0,
+      "catCstTypeDistance": 1,
+      "catCstTypeOn": 2,
+      "catCstTypeConcentricity": 3,
+      "catCstTypeTangency": 4,
+      "catCstTypeLength": 5,
+      "catCstTypeAngle": 6,
+      "catCstTypePlanarAngle": 7,
+      "catCstTypeParallelism": 8,
+      "catCstTypeAxisParallelism": 9,
+      "catCstTypeHorizontality": 10,
+      "catCstTypePerpendicularity": 11,
+      "catCstTypeAxisPerpendicularity": 12,
+      "catCstTypeVerticality": 13,
+      "catCstTypeRadius": 14,
+      "catCstTypeSymmetry": 15,
+      "catCstTypeMidPoint": 16,
+      "catCstTypeEquidistance": 17,
+      "catCstTypeMajorRadius": 18,
+      "catCstTypeMinorRadius": 19,
+      "catCstTypeSurfContact": 20,
+      "catCstTypeLinContact": 21,
+      "catCstTypePoncContact": 22,
+      "catCstTypeChamfer": 23,
+      "catCstTypeChamferPerpend": 24,
+      "catCstTypeAnnulContact": 25,
+      "catCstTypeCylinderRadius": 26,
+      "catCstTypeStContinuity": 27,
+      "catCstTypeStDistance": 28,
+      "catCstTypeSdContinuity": 29,
+      "catCstTypeSdShape": 30
+    },
+    "CatDimType": {
+      "catDimDistance": 0,
+      "catDimDistanceOffset": 1,
+      "catDimLength": 2,
+      "catDimLengthCurvilinear": 3,
+      "catDimAngle": 4,
+      "catDimRadius": 5,
+      "catDimRadiusTangent": 6,
+      "catDimRadiusCylinder": 7,
+      "catDimRadiusEdge": 8,
+      "catDimDiameter": 9,
+      "catDimDiameterTangent": 10,
+      "catDimDiameterCylinder": 11,
+      "catDimDiameterEdge": 12,
+      "catDimDiameterCone": 13,
+      "catDimChamfer": 14,
+      "catDimSlope": 15,
+      "catDimLengthCircular": 16,
+      "catDimRadiusFillet": 17,
+      "catDimDiameterTorus": 18,
+      "catDimRadiusTorus": 19,
+      "catDimDistanceMin": 20
+    },
+    "CatDraftMode": {
+      "catStandardDraftMode": 0,
+      "catReflectKeepFaceDraftMode": 1,
+      "catReflectKeepEdgeDraftMode": 2
+    },
+    "CatDraftMultiselectionMode": {
+      "catNoneDraftMultiselectionMode": 0,
+      "catDraftMultiselectionByNeutralMode": 1
+    },
+    "CatDraftNeutralPropagationMode": {
+      "catNoneDraftNeutralPropagationMode": 0,
+      "catSmoothDraftNeutralPropagationMode": 1
+    },
+    "CatFileType": {
+      "catFileTypeText": 0,
+      "catFileTypeMotif": 1,
+      "catFileTypeHTML": 2
+    },
+    "CatFilletBitangencyType": {
+      "catSphereBitangencyType": 0,
+      "catCircleBitangencyType": 1
+    },
+    "CatFilletEdgePropagation": {
+      "catMinimalFilletEdgePropagation": 0,
+      "catTangencyFilletEdgePropagation": 1
+    },
+    "CatFilletVariation": {
+      "catLinearFilletVariation": 0,
+      "catCubicFilletVariation": 1
+    },
+    "CatGeometricType": {
+      "catGeoTypeUnknown": 0,
+      "catGeoTypeAxis2D": 1,
+      "catGeoTypePoint2D": 2,
+      "catGeoTypeLine2D": 3,
+      "catGeoTypeControlPoint2D": 4,
+      "catGeoTypeCircle2D": 5,
+      "catGeoTypeHyperbola2D": 6,
+      "catGeoTypeParabola2D": 7,
+      "catGeoTypeEllipse2D": 8,
+      "catGeoTypeSpline2D": 9,
+      "catGeoTypePoint": 10,
+      "catGeoTypeLine": 11,
+      "catGeoTypePlane": 12
+    },
+    "CatHoleType": {
+      "catSimpleHole": 0,
+      "catTaperedHole": 1,
+      "catCounterboredHole": 2,
+      "catCountersunkHole": 3,
+      "catCounterdrilledHole": 4
+    },
+    "CatLimitMode": {
+      "catOffsetLimit": 0,
+      "catUpToNextLimit": 1,
+      "catUpToLastLimit": 2,
+      "catUpToPlaneLimit": 3,
+      "catUpToSurfaceLimit": 4,
+      "catUpThruNextLimit": 5
+    },
+    "CatMeasurableName": {
+      "CatMeasurableUnknown": 0,
+      "CatMeasurable": 1,
+      "CatMeasurableVolume": 2,
+      "CatMeasurableSurface": 3,
+      "CatMeasurableCylinder": 4,
+      "CatMeasurableSphere": 5,
+      "CatMeasurableCone": 6,
+      "CatMeasurablePlane": 7,
+      "CatMeasurableCurve": 8,
+      "CatMeasurableCircle": 9,
+      "CatMeasurableLine": 10,
+      "CatMeasurablePoint": 11,
+      "CatMeasurableAxisSystem": 12
+    },
+    "CatMergeMode": {
+      "catMergeOff": 0,
+      "catMergeOn": 1
+    },
+    "CatPaperOrientation": {
+      "catPaperPortrait": 0,
+      "catPaperLandscape": 1,
+      "catPaperBestFit": 2
+    },
+    "CatProductSource": {
+      "catProductSourceUnknown": 0,
+      "catProductMade": 1,
+      "catProductBought": 2
+    },
+    "CatRepType": {
+      "catRep3D": 0,
+      "catRep2D": 1,
+      "catRepText": 2
+    },
+    "CatScriptLanguage": {
+      "CATVBScriptLanguage": 0,
+      "CATVBALanguage": 1,
+      "CATBasicScriptLanguage": 2,
+      "CATJavaLanguage": 3,
+      "CATJScriptLanguage": 4
+    },
+    "CatScriptLibraryType": {
+      "catScriptLibraryTypeDocument": 0,
+      "catScriptLibraryTypeDirectory": 1,
+      "catScriptLibraryTypeVBAProject": 2
+    },
+    "CatSectionBehavior": {
+      "catSectionBehaviorManual": 0,
+      "catSectionBehaviorAutomatic": 1,
+      "catSectionBehaviorFreeze": 2
+    },
+    "CatSectionType": {
+      "catSectionTypePlane": 0,
+      "catSectionTypeSlice": 1,
+      "catSectionTypeBox": 2
+    },
+    "CatSheetGenViewsPosMode": {
+      "catFixedCG": 0,
+      "catFixedAxis": 1
+    },
+    "CatSheetProjectionMethod": {
+      "catFirstAngle": 0,
+      "catThirdAngle": 1
+    },
+    "CatSplitSide": {
+      "catPositiveSide": 0,
+      "catNegativeSide": 1
+    },
+    "CatTextAnchorPosition": {
+      "catUnsusedValue1": 0,
+      "catTopLeft": 1,
+      "catMiddleLeft": 2,
+      "catBottomLeft": 3,
+      "catTopCenter": 4,
+      "catMiddleCenter": 5,
+      "catBottomCenter": 6,
+      "catTopRight": 7,
+      "catMiddleRight": 8,
+      "catBottomRight": 9,
+      "catUnsusedValue2": 10,
+      "catCapLeft": 11,
+      "catHalfLeft": 12,
+      "catBaseLeft": 13,
+      "catCapCenter": 14,
+      "catHalfCenter": 15,
+      "catBaseCenter": 16,
+      "catCapRight": 17,
+      "catHalfRight": 18,
+      "catBaseRight": 19
+    },
+    "CatTextFrameType": {
+      "catNone": 0,
+      "catRectangle": 1,
+      "catSquare": 2,
+      "catCircle": 3,
+      "catScoredCircle": 4,
+      "catDiamond": 5,
+      "catTriangle": 6,
+      "catRightFlag": 7,
+      "catLeftFlag": 8,
+      "catBothFlag": 9,
+      "catOblong": 10,
+      "catEllipse": 11,
+      "catCustom": 12
+    },
+    "CatTextProperty": {
+      "catBold": 0,
+      "catItalic": 1,
+      "catUnderline": 2,
+      "catOverline": 3,
+      "catStrikethrough": 4,
+      "catSubscript": 5,
+      "catSuperscript": 6,
+      "catFontSize": 7,
+      "catParagraph": 8,
+      "catPlain": 9,
+      "catColor": 10,
+      "catFontName": 11,
+      "catBorder": 12,
+      "catAlignment": 13,
+      "catCharRatio": 14,
+      "catCharSpacing": 15,
+      "catKerning": 16
+    },
+    "CatVisLayerType": {
+      "catVisLayerBasic": 0,
+      "catVisLayerNone": 1
+    },
+    "CatVisPropertyPick": {
+      "catVisPropertyPickAttr": 0,
+      "catVisPropertyNoPickAttr": 1
+    },
+    "CatVisPropertyShow": {
+      "catVisPropertyShowAttr": 0,
+      "catVisPropertyNoShowAttr": 1
+    },
+    "CatVisPropertyStatus": {
+      "catVisPropertyDefined": 0,
+      "catVisPropertyUnDefined": 1
+    },
+    "CatVisPropertyType": {
+      "catVisPropertyLineType": 0,
+      "catVisPropertyWidth": 1,
+      "catVisPropertyColor": 2,
+      "catVisPropertyOpacity": 3
+    },
+    "CatWorkModeType": {
+      "DEFAULT_MODE": 0,
+      "VISUALIZATION_MODE": 1,
+      "DESIGN_MODE": 2
+    },
+    "GeometricalFeatureType": {
+      "Unknown": 0,
+      "Point": 1,
+      "Curve": 2,
+      "Line": 3,
+      "Circle": 4,
+      "Surface": 5,
+      "Plane": 6,
+      "Solid_Volume": 7
+    }
+  }
+}

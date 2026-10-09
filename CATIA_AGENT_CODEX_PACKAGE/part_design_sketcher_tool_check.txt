@@ -1,0 +1,54 @@
+CATIA Part Design and Sketcher live check
+Date: 2026-10-08
+Final document: Part1.CATPart (new, unsaved)
+
+Scope
+Only Sketcher and Part Design tools were exercised. Temporary test parts were created as needed to isolate failures; they were closed without saving. The final active CATPart is left open and unsaved for inspection. No other existing document was active when the test began. CATIA did not apply the requested part name; it created Part1.
+
+Successful checks
+PASS  catia_create_sketch — created sketches on XY and YZ.
+PASS  catia_close_sketch — closed each completed sketch.
+PASS  catia_sketch_line — created line geometry.
+PASS  catia_sketch_rectangle — created rectangular profiles.
+PASS  catia_sketch_centered_rectangle — created centered profiles.
+PASS  catia_sketch_circle — created circle geometry.
+PASS  catia_sketch_arc — created a 180-degree arc.
+PASS  catia_sketch_point — created points.
+PASS  catia_sketch_spline — created a spline through three points.
+PASS  catia_sketch_get_geometry — returned sketch geometry and indices.
+PASS  catia_sketch_constraint — radius and horizontal constraints were accepted.
+PASS  catia_pad — created solids on clean parts; a 20 x 20 x 10 mm test solid measured 4,000 mm^3, and the final 20 x 10 x 10 mm pad updated successfully.
+PASS  catia_pocket — on the 20 x 20 x 10 mm test solid, a YZ-plane pocket removed material; measured volume changed from 4,000 to 3,937.1681 mm^3. A separate XY-plane pocket returned success but made no volume change.
+PASS  catia_hole — simple D4 x 10 mm hole created on the 20 x 20 x 10 mm test solid; measured volume changed from 3,937.1681 to 3,874.3363 mm^3.
+PASS  catia_mirror — mirrored the final 20 x 10 x 10 mm pad across YZ; update succeeded and volume doubled from 2,000 to 4,000 mm^3.
+PASS  catia_set_parameter — changed Pad.1 length from 10 to 12 mm; volume changed from 4,000 to 4,800 mm^3; restored length to 10 mm and updated.
+PASS  catia_update_part — CATIA reported the final main body up to date after successful operations.
+PASS  catia_get_model_state — final tree contains Pad.1 and Mirror.1; Pad.1 length is 10 mm.
+PASS  catia_get_inertia — returned volume/area measurements used for feature checks. Tensor/center-of-gravity remain unavailable per tool response.
+PASS  catia_screenshot — saved final view to part_design_sketcher_check.jpg.
+
+Failures
+FAIL  catia_shaft — tested twice with a closed rectangular section and explicit axis line; CATIA returned CATIAPart UpdateObject failure both times. Shaft.1 appeared in the model tree after the first error.
+FAIL  catia_groove — tested with a closed rectangular section and axis line on a valid solid; CATIA returned CATIAPart UpdateObject failure. A subsequent update also failed on that test document.
+
+Selection-dependent operations
+The MCP provides catia_get_selection but no tool to select a face or edge. Each operation below was attempted after rereading the current empty selection; CATIA rejected it for the required selection.
+BLOCKED  catia_fillet — requires exactly one selected edge.
+BLOCKED  catia_chamfer — requires exactly one selected edge.
+BLOCKED  catia_shell — requires exactly one selected face.
+BLOCKED  catia_thickness — requires exactly one selected face.
+BLOCKED  catia_rect_pattern — requires two selected direction supports.
+BLOCKED  catia_circ_pattern — requires a selected point and axis.
+BLOCKED  catia_update_selected_feature — requires one selected feature or sketch.
+
+Unsupported with current tool schema
+UNSUPPORTED  catia_draft — CATIA AddNewDraft requires face, neutral support, pulling vector and mode inputs that the exposed schema cannot provide; no feature was created.
+
+Shaft/Groove setup details
+- Shaft attempts used an XY sketch with a closed rectangle at x=10..14 mm, y=0..8 mm and a separate vertical axis line at x=0.
+- Groove was also attempted on a padded solid with an XY closed rectangular profile and separate axis line. Both revolve operations returned the same CATIA UpdateObject error.
+
+Final state
+- Part1.CATPart is the active new document, with Pad.1 and Mirror.1 in PartBody.
+- The final Pad.1 length is 10 mm and measured MainBody volume is 4,000 mm^3.
+- The test part is unsaved and remains open in CATIA.

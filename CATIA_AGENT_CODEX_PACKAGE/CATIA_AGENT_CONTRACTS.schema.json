@@ -1,0 +1,304 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:catia-agent:contracts:1.0",
+  "title": "CATIA agent example request and response contracts",
+  "description": "Three example public contracts only. Other operations require explicit semantic schemas. JSON validation does not verify geometry.",
+  "$defs": {
+    "handle": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Opaque session-local handle resolved by server; never invented edge name."
+    },
+    "vector3": {
+      "type": "array",
+      "items": {
+        "type": "number"
+      },
+      "minItems": 3,
+      "maxItems": 3
+    },
+    "common": {
+      "type": "object",
+      "properties": {
+        "request_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "document_id": {
+          "$ref": "#/$defs/handle"
+        },
+        "expected_revision": {
+          "type": "integer",
+          "minimum": 0
+        }
+      },
+      "required": [
+        "request_id",
+        "document_id",
+        "expected_revision"
+      ]
+    },
+    "tangent_plane": {
+      "allOf": [
+        {
+          "$ref": "#/$defs/common"
+        },
+        {
+          "type": "object",
+          "properties": {
+            "operation": {
+              "const": "create_tangent_plane"
+            },
+            "arguments": {
+              "type": "object",
+              "properties": {
+                "surface_handle": {
+                  "$ref": "#/$defs/handle"
+                },
+                "point_handle": {
+                  "$ref": "#/$defs/handle"
+                },
+                "container_handle": {
+                  "$ref": "#/$defs/handle"
+                },
+                "name": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "point_on_surface_tolerance_mm": {
+                  "type": "number",
+                  "exclusiveMinimum": 0
+                }
+              },
+              "required": [
+                "surface_handle",
+                "point_handle",
+                "container_handle",
+                "point_on_surface_tolerance_mm"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "required": [
+            "operation",
+            "arguments"
+          ]
+        }
+      ],
+      "unevaluatedProperties": false
+    },
+    "pad": {
+      "allOf": [
+        {
+          "$ref": "#/$defs/common"
+        },
+        {
+          "type": "object",
+          "properties": {
+            "operation": {
+              "const": "create_pad"
+            },
+            "arguments": {
+              "type": "object",
+              "properties": {
+                "sketch_handle": {
+                  "$ref": "#/$defs/handle"
+                },
+                "body_handle": {
+                  "$ref": "#/$defs/handle"
+                },
+                "length_mm": {
+                  "type": "number",
+                  "exclusiveMinimum": 0
+                },
+                "reverse": {
+                  "type": "boolean"
+                },
+                "name": {
+                  "type": "string",
+                  "minLength": 1
+                }
+              },
+              "required": [
+                "sketch_handle",
+                "body_handle",
+                "length_mm",
+                "reverse"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "required": [
+            "operation",
+            "arguments"
+          ]
+        }
+      ],
+      "unevaluatedProperties": false
+    },
+    "measure": {
+      "type": "object",
+      "properties": {
+        "request_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "document_id": {
+          "$ref": "#/$defs/handle"
+        },
+        "operation": {
+          "const": "measure_item"
+        },
+        "arguments": {
+          "type": "object",
+          "properties": {
+            "geometry_handle": {
+              "$ref": "#/$defs/handle"
+            },
+            "property": {
+              "enum": [
+                "length",
+                "radius",
+                "area",
+                "volume",
+                "point",
+                "center_of_gravity"
+              ]
+            },
+            "occurrence_handle": {
+              "$ref": "#/$defs/handle"
+            }
+          },
+          "required": [
+            "geometry_handle",
+            "property"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "request_id",
+        "document_id",
+        "operation",
+        "arguments"
+      ],
+      "additionalProperties": false
+    },
+    "response": {
+      "type": "object",
+      "properties": {
+        "request_id": {
+          "type": "string"
+        },
+        "document_id": {
+          "type": "string"
+        },
+        "status": {
+          "enum": [
+            "success",
+            "partial_failure",
+            "failed",
+            "unsupported"
+          ]
+        },
+        "updated": {
+          "type": "boolean"
+        },
+        "created_handles": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/handle"
+          }
+        },
+        "modified_handles": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/handle"
+          }
+        },
+        "checks": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "name": {
+                "type": "string"
+              },
+              "passed": {
+                "type": "boolean"
+              },
+              "detail": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "name",
+              "passed"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "data": {
+          "type": "object"
+        },
+        "warnings": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "error": {
+          "type": [
+            "object",
+            "null"
+          ],
+          "properties": {
+            "code": {
+              "type": "string"
+            },
+            "message": {
+              "type": "string"
+            },
+            "hresult": {
+              "type": [
+                "integer",
+                "null"
+              ]
+            },
+            "operation": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "code",
+            "message"
+          ]
+        }
+      },
+      "required": [
+        "request_id",
+        "document_id",
+        "status",
+        "updated",
+        "created_handles",
+        "modified_handles",
+        "checks",
+        "data",
+        "warnings",
+        "error"
+      ],
+      "additionalProperties": false
+    }
+  },
+  "oneOf": [
+    {
+      "$ref": "#/$defs/tangent_plane"
+    },
+    {
+      "$ref": "#/$defs/pad"
+    },
+    {
+      "$ref": "#/$defs/measure"
+    }
+  ]
+}

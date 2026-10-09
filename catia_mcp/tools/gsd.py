@@ -53,13 +53,15 @@ class GSDTools:
     def __init__(self, connection: CATIAConnection) -> None:
         self.conn = connection
         self._active_geoset_name: str | None = None
+        self._geoset_document = None
+        self._container_handle = None
 
     # ────────────────────────────────────────────────────────────
     # Tool definitions
     # ────────────────────────────────────────────────────────────
 
     def get_tool_definitions(self) -> list[dict[str, Any]]:
-        return [
+        definitions = [
             {
                 "name": "catia_gsd_create_geoset",
                 "description": (
@@ -541,11 +543,23 @@ class GSDTools:
             },
         ]
 
+        for definition in definitions:
+            if definition["name"] not in {"catia_gsd_create_geoset", "catia_gsd_set_active_geoset", "catia_gsd_list_elements", "catia_gsd_thick_surface", "catia_gsd_close_surface"}:
+                definition["inputSchema"]["properties"]["container_handle"] = {
+                    "type": "string", "description": "Explicit HybridBody handle; otherwise the explicitly selected or sole geoset is used"}
+        return definitions
+
     # ────────────────────────────────────────────────────────────
     # Dispatch
     # ────────────────────────────────────────────────────────────
 
     def execute(self, tool_name: str, arguments: dict[str, Any]) -> str:
+        from catia_mcp.runtime import same_object
+        document = self.conn.active_document
+        if not same_object(self._geoset_document, document):
+            self._active_geoset_name = None
+            self._geoset_document = document
+        self._container_handle = arguments.get("container_handle")
         match tool_name:
             case "catia_gsd_create_geoset":
                 return self._create_geoset(arguments)
@@ -620,20 +634,28 @@ class GSDTools:
         one, or creating a default one if the part has none."""
         part = self.conn.get_active_part()
         hbs = part.HybridBodies
+        if self._container_handle:
+            return self.conn.session.resolve(self._container_handle, {"geoset"}).value
 
         if self._active_geoset_name:
-            for hb in self._iter_geosets(hbs):
-                if hb.Name == self._active_geoset_name:
-                    return hb
+            matches = [hb for hb in self._iter_geosets(hbs) if hb.Name == self._active_geoset_name]
+            if len(matches) > 1:
+                raise ValueError("AMBIGUOUS_REFERENCE: use a container_handle for duplicate geoset names")
+            if matches:
+                return matches[0]
             # The remembered geoset is gone (document changed) — fall through
             self._active_geoset_name = None
 
-        if hbs.Count > 0:
+        if hbs.Count > 1:
+            raise ValueError("Multiple geometrical sets; specify container_handle or set an unambiguous active geoset")
+        if hbs.Count == 1:
             hb = hbs.Item(1)
             self._active_geoset_name = hb.Name
             return hb
 
         hb = hbs.Add()
+        if getattr(self.conn, "session", None) is not None:
+            self.conn.session.mark_created(hb, "geoset")
         hb.Name = self.DEFAULT_GEOSET
         self._active_geoset_name = hb.Name
         return hb
@@ -703,33 +725,29 @@ class GSDTools:
         raise ValueError(f"Invalid point spec: {spec!r}. Use an element name or [x, y, z].")
 
     def _safe_update(self, feature: Any) -> None:
-        """Update a feature; if CATIA rejects it, delete the broken feature so
-        failed attempts don't linger in the tree, then re-raise."""
+        """Keep failed geometry for diagnosis; never delete as unverified rollback."""
         part = self.conn.get_active_part()
+        state = getattr(self.conn, "session", None)
+        if state is not None:
+            state.mark_created(feature, "geometry")
         try:
             part.UpdateObject(feature)
+            part.Update()
+            if not part.IsUpToDate(feature):
+                raise RuntimeError("Feature is not up to date")
+            if state is not None:
+                state.updated = True
         except Exception as e:
-            cleanup_error = None
-            cleanup_verified = False
-            try:
-                selection = self.conn.active_document.Selection
-                selection.Clear()
-                selection.Add(feature)
-                selection.Delete()
-                # A successful Delete call is not sufficient proof that the
-                # failed feature disappeared from the model tree.
-                cleanup_verified = False
-            except Exception as exc:
-                cleanup_error = str(exc)
-            raise RuntimeError(
+            from catia_mcp.runtime import CADOperationError
+            raise CADOperationError("UPDATE_FAILED",
                 f"CATIA rejected feature {getattr(feature, 'Name', '<unnamed>')!r} "
-                f"during UpdateObject: {e}. Cleanup attempted; "
-                f"cleanup_verified={cleanup_verified}; cleanup_error={cleanup_error!r}. "
-                "Inspect the model tree before retrying."
+                f"during Update: {e}. No automatic deletion was performed. Inspect before retrying."
             ) from e
 
     def _finish(self, shape: Any, name: str | None, message: str) -> str:
         """Append a hybrid shape to the active geoset, rename, update, refresh."""
+        if getattr(self.conn, "session", None) is not None:
+            self.conn.session.mark_created(shape, "geometry")
         part = self.conn.get_active_part()
         geoset = self._get_geoset()
         geoset.AppendHybridShape(shape)
@@ -750,12 +768,11 @@ class GSDTools:
         name = args.get("name", self.DEFAULT_GEOSET)
 
         hb = part.HybridBodies.Add()
+        if getattr(self.conn, "session", None) is not None:
+            self.conn.session.mark_created(hb, "geoset")
         hb.Name = name
         self._active_geoset_name = hb.Name
-        try:
-            part.Update()
-        except Exception:
-            pass
+        self._safe_update(hb)
         return f"Geometrical set '{hb.Name}' created and set as active."
 
     def _set_active_geoset(self, args: dict[str, Any]) -> str:
@@ -763,10 +780,12 @@ class GSDTools:
         part = self.conn.get_active_part()
         name = args["name"]
 
-        for hb in self._iter_geosets(part.HybridBodies):
-            if hb.Name == name:
-                self._active_geoset_name = name
-                return f"Active geometrical set: '{name}'"
+        matches = [hb for hb in self._iter_geosets(part.HybridBodies) if hb.Name == name]
+        if len(matches) > 1:
+            raise ValueError("AMBIGUOUS_REFERENCE: more than one geometrical set has that name")
+        if matches:
+            self._active_geoset_name = name
+            return f"Active geometrical set: '{name}'"
 
         available = [hb.Name for hb in self._iter_geosets(part.HybridBodies)]
         raise RuntimeError(
@@ -1027,6 +1046,8 @@ class GSDTools:
         except Exception:
             reference = None
         if reference is None:
+            if selection_type.casefold().endswith("edge"):
+                raise ValueError("Exact axis edge Reference unavailable; refusing parent-feature substitution")
             reference = part.CreateReferenceFromObject(value)
         if reference is None:
             raise RuntimeError("CATIA could not create a Reference for the selected axis")
