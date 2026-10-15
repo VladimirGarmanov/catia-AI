@@ -284,7 +284,7 @@ def diagnose(runner: Runner, codex: Path) -> None:
                "No CATIA tool was called. Logs contain local paths; review before sharing.")
 
 
-def start(runner: Runner, codex: Path, drawing: Path | None = None) -> int:
+def start(runner: Runner, codex: Path, drawing: Path | None = None, smart: bool = False) -> int:
     diagnose(runner, codex)
     help_text = runner.run([str(codex), "--help"], private=True).stdout
     argv = [str(codex), *session_overrides(runner.root)]
@@ -304,6 +304,19 @@ def start(runner: Runner, codex: Path, drawing: Path | None = None) -> int:
                    "After the tool check, describe the visible geometry, dimensions and "
                    "uncertainties; ask whether to create a NEW part. Do not model yet.")
         runner.say(f"Prepared {len(images)} drawing image(s); original file unchanged.")
+        if smart:
+            from scripts.drawing_handoff import plan_drawing
+            brief = plan_drawing(runner, codex, images, drawing)
+            argv.extend(["--model", "gpt-6-luna", "-c", "model_reasoning_effort='medium'"])
+            prompt = (READINESS_PROMPT + f" Read the drawing brief at {brief} and its adjacent conversation.json. "
+                      "You are the human-facing CAD collaborator after Astra's analysis, not a blind executor. "
+                      "The original drawing pages are attached. First summarize the plan and ask the human to confirm "
+                      "the new-part or exact existing-document target and whether to begin. Do not mutate CATIA yet. "
+                      "After authorization execute serially, reread actual model state and fresh references, "
+                      "and verify dimensions. Update a progress journal beside the brief after each completed feature. "
+                      "For human edits revise the plan explicitly; stop on ambiguous dimensions or failed tools. "
+                      "If the plan needs complex redesign, explain the blocker and suggest /model to return to Astra. "
+                      "Never treat the planner's claims as independently verified geometry.")
     argv.extend(["-C", str(runner.root), prompt])
     runner.say("Starting ONE Codex agent with full CATIA tools. Sign in if asked; "
                "do not share login codes. No modeling is authorized by this launcher.")
@@ -316,6 +329,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("action", choices=["install", "start", "diagnose"])
     parser.add_argument("--drawing", type=Path, help="Attach a PNG, JPEG or PDF")
     parser.add_argument("--choose-drawing", action="store_true", help="Open a drawing file picker")
+    parser.add_argument("--smart-drawing", action="store_true", help="Astra analysis, then automatic interactive Luna medium handoff")
     args = parser.parse_args(argv)
     if os.name != "nt":
         print("Windows-only. No installation or configuration was changed.")
@@ -339,13 +353,13 @@ def main(argv: list[str] | None = None) -> int:
             _, codex = get_runtime(runner, install=False)
             if args.action == "start":
                 drawing = args.drawing
-                if args.choose_drawing:
+                if args.choose_drawing or (args.smart_drawing and drawing is None):
                     from scripts.drawing_inputs import choose_drawing
                     drawing = choose_drawing()
                     if drawing is None:
                         runner.say("Drawing selection cancelled. Codex was not started.")
                         return 0
-                return start(runner, codex, drawing)
+                return start(runner, codex, drawing, smart=args.smart_drawing)
             diagnose(runner, codex)
         return 0
     except (SetupError, OSError, ValueError, subprocess.SubprocessError) as exc:
