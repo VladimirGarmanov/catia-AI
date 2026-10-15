@@ -9,7 +9,11 @@ with the original MIT license retained.
 
 ## What it does
 
-This MCP server registers **124 tools** (including the original 81 names).
+This MCP server registers **132 tools** (including the original 81 names).
+
+CAA reference migration and existing-sketch editing: see [CAA_MIGRATION.md](CAA_MIGRATION.md).
+The runtime uses direct pywin32 COM, not pycatia. New API research uses the
+downloaded CAA V5 Automation reference; the old 218-entry catalog is legacy coverage metadata.
 Registration is not live CATIA validation. See [implementation status](IMPLEMENTATION_STATUS.md)
 for the implemented subset of the supplied 218-capability catalog and remaining gaps.
 
@@ -62,33 +66,27 @@ project files in place, preserving the local runtime and Codex config. It needs
 GitHub access; bundled runtime dependencies are updated by installing a newer EXE.
 `DIAGNOSE.cmd` creates a report without calling CATIA tools.
 The CATIA connection still requires Windows COM automation.
-The default is now **one Codex agent with all 124 tools**: it reads the drawing and
+For the source ZIP, double-click `INSTALL.cmd`: missing Python (Windows x64),
+Node and Codex are installed locally without a Node file picker or global PATH edits.
+Python's publisher signature and Node's official SHA-256 are checked. Institutional
+network/application restrictions are not bypassed. Clean-Windows bootstrap validation
+is still pending; see [WINDOWS_CODEX.md](WINDOWS_CODEX.md).
+The default is now **one Codex agent with all 132 tools**: it reads the drawing and
 selection, plans, models and verifies the result itself. No subagent is required.
 `START_WITH_DRAWING.cmd` opens a PNG/JPEG/PDF picker; PDF pages are rendered locally
 and attached as images (optional `drawings` dependencies installed by INSTALL).
 Launchers use session-only configuration overrides: full MCP enabled, inspection
 transport and subagents disabled. User/project config files are not rewritten.
-Legacy agent files are retained but not used by this workflow; see
-[MULTI_AGENT.md](MULTI_AGENT.md) for the observed limitation.
+Agent-role configurations are not used by this workflow.
 Offline tests do not validate live CATIA geometry or COM behavior.
 
-## Claude Desktop Quick Install
-
-```bash
-git clone https://github.com/daiemon12/catia-v5-mcp-server.git
-cd catia-v5-mcp-server
-bash setup.sh
-```
-
-The script handles everything: dependencies, Claude Desktop config, and verification.
-
-## Manual Installation
+## Developer installation
 
 ### 1. Clone the repository
 
 ```bash
-git clone https://github.com/daiemon12/catia-v5-mcp-server.git
-cd catia-v5-mcp-server
+git clone https://github.com/VladimirGarmanov/catia-AI.git
+cd catia-AI
 ```
 
 ### 2. Install dependencies
@@ -97,58 +95,14 @@ cd catia-v5-mcp-server
 pip install -e .
 ```
 
-Or manually:
-```bash
-pip install mcp pywin32
-```
+### 3. Windows modeling
 
-### 3. Configure Claude Desktop
-
-Edit your Claude Desktop config file:
-- Windows: `%APPDATA%\Claude\claude_desktop_config.json`
-- macOS: `~/Library/Application Support/Claude/claude_desktop_config.json`
-
-Add the server:
-
-```json
-{
-  "mcpServers": {
-    "catia-v5": {
-      "command": "python",
-      "args": ["-m", "catia_mcp"]
-    }
-  }
-}
-```
-
-Or with an absolute path:
-
-```json
-{
-  "mcpServers": {
-    "catia-v5": {
-      "command": "python",
-      "args": ["C:/path/to/catia-v5-mcp-server/catia_mcp/server.py"]
-    }
-  }
-}
-```
-
-### 4. For Claude Code
-
-```bash
-claude mcp add catia-v5 python -- -m catia_mcp
-```
-
-### 5. Start CATIA V5
-
-Make sure CATIA V5 is running before asking Claude to interact with it. The server will automatically connect to the running instance.
-
-If CATIA V5 is not running, the server will attempt to launch it (requires CATIA to be registered as COM server: `cnext.exe /regserver`).
+Use `INSTALL.cmd`, open CATIA, then `START_CATIA_AI.cmd`.
+See [WINDOWS_CODEX.md](WINDOWS_CODEX.md). macOS supports offline development only.
 
 ## Usage Examples
 
-Once configured, just talk to Claude:
+Once configured, talk to Codex:
 
 ### Create a simple part
 > "Create a new CATIA part. Draw a 100x60mm rectangle centered at the origin on the XY plane, then extrude it 40mm."
@@ -350,7 +304,9 @@ This server requires Windows. It will not work on macOS or Linux.
 Create or open a document first using `catia_new_part` or `catia_open_document`.
 
 ### COM ByRef array limitations
-Some measurement methods may not work with late binding. If you encounter issues, try using `pycatia` as an alternative backend (contribution welcome).
+Some measurement methods may not work with late binding. Report the exact COM
+error and verify the documented SAFEARRAY contract on Windows; do not switch
+backends or execute scripts as an automatic fallback.
 
 ## Contributing
 
@@ -358,7 +314,7 @@ This project is open-source. See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelin
 
 - **Drawing** tools (2D drafting)
 - **Knowledgeware** (formulas, rules, check)
-- **pycatia backend** as alternative to raw win32com
+- **CAA Automation coverage** with typed raw-COM adapters and live Windows verification
 - **Tests** with COM mocking
 - **3DEXPERIENCE** CATIA support
 

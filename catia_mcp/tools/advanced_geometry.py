@@ -38,6 +38,22 @@ WIRE_MODES = {
 }
 
 SOLID_MODES = {
+    "chamfer_two_lengths": {"edge_handle": HANDLE, "first_length_mm": POSITIVE, "second_length_mm": POSITIVE,
+                            "propagation": {"enum": [0, 1]}, "reverse": BOOL},
+    "hole_at_point": {"position_mm": VECTOR, "support_face_handle": HANDLE, "depth_mm": POSITIVE, "diameter_mm": POSITIVE},
+    "hole_at_reference": {"point_handle": HANDLE, "support_face_handle": HANDLE, "depth_mm": POSITIVE, "diameter_mm": POSITIVE},
+    "axis_to_axis": {"source_axis_handle": HANDLE, "target_axis_handle": HANDLE},
+    "solid_combine": {"first_profile_handle": HANDLE, "second_profile_handle": HANDLE,
+                      "first_direction_handle": HANDLE, "second_direction_handle": HANDLE},
+    "sew_surface": {"surface_handle": HANDLE, "side": {"enum": [0, 1]}},
+    "remove_faces": {"keep_face_handle": HANDLE, "remove_face_handle": HANDLE},
+    "replace_faces": {"surface_handle": HANDLE, "remove_face_handle": HANDLE, "side": {"enum": [0, 1]}},
+    "thread_tap": {"lateral_face_handle": HANDLE, "limit_face_handle": HANDLE,
+                   "diameter_mm": POSITIVE, "pitch_mm": POSITIVE, "depth_mm": POSITIVE,
+                   "polarity": {"enum": ["thread", "tap"]}, "hand": {"enum": ["right", "left"]}, "reverse": BOOL},
+    "auto_fillet": {"fillet_radius_mm": POSITIVE, "round_radius_mm": POSITIVE,
+                    "confirm_all_edges": {"const": True}},
+    "union_trim": {"operand_body_handle": HANDLE, "keep_faces": array(HANDLE, 0), "remove_faces": array(HANDLE, 0)},
     "user_pattern": {"feature_handle": HANDLE, "positions_sketch_handle": HANDLE, "anchor_handle": HANDLE, "instances": {"type": "integer", "minimum": 2}},
     "stiffener": {"sketch_handle": HANDLE, "thickness_mm": POSITIVE, "symmetric": BOOL, "from_top": BOOL},
     "face_fillet": {"first_face_handle": HANDLE, "second_face_handle": HANDLE, "radius_mm": POSITIVE},
@@ -55,11 +71,14 @@ SOLID_MODES = {
 }
 
 
+SOLID_MODES["thread_tap_explicit_faces"] = dict(SOLID_MODES["thread_tap"])
+
+
 class AdvancedGeometryTools(OperationTools):
     def get_tool_definitions(self):
         return [
             group("catia_wireframe_surface", "Typed GSD operations. Part-frame directions; lengths mm, angles deg. Exact face/edge handles require current selection. Live Windows verification pending.", WIRE_MODES, {"container_handle": HANDLE}),
-            group("catia_solid_operation", "Additional Part Design features in an explicit Body. Constructors followed by Update/readback; no silent fallback or deletion.", SOLID_MODES, {"body_handle": HANDLE}),
+            group("catia_solid_operation", "Part Design features in an explicit Body: fillets, stiffener, patterns, transforms, Solid Combine, Sew Surface, face removal/replacement, Thread/Tap, Union Trim, two-length chamfer, holes on selected support. Thread/Tap is a CATIA thread specification, not modeled helical teeth. Hole coordinates are absolute Part mm; CATIA may project onto support. Auto Fillet affects all body edges and requires confirm_all_edges=true. Union Trim supports undivided faces only. Exact live face/edge handles required, no guessed IDs. Update/readback is not independent geometry verification; Windows validation pending.", SOLID_MODES, {"body_handle": HANDLE}),
             group("catia_profile_solids", "Explicit geometry-equivalent alternative to Multi Pad/Multi Pocket: creates SEPARATE ordinary features from separate sketches, each with its own depth. Not a native multi-domain feature. Stops at first failed Update; never rolls back or retries.", {
                 "pads": {}, "pockets": {},
             }, {"body_handle": HANDLE, "profiles": array({"type": "object", "properties": {
@@ -214,7 +233,12 @@ class AdvancedGeometryTools(OperationTools):
         types = {"sketch_handle": {"sketch"}, "first_face_handle": {"face"}, "second_face_handle": {"face"},
                  "remove_face_handle": {"face"}, "edge_handle": {"edge"}, "axis_handle": LINE,
                  "reference_handle": POINT | {"plane"}, "surface_handle": SURFACE,
-                 "origin_handle": POINT, "plane_handle": {"plane"}}
+                 "origin_handle": POINT, "plane_handle": {"plane"},
+                 "source_axis_handle": {"axis_system"}, "target_axis_handle": {"axis_system"},
+                 "first_profile_handle": {"sketch"}, "second_profile_handle": {"sketch"},
+                 "first_direction_handle": LINE, "second_direction_handle": LINE,
+                 "keep_face_handle": {"face"}, "lateral_face_handle": {"face"}, "limit_face_handle": {"face"},
+                 "point_handle": POINT, "support_face_handle": {"face"}}
         r = {k: self.ref(a[k], v) for k, v in types.items() if k in a and k != "sketch_handle"}
         sketch = self.obj(a["sketch_handle"], {"sketch"}) if "sketch_handle" in a else None
         pattern_feature = self.obj(a["feature_handle"], {"feature"}) if "feature_handle" in a else None
@@ -222,9 +246,79 @@ class AdvancedGeometryTools(OperationTools):
         anchor = self.obj(a["anchor_handle"], POINT | {"point2d"}) if "anchor_handle" in a else None
         vertices = [(self.ref(v["handle"], {"vertex"}), v["radius_mm"]) for v in a.get("vertices", [])]
         direction = unit_vector(a["direction"]) if "direction" in a else None
-        self.engineering.body(a["body_handle"])
+        keep = [self.ref(h, {"face"}) for h in a.get("keep_faces", [])]
+        remove = [self.ref(h, {"face"}) for h in a.get("remove_faces", [])]
+        operand = self.obj(a["operand_body_handle"], {"body"}) if m == "union_trim" else None
+        if m == "union_trim":
+            if same_object(operand, self.obj(a["body_handle"], {"body"})):
+                raise CADOperationError("INVALID_ARGUMENT", "Union Trim needs distinct bodies")
+            if not keep and not remove:
+                raise CADOperationError("INVALID_ARGUMENT", "Union Trim requires explicit keep/remove faces; divided faces needing adjacency are not supported")
+            if set(a["keep_faces"]) & set(a["remove_faces"]):
+                raise CADOperationError("INVALID_ARGUMENT", "A face cannot be both kept and removed")
+        if m == "remove_faces" and same_object(r["keep_face_handle"], r["remove_face_handle"]):
+            raise CADOperationError("INVALID_ARGUMENT", "Keep and remove faces must differ")
+        constructors = {"axis_to_axis": "AddNewAxisToAxis2", "solid_combine": "AddNewSolidCombine",
+                        "sew_surface": "AddNewSewSurface", "remove_faces": "AddNewRemoveFace",
+                        "replace_faces": "AddNewReplaceFace", "thread_tap": "AddNewThreadWithRef",
+                        "thread_tap_explicit_faces": "AddNewThreadWithOutRef",
+                        "auto_fillet": "AddNewAutoFillet", "union_trim": "AddNewTrim",
+                        "chamfer_two_lengths": "AddNewChamfer", "hole_at_point": "AddNewHoleFromPoint",
+                        "hole_at_reference": "AddNewHoleFromRefPoint"}
         f = self.conn.get_active_part().ShapeFactory
-        if m == "user_pattern":
+        if m in constructors:
+            try:
+                constructor = getattr(f, constructors[m])
+            except Exception as exc:
+                raise CADOperationError("CAPABILITY_UNAVAILABLE", f"{constructors[m]} is unavailable in this CATIA installation: {exc}") from exc
+        self.engineering.body(a["body_handle"])
+        if m == "chamfer_two_lengths":
+            obj = constructor(r["edge_handle"], a["propagation"], 0, int(a["reverse"]), a["first_length_mm"], a["second_length_mm"])
+        elif m in {"hole_at_point", "hole_at_reference"}:
+            if m == "hole_at_point":
+                obj = constructor(*a["position_mm"], r["support_face_handle"], a["depth_mm"])
+            else:
+                obj = constructor(r["point_handle"], r["support_face_handle"], a["depth_mm"])
+            self.state.mark_created(obj, "feature")
+            obj.Type = 0  # catSimpleHole
+            obj.BottomType = 0  # catFlatBottom
+            dimension(obj.Diameter, a["diameter_mm"], "mm")
+        elif m == "axis_to_axis":
+            obj = constructor(r["source_axis_handle"], r["target_axis_handle"])
+        elif m == "solid_combine":
+            obj = constructor(r["first_profile_handle"], r["second_profile_handle"])
+            self.state.mark_created(obj, "feature")
+            obj.FirstComponentDirection = r["first_direction_handle"]
+            obj.SecondComponentDirection = r["second_direction_handle"]
+        elif m == "sew_surface":
+            obj = constructor(r["surface_handle"], a["side"])
+        elif m == "remove_faces":
+            obj = constructor(r["keep_face_handle"], r["remove_face_handle"])
+        elif m == "replace_faces":
+            obj = constructor(r["surface_handle"], r["remove_face_handle"], a["side"])
+        elif m == "auto_fillet":
+            obj = constructor(a["fillet_radius_mm"], a["round_radius_mm"])
+        elif m in {"thread_tap", "thread_tap_explicit_faces"}:
+            obj = constructor() if m == "thread_tap_explicit_faces" else constructor(r["lateral_face_handle"], r["limit_face_handle"])
+            self.state.mark_created(obj, "feature")
+            if m == "thread_tap_explicit_faces":
+                obj.LateralFaceElement = r["lateral_face_handle"]
+                obj.LimitFaceElement = r["limit_face_handle"]
+            obj.SetExplicitPolarity({"thread": 0, "tap": 1}[a["polarity"]])
+            obj.Side = {"right": 0, "left": 1}[a["hand"]]
+            dimension(obj.Diameter, a["diameter_mm"], "mm")
+            dimension(obj.Pitch, a["pitch_mm"], "mm")
+            dimension(obj.Depth, a["depth_mm"], "mm")
+            if a["reverse"]:
+                obj.ReverseDirection()
+        elif m == "union_trim":
+            obj = constructor(operand)
+            self.state.mark_created(obj, "feature")
+            for face in keep:
+                obj.AddFaceToKeep(face)
+            for face in remove:
+                obj.AddFaceToRemove(face)
+        elif m == "user_pattern":
             obj = f.AddNewUserPattern(pattern_feature, a["instances"])
             self.state.mark_created(obj, "feature")
             obj.AnchorPoint = anchor
@@ -235,11 +329,11 @@ class AdvancedGeometryTools(OperationTools):
             obj.IsFromTop, obj.IsSymmetric = a["from_top"], a["symmetric"]
             dimension(obj.Thickness, a["thickness_mm"], "mm")
         elif m == "face_fillet":
-            obj = f.AddNewFaceFillet(r["first_face_handle"], r["second_face_handle"], a["radius_mm"])
+            obj = f.AddNewSolidFaceFillet(r["first_face_handle"], r["second_face_handle"], a["radius_mm"])
         elif m == "tritangent_fillet":
-            obj = f.AddNewTritangentFillet(r["first_face_handle"], r["second_face_handle"], r["remove_face_handle"])
+            obj = f.AddNewSolidTritangentFillet(r["first_face_handle"], r["second_face_handle"], r["remove_face_handle"])
         elif m == "variable_fillet":
-            obj = f.AddNewEdgeFilletWithVaryingRadius(r["edge_handle"], a["propagation"], a["variation"], a["radius_mm"])
+            obj = f.AddNewSolidEdgeFilletWithVaryingRadius(r["edge_handle"], a["propagation"], a["variation"], a["radius_mm"])
             self.state.mark_created(obj, "feature")
             for ref, radius in vertices:
                 obj.AddImposedVertex(ref, radius)

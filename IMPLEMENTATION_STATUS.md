@@ -1,5 +1,83 @@
 # Реализация CATIA_AGENT_CODEX_PACKAGE — 2026-10-09
 
+## Дополнение 2026-10-15: переход на CAA reference
+
+Part Design: `catia_solid_operation` расширен режимами `axis_to_axis`,
+`solid_combine`, `sew_surface`, `remove_faces`, `replace_faces`, `thread_tap`,
+`auto_fillet`, `union_trim`, `chamfer_two_lengths`, `hole_at_point`,
+`hole_at_reference`. Это 11 режимов существующего инструмента, не 11 новых MCP
+имён. Используются явный Body, session handles, document/revision/request guards.
+Конструкторы fillet переключены на `AddNewSolidFaceFillet`,
+`AddNewSolidTritangentFillet`, `AddNewSolidEdgeFilletWithVaryingRadius`.
+
+Ограничения: Thread/Tap задаёт резьбовую спецификацию, не винтовую геометрию;
+Union Trim поддерживает неделённые грани без adjacency-пар; Auto Fillet действует
+на все рёбра тела и требует явного флага. Hole по XYZ может проецироваться CATIA
+на опору. Планарность/цилиндричность и допустимость геометрии проверяет CATIA;
+поддержка COM-вызова не доказывает корректность полученного тела.
+Native Multi Pad/Multi Pocket и полное покрытие всех вариантов ShapeFactory
+не реализованы. Windows-проверка новых режимов остаётся обязательной.
+
+Источник контрактов: CAA mirror `PartInterfaces/ShapeFactory`, `Thread`,
+`SolidCombine`, `Trim`, `CatChamferMode`, `CatThreadSide`, `CatThreadPolarity`
+в локальном справочнике. Для новых операций есть offline-проверки выбора
+конструктора, порядка update, параметров резьбы/фаски, запрета same-body Trim
+и сохранения свидетельств о созданной фиче при ошибке update.
+
+Текущий сервер регистрирует 132 инструмента: добавлены четыре инструмента
+работы с существующим эскизом/ограничениями и два инструмента чтения CAA reference.
+Также добавлены `catia_part_design_advanced` (29 режимов) и
+`catia_volume_operation` (10 режимов). Первый: FromRef Pad/Pocket/Shaft/Groove/
+Rib/Slot/Stiffener, отверстия по barycenter/одному/двум рёбрам, Auto Draft с native
+default mode, расширенные rectangular/circular patterns и Trim разделённых граней.
+Второй: Volume Close/Thick Surface, Add/Remove/Intersect/Trim, Sew, Shell,
+Thickness и Volumic Draft в явном GS/OGS. Volume handles выдаются этим инструментом;
+импорт произвольного существующего feature как volume не разрешён.
+
+Парсер CAA исправлен: статически извлекает literal type labels из `activateLink`,
+не исполняя JavaScript. Обновлены все 91 страницы PartInterfaces; остальные
+страницы могут ещё иметь parser_version=1 (без типов в сигнатурах).
+`scripts/audit_shape_factory.py --json` перечисляет все 82 сигнатуры snapshot,
+включая типы параметров/результата и упоминания в исходниках. Упоминание метода
+не считается реализацией: например, одноимённый AddNewBlend у HybridShapeFactory
+не доказывает покрытие ShapeFactory.AddNewBlend.
+
+Оставшиеся ограничения: native Blend/RemovedBlend требуют отдельной настройки
+возвращаемого AnyObject. Surfacic rectangular/circular/user patterns теперь
+предоставлены в явном Body; circular поддерживает `complete_crown`.
+Deprecated AddNewGSDRectPattern/AddNewGSDCircPattern не вызываются: используем
+документированные Surfacic successors, не выдумываем значение старого iType.
+Surface edge/variable/face/tritangent fillet и surfacic auto fillet
+добавлены как явные native-конструкторы. Variable surface fillet пока задаёт только
+default radius, без control vertices. Rect/Circ `*PatternofList` предоставлены
+только с `allow_legacy_v5r8_api=true`; добавлен также UserPatternofList с тем же
+ограничением. Четыре старых fillet-конструктора доступны через `legacy_*`
+с `allow_legacy_api=true`; это API-варианты, не новые геометрические возможности.
+`catia_solid_operation.thread_tap_explicit_faces` использует
+AddNewThreadWithOutRef и затем задаёт LateralFaceElement/LimitFaceElement;
+незавершённый объект учитывается до настройки свойств.
+Последние девять режимов добавлены по cached CAA contracts **без запуска тестов**
+по просьбе пользователя. Предыдущие результаты тестов на них не распространяются.
+Проверка наличия
+метода и Update не доказывают сохранение всех seeds — нужен живой тест.
+Reflective AutoDraft Mode не экспонируется: в этом snapshot свойство имеет
+неоднозначный тип Reference; CatDraftMode относится к другому контракту Draft.
+Нельзя объявлять всё ShapeFactory реализованным или проверенным на Windows.
+
+Установка из ZIP: `INSTALL.cmd` автоматически ставит отсутствующий Python 3.13.3
+в `.local/python` (Windows x64, проверка Authenticode/PSF), Node 24 LTS в
+`.local/node` (официальный SHA-256), Codex в `.local/codex`, пакет в `.venv`.
+Нет file picker для Node, изменений глобального PATH или ExecutionPolicy.
+Python bootstrap использует read-only PowerShell-проверку цифровой подписи;
+блокировки организации не обходятся. На Mac проверены только mocks/контракты.
+Полный EXE по-прежнему собирается на Windows CI; новая сборка не опубликована
+автоматически от локальных изменений.
+Локально скачаны 1 490 HTML-страниц из оглавления (10 438 ссылок с якорями),
+без ошибок загрузки. Это справочник, не автоматически реализованные операции.
+Подробности и ограничения: [CAA_MIGRATION.md](CAA_MIGRATION.md).
+Сведения ниже описывают предыдущий этап; полная переработка всех доменов и
+проверка новых COM-вызовов на Windows ещё не выполнены.
+
 ## Фактический статус
 
 124 MCP tools; исходные 81 имени сохранены. 201 из 218 пунктов

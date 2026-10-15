@@ -50,6 +50,9 @@ IMPLEMENTATIONS = {
 for number in (34, 35, 36, 37, 38, 39, 40, 41, 42, 44, 45):
     IMPLEMENTATIONS[number] = ["catia_sketch_constraint"]
 
+for number in (50, 64, 67, 72):
+    IMPLEMENTATIONS.setdefault(number, []).append("catia_solid_operation")
+
 
 # Manual links indicate scoped implementations, not full GUI equivalence.
 for numbers, handler in (

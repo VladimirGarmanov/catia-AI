@@ -1,7 +1,7 @@
 """Windows user-local setup/start/diagnostics; never changes execution policies.
 
-Python is the bootstrap prerequisite. Existing portable Node installations are
-reused; a missing Node executable can be selected with a file dialog. Codex is
+Existing portable Node installations are reused; missing Node is downloaded from
+nodejs.org with SHA-256 verification into .local/node. Codex is
 installed via npm only when absent. No administrator rights or Git are used.
 """
 
@@ -149,29 +149,6 @@ def project_python(root: Path) -> Path:
     return first_file((venv_python, bundled_python)) or venv_python.resolve()
 
 
-def pick_node() -> Path:
-    print("Node.js was not found. Select node.exe from your extracted official Node LTS ZIP.")
-    print("Download, if allowed by your institution: https://nodejs.org/en/download")
-    try:
-        import tkinter
-        from tkinter import filedialog
-        window = tkinter.Tk()
-        window.withdraw()
-        try:
-            selected = filedialog.askopenfilename(
-                title="Select node.exe from the extracted Node.js folder",
-                filetypes=[("Node.js", "node.exe")])
-        finally:
-            window.destroy()
-    except Exception as exc:
-        raise SetupError("File picker unavailable. Put Node's extracted contents in "
-                         ".local/node and rerun INSTALL.cmd.") from exc
-    path = Path(selected)
-    if not selected or path.name.lower() != "node.exe" or not path.is_file():
-        raise SetupError("No node.exe selected. Nothing was downloaded or security-unblocked.")
-    return path.resolve()
-
-
 def normalize_entry(entry: dict) -> dict:
     enabled = entry.get("enabled", True)
     config = entry.get("config", entry)
@@ -244,8 +221,16 @@ def get_runtime(runner: Runner, *, install: bool) -> tuple[Path | None, Path]:
     codex = discover_codex(runner.root, state)
     if node is None and (codex is None or codex.suffix.lower() != ".exe"):
         if not install:
-            raise SetupError("Node.js was moved or not found. Run INSTALL.cmd to select it again.")
-        node = pick_node()
+            raise SetupError("Node.js was moved or not found. Run INSTALL.cmd to install it locally.")
+        try:
+            # Works both as a module in tests and as scripts/windows_launcher.py.
+            if __package__:
+                from .install_node import install_node
+            else:
+                from install_node import install_node
+            node = install_node(runner.root, runner.say)
+        except Exception as exc:
+            raise SetupError(f"Automatic Node installation failed: {exc}. Check network/proxy or contact IT; no security bypass attempted.") from exc
     runner.env = child_environment(node, codex)
     if node:
         version = runner.run([str(node), "--version"]).stdout.strip()

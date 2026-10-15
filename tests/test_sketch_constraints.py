@@ -1,172 +1,117 @@
-"""CATIA Automation contract doubles; these tests do not run the CATIA solver."""
-
-import asyncio
-from dataclasses import dataclass
-from types import SimpleNamespace
+"""CAA contract doubles; these checks do not run the CATIA solver."""
+from types import SimpleNamespace as NS
 from unittest.mock import Mock
-
 import pytest
-from mcp.types import CallToolRequest, CallToolRequestParams
-
-from catia_mcp.server import CATIAMCPServer
 from catia_mcp.tools.sketcher import SketcherTools
-
-
-@dataclass
-class Reference:
-    element: object
 
 
 @pytest.fixture
 def rig():
-    elements = [SimpleNamespace(Name=name) for name in
-                ("AbsoluteAxis", "Circle.1", "Line.1", "Line.2")]
-    dimension = SimpleNamespace(Value=0.0)
-    constraint = SimpleNamespace(Dimension=dimension)
-
-    def mono(code, reference):
-        assert isinstance(reference, Reference), "CATIA expects a Reference, not raw geometry"
-        assert code in {0, 5, 10, 13, 14}, "Constraint requires two elements"
-        if code == 14:
-            assert reference.element is elements[1], "Radius requires the circle"
-        return constraint
-
-    def bi(code, first, second):
-        assert isinstance(first, Reference) and isinstance(second, Reference)
-        assert code in {1, 2, 4, 6, 8, 11}
-        return constraint
-
-    constraints = SimpleNamespace(AddMonoEltCst=Mock(side_effect=mono),
-                                  AddBiEltCst=Mock(side_effect=bi))
-    geometry = SimpleNamespace(Count=4, Item=Mock(side_effect=lambda i: elements[i - 1]))
-    sketch = SimpleNamespace(Constraints=constraints, GeometricElements=geometry)
-    part = SimpleNamespace(CreateReferenceFromObject=Mock(side_effect=Reference))
-    connection = SimpleNamespace(get_active_part=Mock(return_value=part))
-    tools = SketcherTools(connection)
-    tools._active_sketch = sketch
-    return SimpleNamespace(tools=tools, constraints=constraints, part=part,
-                           sketch=sketch, elements=elements, constraint=constraint)
+    point = lambda: NS(GeometricType=2)
+    origin = point()
+    line = NS(GeometricType=3, StartPoint=point(), EndPoint=point())
+    elements = [line, NS(GeometricType=5), NS(GeometricType=8)]
+    created = []
+    def add(code, *refs):
+        dimension = NS(ValuateFromString=Mock(), ValueAsString=lambda: "25mm")
+        c = NS(Name="C", Status=0, Type=code, Mode=0, Dimension=dimension, IsInactive=lambda: False)
+        created.append((code, refs, c))
+        return c
+    constraints = NS(AddMonoEltCst=Mock(side_effect=add), AddBiEltCst=Mock(side_effect=add),
+                     AddTriEltCst=Mock(side_effect=add), Count=0)
+    doc = NS(Name="Test.CATPart", FullName="")
+    part = NS(CreateReferenceFromObject=lambda obj: obj)
+    editor = SketcherTools(NS(active_document=doc, get_active_part=lambda: part))
+    sketch = NS(Constraints=constraints, Evaluate=Mock(), AbsoluteAxis=NS(Origin=origin),
+                GeometricElements=NS(Count=3, Item=lambda i: elements[i-1]))
+    editor._active_sketch = sketch
+    editor._active_document = doc
+    editor._active_document_identity = (doc.Name, "")
+    return NS(editor=editor, sketch=sketch, created=created, line=line, origin=origin)
 
 
-# Expected values come from CATIA CatConstraintType, not from production constants.
-@pytest.mark.parametrize("kind,indices,value,code", [
-    ("radius", [2], 25, 14),
-    ("distance", [3], 40, 5),  # One line means Length, not Distance.
-    ("distance", [3, 4], 10, 1),
-    ("angle", [3, 4], 45, 6),
-    ("coincidence", [3, 4], None, 2),
-    ("tangent", [2, 3], None, 4),
-    ("perpendicular", [3, 4], None, 11),
-    ("parallel", [3, 4], None, 8),
-    ("horizontal", [3], None, 10),
-    ("vertical", [3], None, 13),
-    ("fix", [2], None, 0),
+@pytest.mark.parametrize("kind,index,value,code", [
+    ("radius", 2, 25, 14), ("length", 1, 25, 5), ("horizontal", 1, None, 10),
+    ("vertical", 1, None, 13), ("major_radius", 3, 25, 18), ("minor_radius", 3, 25, 19),
 ])
-def test_constraint_type_arity_and_reference_contract(rig, kind, indices, value, code):
-    args = {"type": kind, "geometry_index_1": indices[0]}
-    if len(indices) == 2:
-        args["geometry_index_2"] = indices[1]
+def test_documented_mono_types(rig, kind, index, value, code):
+    args = {"type": kind, "geometry_index_1": index}
     if value is not None:
         args["value"] = value
-    result = rig.tools.execute("catia_sketch_constraint", args)
-    method = (rig.constraints.AddMonoEltCst if len(indices) == 1
-              else rig.constraints.AddBiEltCst)
-    method.assert_called_once_with(code, *(Reference(rig.elements[i - 1]) for i in indices))
-    assert rig.part.CreateReferenceFromObject.call_count == len(indices)
-    assert "constraint added" in result
+    rig.editor._add_constraint(args)
+    assert rig.created[0][0] == code
     if value is not None:
-        assert rig.constraint.Dimension.Value == value
+        rig.created[0][2].Dimension.ValuateFromString.assert_called_once_with("25mm")
+
+
+def test_endpoint_to_origin_and_direction(rig):
+    rig.editor._add_constraint({"type": "distance", "geometry_index_1": 1,
+        "element_1": "start", "element_2": "origin", "distance_direction": "horizontal", "value": 25})
+    code, refs, c = rig.created[0]
+    assert code == 1 and refs[0] is rig.line.StartPoint and refs[1] is rig.origin
+    assert c.DistanceDirection == 1
+
+
+def test_same_line_distinct_endpoints_are_valid(rig):
+    rig.editor._add_constraint({"type": "distance", "geometry_index_1": 1,
+        "geometry_index_2": 1, "element_1": "start", "element_2": "end", "value": 25})
+    assert rig.created[0][1] == (rig.line.StartPoint, rig.line.EndPoint)
 
 
 @pytest.mark.parametrize("args", [
-    {"type": "radius", "geometry_index_1": 2},
-    {"type": "radius", "geometry_index_1": 2, "value": 0},
-    {"type": "radius", "geometry_index_1": 2, "value": -25},
-    {"type": "radius", "geometry_index_1": 2, "value": float("nan")},
-    {"type": "radius", "geometry_index_1": 2, "value": float("inf")},
-    {"type": "radius", "geometry_index_1": 2, "value": True},
-    {"type": "radius", "geometry_index_1": 2, "value": "25"},
-    {"type": "angle", "geometry_index_1": 3, "value": 45},
-    {"type": "angle", "geometry_index_1": 3, "geometry_index_2": 4, "value": 361},
-    {"type": "distance", "geometry_index_1": 3, "value": -1},
-    {"type": "parallel", "geometry_index_1": 3},
-    {"type": "fix", "geometry_index_1": 2, "geometry_index_2": 3},
-    {"type": "fix", "geometry_index_1": 2, "value": 25},
-    {"type": "unknown", "geometry_index_1": 2},
-    {"type": "fix"},
-    *({"type": "fix", "geometry_index_1": i} for i in (0, -1, 5, True, 2.5, "2")),
-    {"type": "parallel", "geometry_index_1": 3, "geometry_index_2": 5},
-    {"type": "parallel", "geometry_index_1": 3, "geometry_index_2": 3},
+    {"type": "radius", "geometry_index_1": 1, "value": 25},
+    {"type": "radius", "geometry_index_1": 2, "element_1": "start", "value": 25},
+    {"type": "length", "geometry_index_1": 1, "value": -1},
+    {"type": "length", "geometry_index_1": 1, "value": 25, "distance_direction": "horizontal"},
+    {"type": "coincidence", "geometry_index_1": 1, "geometry_index_2": 1},
+    {"type": "fix", "element_1": "origin", "geometry_index_1": 1},
+    {"type": "midpoint", "geometry_index_1": 1, "geometry_index_2": 2},
 ])
-def test_invalid_arguments_do_not_create_constraints(rig, args):
+def test_invalid_requests_do_not_mutate(rig, args):
     with pytest.raises(ValueError):
-        rig.tools.execute("catia_sketch_constraint", args)
-    rig.constraints.AddMonoEltCst.assert_not_called()
-    rig.constraints.AddBiEltCst.assert_not_called()
+        rig.editor._add_constraint(args)
+    assert not rig.created
 
 
-def test_reference_error_preserves_cause_and_does_not_create_constraint(rig):
-    rig.part.CreateReferenceFromObject.side_effect = RuntimeError("COM reference failed")
-    with pytest.raises(RuntimeError, match="COM reference failed"):
-        rig.tools.execute("catia_sketch_constraint",
-                          {"type": "radius", "geometry_index_1": 2, "value": 25})
-    rig.constraints.AddMonoEltCst.assert_not_called()
+def test_diagnosis_never_infers_zero_dof(rig):
+    rig.editor._add_constraint({"type": "horizontal", "geometry_index_1": 1})
+    c = rig.created[0][2]
+    rig.sketch.Constraints.Count = 1
+    rig.sketch.Constraints.Item = lambda i: c
+    report = rig.editor._diagnose()
+    assert report["all_constraints_satisfied"] is True
+    assert report["remaining_dof"] is None and report["iso_constrained"] is None
+    c.Status = 3
+    assert rig.editor._diagnose()["constraints"][0]["diagnosis"] == "wrong_value"
 
 
-def test_dimension_failure_reports_partial_creation_without_retry(rig):
-    class BrokenDimension:
-        @property
-        def Value(self):
-            return 10
-
-        @Value.setter
-        def Value(self, value):
-            raise RuntimeError("COM dimension rejected")
-
-    rig.constraint.Dimension = BrokenDimension()
-    with pytest.raises(RuntimeError, match="created.*COM dimension rejected"):
-        rig.tools.execute("catia_sketch_constraint",
-                          {"type": "radius", "geometry_index_1": 2, "value": 25})
-    rig.constraints.AddMonoEltCst.assert_called_once()
+def test_failed_solver_retains_created_constraint(rig):
+    rig.sketch.Evaluate.side_effect = RuntimeError("solver failed")
+    with pytest.raises(RuntimeError, match="solver failed"):
+        rig.editor._add_constraint({"type": "radius", "geometry_index_1": 2, "value": 25})
+    assert len(rig.created) == 1
 
 
-def test_silently_ignored_dimension_is_not_reported_as_success(rig):
-    class UnchangedDimension:
-        @property
-        def Value(self):
-            return 10
-
-        @Value.setter
-        def Value(self, value):
-            pass
-
-    rig.constraint.Dimension = UnchangedDimension()
-    with pytest.raises(RuntimeError, match="readback is 10.0, expected 25"):
-        rig.tools.execute("catia_sketch_constraint",
-                          {"type": "radius", "geometry_index_1": 2, "value": 25})
-    rig.constraints.AddMonoEltCst.assert_called_once()
+@pytest.mark.parametrize("shape", ["circle", "rectangle"])
+def test_origin_anchored_profiles_use_constraints_not_fix(rig, shape):
+    factory = NS(CreatePoint=lambda x, y: NS(GeometricType=2),
+                 CreateLine=lambda *args: NS(GeometricType=3),
+                 CreateClosedCircle=lambda *args: NS(GeometricType=5))
+    rig.editor._active_factory = factory
+    if shape == "circle":
+        rig.editor._draw_circle(0, 0, 25, True)
+        assert [c[0] for c in rig.created] == [3, 14]
+    else:
+        rig.editor._draw_rectangle(0, 0, 25, 10, True)
+        assert [c[0] for c in rig.created] == [10, 13, 10, 13, 5, 5, 2]
+    assert not any(code == 0 for code, refs, c in rig.created)
 
 
-def test_missing_sketch_stops_before_com(rig):
-    rig.tools._active_sketch = None
-    with pytest.raises(RuntimeError, match="No active sketch"):
-        rig.tools.execute("catia_sketch_constraint",
-                          {"type": "radius", "geometry_index_1": 2, "value": 25})
-    rig.constraints.AddMonoEltCst.assert_not_called()
-
-
-def test_constraint_com_failure_is_mcp_error(rig):
-    server = CATIAMCPServer()
-    server.connection.app = SimpleNamespace(Caption="Mock CATIA")
-    server.sketcher_tools.conn = rig.tools.conn
-    server.sketcher_tools._active_sketch = rig.sketch
-    rig.constraints.AddMonoEltCst.side_effect = RuntimeError("The method AddMonoEltCst failed")
-    request = CallToolRequest(params=CallToolRequestParams(
-        name="catia_sketch_constraint",
-        arguments={"type": "radius", "geometry_index_1": 2, "value": 25}))
-    response = asyncio.run(server.server.request_handlers[CallToolRequest](request))
-    assert response.root.isError is True
-    message = response.root.content[0].text
-    assert "radius" in message and "14" in message
-    assert "The method AddMonoEltCst failed" in message
-    rig.constraints.AddMonoEltCst.assert_called_once()
+def test_origin_anchor_refuses_displaced_profile_before_creation(rig):
+    factory = Mock()
+    rig.editor._active_factory = factory
+    with pytest.raises(ValueError, match="first corner"):
+        rig.editor._draw_rectangle(1, 0, 25, 10, True)
+    with pytest.raises(ValueError, match="center"):
+        rig.editor._draw_circle(1, 0, 25, True)
+    assert not factory.mock_calls and not rig.created

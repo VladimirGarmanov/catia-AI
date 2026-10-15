@@ -211,7 +211,7 @@ def test_private_mcp_config_not_logged(tmp_path, monkeypatch):
 def test_real_stdio_discovery_without_catia():
     report = asyncio.run(probe_transports())
     assert report["inspection_tools"] == 13
-    assert report["full_tools"] == 81
+    assert report["full_tools"] == 132
     assert report["catia_com"] == "NOT_TESTED"
     assert report["codex_session_tool_access"] == "NOT_TESTED"
 
@@ -233,7 +233,15 @@ def test_start_uses_fresh_session_and_readiness_only(tmp_path, monkeypatch):
 def test_no_windows_launcher_changes_powershell_policy():
     for name in ("INSTALL.cmd", "START_CATIA_AI.cmd", "START_WITH_DRAWING.cmd", "DIAGNOSE.cmd"):
         source = (ROOT / name).read_text().lower()
-        assert "powershell" not in source
+        if name == "INSTALL.cmd":
+            ps_lines = [line for line in source.splitlines() if line.startswith("powershell.exe")]
+            assert len(ps_lines) == 1 and "get-authenticodesignature" in ps_lines[0]
+            assert "python software foundation" in ps_lines[0]
+        else:
+            assert "powershell" not in source
+        assert "-executionpolicy" not in source
+        assert "set-executionpolicy" not in source
+        assert "unblock-file" not in source
         assert "bypass" not in source
         assert 'cd /d "%~dp0"' in source
 

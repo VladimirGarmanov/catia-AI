@@ -43,6 +43,9 @@ def check_tool_definitions():
     from catia_mcp.tools.drafting import DraftingTools
     from catia_mcp.tools.analysis_tools import AnalysisTools
     from catia_mcp.tools.sketch_operations import SketchOperationTools
+    from catia_mcp.tools.sketch_session import SketchSessionTools
+    from catia_mcp.tools.v5_reference import V5ReferenceTools
+    from catia_mcp.tools.shape_factory import ShapeFactoryTools, VolumeFactoryTools
 
     conn = CATIAConnection()
     engineering = EngineeringTools(conn, SessionState(conn), SketcherTools(conn))
@@ -62,6 +65,10 @@ def check_tool_definitions():
         "Drafting": DraftingTools(engineering),
         "Analysis": AnalysisTools(engineering),
         "Sketch Operations": SketchOperationTools(engineering),
+        "Sketch Session": SketchSessionTools(engineering),
+        "V5 Reference": V5ReferenceTools(),
+        "ShapeFactory Advanced": ShapeFactoryTools(engineering),
+        "Volume ShapeFactory": VolumeFactoryTools(engineering),
     }
 
     total_tools = 0
@@ -72,6 +79,8 @@ def check_tool_definitions():
         "Engineering": 12, "Capabilities": 2,
         "Advanced Geometry": 5, "Domains": 5, "Drafting": 6,
         "Analysis": 5, "Sketch Operations": 4,
+        "Sketch Session": 4, "V5 Reference": 2,
+        "ShapeFactory Advanced": 1, "Volume ShapeFactory": 1,
     }
 
     for module_name, module in modules.items():

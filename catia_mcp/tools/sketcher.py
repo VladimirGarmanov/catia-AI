@@ -11,6 +11,7 @@ import math
 from typing import Any
 
 from catia_mcp.connection import CATIAConnection
+from catia_mcp.runtime import same_object
 
 # Plane name mapping
 PLANE_MAP = {
@@ -36,6 +37,11 @@ CONSTRAINT_SPECS = {
     "horizontal": (10, 1),    # catCstTypeHorizontality
     "vertical": (13, 1),      # catCstTypeVerticality
     "fix": (0, 1),            # catCstTypeReference
+    "length": (5, 1),
+    "midpoint": (16, 2),
+    "equidistance": (17, 3),
+    "major_radius": (18, 1),
+    "minor_radius": (19, 1),
 }
 
 
@@ -47,6 +53,8 @@ class SketcherTools:
         self._active_sketch: Any | None = None
         self._active_factory: Any | None = None
         self._active_document_identity: tuple[str, str] | None = None
+        self._active_document = None
+        self._adopted_ui_sketch = False
 
     @staticmethod
     def _document_identity(document: Any) -> tuple[str, str]:
@@ -150,6 +158,7 @@ class SketcherTools:
                         "y1": {"type": "number", "description": "First corner Y (mm)"},
                         "x2": {"type": "number", "description": "Opposite corner X (mm)"},
                         "y2": {"type": "number", "description": "Opposite corner Y (mm)"},
+                        "anchor_origin": {"type": "boolean", "default": False, "description": "Require first corner (0,0); constrain it coincident to the sketch origin, alongside H/V and size constraints. No blanket Fix."},
                     },
                     "required": ["x1", "y1", "x2", "y2"],
                 },
@@ -180,6 +189,7 @@ class SketcherTools:
                         "cx": {"type": "number", "description": "Center X (mm)", "default": 0},
                         "cy": {"type": "number", "description": "Center Y (mm)", "default": 0},
                         "radius": {"type": "number", "description": "Radius in mm"},
+                        "anchor_origin": {"type": "boolean", "default": False, "description": "Require center (0,0); add concentricity to origin and a driving radius. Native iso-constraint status still requires CATIA verification."},
                     },
                     "required": ["radius"],
                 },
@@ -247,8 +257,8 @@ class SketcherTools:
                 "name": "catia_sketch_constraint",
                 "description": (
                     "Add a dimensional or geometric constraint to the active sketch. "
-                    "Supported types: distance, radius, angle, coincidence, tangent, "
-                    "perpendicular, parallel, horizontal, vertical, fix. "
+                    "Supports distance, length, radius, angle, coincidence, tangent, "
+                    "perpendicular, parallel, horizontal, vertical, fix, concentricity, symmetry, midpoint, equidistance and ellipse radii. "
                     "Refresh catia_sketch_get_geometry immediately before using indices; "
                     "they are transient positions, not stable IDs. Radius needs a circle/arc. "
                     "Distance with one element sets a line's length; with two it sets their "
@@ -265,7 +275,8 @@ class SketcherTools:
                                 "distance", "radius", "angle",
                                 "coincidence", "tangent", "perpendicular",
                                 "parallel", "horizontal", "vertical", "fix",
-                                "concentricity", "symmetry",
+                                "concentricity", "symmetry", "length", "midpoint",
+                                "equidistance", "major_radius", "minor_radius",
                             ],
                         },
                         "value": {
@@ -274,6 +285,11 @@ class SketcherTools:
                         },
                         "geometry_index_3": {"type": "integer", "minimum": 1},
                         "driving": {"type": "boolean", "default": True},
+                        **{f"element_{i}": {
+                            "type": "string", "enum": ["whole", "start", "end", "origin", "horizontal_axis", "vertical_axis"],
+                            "description": "Exact sub-element; start/end require a Line2D index. Absolute-axis selectors omit the corresponding geometry index."
+                        } for i in (1, 2, 3)},
+                        "distance_direction": {"type": "string", "enum": ["normal", "horizontal", "vertical"]},
                         "geometry_index_1": {
                             "type": "integer",
                             "minimum": 1,
@@ -285,12 +301,12 @@ class SketcherTools:
                             "description": "Index of second geometry element (for relational constraints)",
                         },
                     },
-                    "required": ["type", "geometry_index_1"],
+                    "required": ["type"],
                 },
             },
             {
                 "name": "catia_sketch_get_geometry",
-                "description": "List all geometry elements in the active sketch with their indices and types.",
+                "description": "List geometry with transient indices/types. Constraint selectors start/end address exact Line2D endpoints; origin and horizontal_axis/vertical_axis need no index.",
                 "inputSchema": {
                     "type": "object",
                     "properties": {},
@@ -345,6 +361,7 @@ class SketcherTools:
                 return self._draw_rectangle(
                     arguments["x1"], arguments["y1"],
                     arguments["x2"], arguments["y2"],
+                    arguments.get("anchor_origin", False),
                 )
             case "catia_sketch_centered_rectangle":
                 return self._draw_centered_rectangle(
@@ -355,6 +372,7 @@ class SketcherTools:
                 return self._draw_circle(
                     arguments.get("cx", 0), arguments.get("cy", 0),
                     arguments["radius"],
+                    arguments.get("anchor_origin", False),
                 )
             case "catia_sketch_arc":
                 return self._draw_arc(
@@ -377,8 +395,12 @@ class SketcherTools:
     def _ensure_sketch_open(self) -> None:
         if self._active_sketch is None:
             raise RuntimeError(
-                "No active sketch. Use catia_create_sketch first to open a sketch."
+                "No bound sketch. Use catia_sketch_context and catia_sketch_begin_edit for an existing sketch, or catia_create_sketch for a new sketch."
             )
+        if self._active_document is not None and not same_object(self._active_document, self.conn.active_document):
+            raise RuntimeError("Active document identity changed; return to the bound document")
+        if self._adopted_ui_sketch and not same_object(self.conn.get_active_part().InWorkObject, self._active_sketch):
+            raise RuntimeError("UI sketch target changed; stop and inspect sketch context")
         if self._active_document_identity != self._document_identity(self.conn.active_document):
             raise RuntimeError(
                 "Active CATIA document changed while a sketch was open. "
@@ -435,6 +457,8 @@ class SketcherTools:
         # Open the sketch for editing
         factory = sketch.OpenEdition()
         self._active_sketch = sketch
+        self._active_document = document
+        self._adopted_ui_sketch = False
         self._active_document_identity = self._document_identity(document)
         self._active_factory = factory
 
@@ -452,6 +476,8 @@ class SketcherTools:
         self._active_sketch = None
         self._active_factory = None
         self._active_document_identity = None
+        self._active_document = None
+        self._adopted_ui_sketch = False
         self.conn.get_active_part().UpdateObject(sketch)
         self.conn.refresh_display()
         return "Sketch closed. You can now apply Part Design features (pad, pocket, etc.)."
@@ -484,18 +510,31 @@ class SketcherTools:
     def _diagnose(self):
         self._ensure_sketch_open()
         constraints = self._active_sketch.Constraints
-        statuses = [{"index": i, "name": str(constraints.Item(i).Name),
-                     "status": int(constraints.Item(i).Status)} for i in range(1, constraints.Count + 1)]
+        labels = ["satisfied", "strongly_not_satisfied", "wrong_orientation_or_side",
+                  "wrong_value", "wrong_geometry_type", "broken"]
+        statuses = []
+        for i in range(1, constraints.Count + 1):
+            c = constraints.Item(i)
+            status = int(c.Status)
+            inactive = bool(c.IsInactive())
+            statuses.append({"index": i, "name": str(c.Name), "status": status,
+                             "diagnosis": labels[status] if 0 <= status < len(labels) else "unknown",
+                             "inactive": inactive})
         return {"ok": True, "constraints": statuses,
-                "all_constraints_satisfied": all(c["status"] == 0 for c in statuses),
-                "profile_closed": "not_verified", "remaining_dof": "not_available"}
+                "all_constraints_satisfied": all(c["status"] == 0 for c in statuses if not c["inactive"]),
+                "inactive_count": sum(c["inactive"] for c in statuses),
+                "profile_closed": "not_verified", "remaining_dof": None,
+                "iso_constrained": None,
+                "warning": "Satisfied constraints do not prove zero DOF or absence of redundancy. This documented Automation interface exposes no full sketch DOF status. Verify Sketch Analysis in CATIA; never fix everything merely to turn it green."}
 
-    def _draw_rectangle(self, x1: float, y1: float, x2: float, y2: float) -> str:
+    def _draw_rectangle(self, x1: float, y1: float, x2: float, y2: float, anchor_origin: bool = False) -> str:
         self._ensure_sketch_open()
         factory = self._active_factory
 
         if x1 == x2 or y1 == y2:
             raise ValueError("Rectangle width and height must be nonzero")
+        if anchor_origin and (x1 != 0 or y1 != 0):
+            raise ValueError("anchor_origin requires first corner (0,0)")
 
         # Create 4 lines forming a closed rectangle
         vertices = [self._track(factory.CreatePoint(x, y), "point2d") for x, y in ((x1, y1), (x2, y1), (x2, y2), (x1, y2))]
@@ -511,13 +550,18 @@ class SketcherTools:
             constraint = constraints.AddMonoEltCst(5, part.CreateReferenceFromObject(line))
             self._track(constraint, "constraint")
             constraint.Dimension.ValuateFromString(f"{length}mm")
+        if anchor_origin:
+            self._track(constraints.AddBiEltCst(2, part.CreateReferenceFromObject(vertices[0]),
+                        part.CreateReferenceFromObject(self._active_sketch.AbsoluteAxis.Origin)), "constraint")
         self._active_sketch.Evaluate()
         if not self._diagnose()["all_constraints_satisfied"]:
             raise RuntimeError("Rectangle created but sketch constraints are not satisfied")
 
         return (
             f"Rectangle created from ({x1}, {y1}) to ({x2}, {y2}) mm "
-            f"[{abs(x2-x1):.1f} x {abs(y2-y1):.1f} mm]; shared endpoints, H/V and length constraints. Position is not constrained."
+            f"[{abs(x2-x1):.1f} x {abs(y2-y1):.1f} mm]; shared endpoints, H/V and length constraints. "
+            + ("First corner constrained to origin; native iso-constrained status not available through this API."
+               if anchor_origin else "Position is not constrained.")
         )
 
     def _draw_centered_rectangle(
@@ -526,13 +570,28 @@ class SketcherTools:
         hw, hh = width / 2, height / 2
         return self._draw_rectangle(cx - hw, cy - hh, cx + hw, cy + hh)
 
-    def _draw_circle(self, cx: float, cy: float, radius: float) -> str:
+    def _draw_circle(self, cx: float, cy: float, radius: float, anchor_origin: bool = False) -> str:
         self._ensure_sketch_open()
         if not math.isfinite(radius) or radius <= 0:
             raise ValueError("Circle radius must be positive and finite")
+        if anchor_origin and (cx != 0 or cy != 0):
+            raise ValueError("anchor_origin requires center (0,0)")
         factory = self._active_factory
-        self._track(factory.CreateClosedCircle(cx, cy, radius), "circle2d")
-        return f"Circle created at ({cx}, {cy}) with radius {radius} mm"
+        circle = self._track(factory.CreateClosedCircle(cx, cy, radius), "circle2d")
+        if anchor_origin:
+            part = self.conn.get_active_part()
+            constraints = self._active_sketch.Constraints
+            ref = part.CreateReferenceFromObject(circle)
+            self._track(constraints.AddBiEltCst(3, part.CreateReferenceFromObject(self._active_sketch.AbsoluteAxis.Origin), ref), "constraint")
+            c = self._track(constraints.AddMonoEltCst(14, ref), "constraint")
+            c.Mode = 0
+            c.Dimension.ValuateFromString(f"{radius}mm")
+            self._active_sketch.Evaluate()
+            if not self._diagnose()["all_constraints_satisfied"]:
+                raise RuntimeError("Circle created but constraint system is not satisfied; inspect before retrying")
+        return (f"Circle created at ({cx}, {cy}) with radius {radius} mm. "
+                + ("Origin concentricity and driving radius added; native iso-constrained status unverified."
+                   if anchor_origin else "No constraints added."))
 
     def _draw_arc(
         self, cx: float, cy: float, radius: float,
@@ -604,10 +663,10 @@ class SketcherTools:
         if constraint_type not in CONSTRAINT_SPECS:
             raise ValueError(f"Unknown constraint type: {constraint_type}")
         cst_code, element_count = CONSTRAINT_SPECS[constraint_type]
-        if constraint_type == "distance" and idx2 is None:
+        if constraint_type == "distance" and idx2 is None and "element_2" not in args:
             cst_code, element_count = 5, 1  # catCstTypeLength, not catCstTypeReference
 
-        dimensional = constraint_type in ("distance", "radius", "angle")
+        dimensional = constraint_type in ("distance", "length", "radius", "major_radius", "minor_radius", "angle")
         driving = args.get("driving", True)
         if not dimensional and not driving:
             raise ValueError("Reference mode applies only to dimensional constraints")
@@ -619,7 +678,7 @@ class SketcherTools:
                 raise ValueError(f"Constraint '{constraint_type}' requires a finite numeric value.")
             if not math.isfinite(value):
                 raise ValueError("Constraint value must be finite.")
-            if constraint_type == "radius" and value <= 0:
+            if constraint_type in {"radius", "major_radius", "minor_radius", "length"} and value <= 0:
                 raise ValueError("Radius must be greater than zero (mm).")
             if constraint_type == "distance" and (value < 0 or (element_count == 1 and value == 0)):
                 raise ValueError("Distance must be nonnegative; line length must be positive (mm).")
@@ -628,40 +687,71 @@ class SketcherTools:
         elif value is not None:
             raise ValueError(f"Geometric constraint '{constraint_type}' does not accept a value.")
 
-        if element_count == 1 and idx2 is not None:
+        if element_count == 1 and (idx2 is not None or "element_2" in args):
             raise ValueError(f"Constraint '{constraint_type}' takes only geometry_index_1.")
-        if element_count == 2 and idx2 is None:
+        if element_count == 2 and idx2 is None and "element_2" not in args:
             raise ValueError(f"Constraint '{constraint_type}' requires geometry_index_2.")
-        if element_count == 3 and (idx2 is None or idx3 is None):
-            raise ValueError("Symmetry requires three geometry indices including the axis")
-        if element_count < 3 and idx3 is not None:
+        if element_count == 3 and ((idx2 is None and "element_2" not in args) or (idx3 is None and "element_3" not in args)):
+            raise ValueError("This constraint requires three explicit elements")
+        if element_count < 3 and (idx3 is not None or "element_3" in args):
             raise ValueError("Third geometry is supported only for symmetry")
 
         geom = sketch.GeometricElements
         indices = [idx1, idx2, idx3][:element_count]
         count = geom.Count
-        for index in indices:
+        elements = []
+        for position, index in enumerate(indices, 1):
+            selector = args.get(f"element_{position}", "whole")
+            axis_properties = {"origin": "Origin", "horizontal_axis": "HorizontalReference", "vertical_axis": "VerticalReference"}
+            if selector in axis_properties:
+                if index is not None:
+                    raise ValueError("Absolute-axis elements must omit their geometry index")
+                elements.append(getattr(sketch.AbsoluteAxis, axis_properties[selector]))
+                continue
             if isinstance(index, bool) or not isinstance(index, int) or not 1 <= index <= count:
                 raise ValueError(
                     f"Invalid geometry index {index!r}; expected an integer in 1..{count}. "
                     "Refresh catia_sketch_get_geometry before applying constraints."
                 )
-        if element_count == 2 and idx1 == idx2:
-            raise ValueError("A two-element constraint requires two distinct geometry indices.")
+            obj = geom.Item(index)
+            if selector in {"start", "end"}:
+                if int(obj.GeometricType) != 3:
+                    raise ValueError("Endpoint selection requires Line2D")
+                obj = obj.StartPoint if selector == "start" else obj.EndPoint
+            elif selector != "whole":
+                raise ValueError("Unknown geometry selector")
+            elements.append(obj)
+        if any(same_object(obj, previous) for i, obj in enumerate(elements) for previous in elements[:i]):
+            raise ValueError("Constraint requires distinct elements")
 
         # AddMonoEltCst/AddBiEltCst take Reference objects, not raw Geometry2D dispatches.
         part = self.conn.get_active_part()
-        types = [int(geom.Item(i).GeometricType) for i in indices]
+        types = [int(obj.GeometricType) for obj in elements]
+        direction = args.get("distance_direction", "normal")
+        if direction not in {"normal", "horizontal", "vertical"} or ("distance_direction" in args and cst_code != 1):
+            raise ValueError("distance_direction applies only to two-element distance")
+        if cst_code == 5 and types != [3]:
+            raise ValueError("Length requires a Line2D")
+        if constraint_type == "midpoint" and types != [2, 3]:
+            raise ValueError("Midpoint requires Point2D then Line2D")
+        if constraint_type == "equidistance" and not (types[0] == types[1] and types[0] in {2, 3} and types[2] == 2):
+            raise ValueError("Equidistance requires two points or two lines, followed by a point")
+        if constraint_type in {"major_radius", "minor_radius"} and types != [8]:
+            raise ValueError("Ellipse radius requires Ellipse2D")
         if constraint_type == "radius" and types != [5]:
             raise ValueError("Radius requires Circle2D/arc geometry")
         if constraint_type in {"horizontal", "vertical", "angle", "parallel", "perpendicular"} and any(t != 3 for t in types):
             raise ValueError("This constraint requires Line2D geometry")
         if constraint_type == "symmetry" and types[-1] != 3:
             raise ValueError("Symmetry third element must be a Line2D axis")
+        if constraint_type == "symmetry" and types[0] != types[1]:
+            raise ValueError("Symmetric elements must have matching geometry types")
+        if constraint_type == "tangent" and types == [3, 3]:
+            raise ValueError("CATIA tangency does not accept two lines; use parallelism or coincidence as intended")
         references = []
-        for index in indices:
+        for index, obj in zip(indices, elements):
             try:
-                references.append(part.CreateReferenceFromObject(geom.Item(index)))
+                references.append(part.CreateReferenceFromObject(obj))
             except Exception as exc:
                 raise RuntimeError(
                     f"Cannot create CATIA Reference for sketch geometry index {index}: {exc}"
@@ -684,6 +774,8 @@ class SketcherTools:
             try:
                 dimension = constraint.Dimension
                 constraint.Mode = 0 if driving else 1
+                if cst_code == 1:
+                    constraint.DistanceDirection = {"normal": 0, "horizontal": 1, "vertical": 2}[direction]
                 if driving:
                     dimension.ValuateFromString(f"{value}deg" if constraint_type == "angle" else f"{value}mm")
                 readback = str(dimension.ValueAsString())
@@ -697,7 +789,7 @@ class SketcherTools:
                 ) from exc
             unit = "degrees" if constraint_type == "angle" else "mm"
             sketch.Evaluate()
-            if int(constraint.Status) != 0:
+            if int(constraint.Status) != 0 or not self._diagnose()["all_constraints_satisfied"]:
                 raise RuntimeError(f"Constraint created but not solved: status={constraint.Status}")
             return (
                 f"{constraint_type.capitalize()} constraint added; driving={driving}, readback={readback}. "
@@ -705,7 +797,7 @@ class SketcherTools:
             )
 
         sketch.Evaluate()
-        if int(constraint.Status) != 0:
+        if int(constraint.Status) != 0 or not self._diagnose()["all_constraints_satisfied"]:
             raise RuntimeError(f"Constraint created but not solved: status={constraint.Status}")
         return (
             f"{constraint_type.capitalize()} constraint added. "

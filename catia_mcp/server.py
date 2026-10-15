@@ -111,6 +111,13 @@ class CATIAMCPServer:
         from catia_mcp.tools.sketch_operations import SketchOperationTools
         self.analysis_tools = AnalysisTools(self.engineering_tools)
         self.sketch_operation_tools = SketchOperationTools(self.engineering_tools)
+        from catia_mcp.tools.sketch_session import SketchSessionTools
+        from catia_mcp.tools.v5_reference import V5ReferenceTools
+        self.sketch_session_tools = SketchSessionTools(self.engineering_tools)
+        self.v5_reference_tools = V5ReferenceTools()
+        from catia_mcp.tools.shape_factory import ShapeFactoryTools, VolumeFactoryTools
+        self.shape_factory_tools = ShapeFactoryTools(self.engineering_tools)
+        self.volume_factory_tools = VolumeFactoryTools(self.engineering_tools)
 
         # All tool modules
         self._tool_modules = [
@@ -129,6 +136,10 @@ class CATIAMCPServer:
             self.drafting_tools,
             self.analysis_tools,
             self.sketch_operation_tools,
+            self.sketch_session_tools,
+            self.v5_reference_tools,
+            self.shape_factory_tools,
+            self.volume_factory_tools,
         ]
 
         # Build tool name -> module routing table
@@ -293,6 +304,8 @@ class CATIAMCPServer:
             "catia_sketch_diagnose", "catia_domain_objects", "catia_measure_exact",
             "catia_material_catalog", "catia_diagnose_geometry",
             "catia_capability_request",
+            "catia_sketch_context", "catia_v5_reference_search", "catia_v5_reference_read",
+            "catia_sketch_constraints",
         }
         write = name not in read_names
         creates_document = name in {"catia_new_part", "catia_new_product", "catia_open_document", "catia_new_drawing"}
@@ -318,7 +331,7 @@ class CATIAMCPServer:
                 return replay
             if write and len(state.requests) >= 10000:
                 raise CADOperationError("CAPABILITY_UNAVAILABLE", "Session journal full; inspect/save explicitly and restart MCP")
-            if name not in {"catia_connect", "catia_disconnect", "catia_capability_status", "catia_capability_request"}:
+            if name not in {"catia_connect", "catia_disconnect", "catia_capability_status", "catia_capability_request", "catia_v5_reference_search", "catia_v5_reference_read"}:
                 self.connection.ensure_connected()
                 if arguments.get("document_id") and self.session.document_id() != arguments["document_id"]:
                     raise CADOperationError("DOCUMENT_MISMATCH", "Explicit document_id differs from the active document")
@@ -408,6 +421,8 @@ class CATIAMCPServer:
         self.sketcher_tools._active_factory = None
         self.sketcher_tools._active_sketch = None
         self.sketcher_tools._active_document_identity = None
+        self.sketcher_tools._active_document = None
+        self.sketcher_tools._adopted_ui_sketch = False
         self.gsd_tools._geoset_document = None
 
     def _shutdown_worker(self):
