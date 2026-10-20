@@ -37,6 +37,9 @@ async def probe_transports() -> dict:
     missing = {entry["name"] for entry in baseline["tools"]} - full
     if missing:
         raise RuntimeError(f"Full MCP is missing baseline tools: {sorted(missing)}")
+    desktop = {"catia_ui_snapshot", "catia_ui_action"}
+    if not desktop <= full or desktop & inspection:
+        raise RuntimeError("Desktop fallback must exist only in the full MCP transport")
     return {
         "inspection_tools": len(inspection), "full_tools": len(full),
         "stdio_discovery": "PASS", "catia_com": "NOT_TESTED",

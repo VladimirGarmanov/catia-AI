@@ -211,7 +211,7 @@ def test_private_mcp_config_not_logged(tmp_path, monkeypatch):
 def test_real_stdio_discovery_without_catia():
     report = asyncio.run(probe_transports())
     assert report["inspection_tools"] == 13
-    assert report["full_tools"] == 132
+    assert report["full_tools"] == 134
     assert report["catia_com"] == "NOT_TESTED"
     assert report["codex_session_tool_access"] == "NOT_TESTED"
 

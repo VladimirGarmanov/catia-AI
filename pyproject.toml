@@ -18,6 +18,7 @@ dependencies = [
     "jsonschema>=4.20,<5",
     "mcp>=1.0.0,<2",
     "pywin32>=306; sys_platform == 'win32'",
+    "Pillow>=11.2.1,<13; sys_platform == 'win32'",
     "tomli>=2; python_version < '3.11'",
 ]
 

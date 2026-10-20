@@ -30,6 +30,7 @@ from mcp.server.stdio import stdio_server
 from mcp.types import CallToolResult, ImageContent, TextContent, Tool, ToolAnnotations
 
 from catia_mcp.connection import CATIAConnection
+from catia_mcp.fallback import fallback_advice
 from catia_mcp.runtime import SessionState, CADOperationError, error_details
 from catia_mcp.tools.assembly import AssemblyTools
 from catia_mcp.tools.context import ContextTools
@@ -118,6 +119,8 @@ class CATIAMCPServer:
         from catia_mcp.tools.shape_factory import ShapeFactoryTools, VolumeFactoryTools
         self.shape_factory_tools = ShapeFactoryTools(self.engineering_tools)
         self.volume_factory_tools = VolumeFactoryTools(self.engineering_tools)
+        from catia_mcp.tools.desktop import DesktopTools
+        self.desktop_tools = DesktopTools(self.connection, self.session)
 
         # All tool modules
         self._tool_modules = [
@@ -140,6 +143,7 @@ class CATIAMCPServer:
             self.v5_reference_tools,
             self.shape_factory_tools,
             self.volume_factory_tools,
+            self.desktop_tools,
         ]
 
         # Build tool name -> module routing table
@@ -246,10 +250,14 @@ class CATIAMCPServer:
                                      data=base64.b64encode(result.image_bytes).decode("ascii")),
                     ]
                 if isinstance(result, dict):
+                    desktop_png = result.pop("_desktop_png", None)
+                    result = fallback_advice(result)
                     logger.info("Tool result: %s", str(result)[:200])
                     return CallToolResult(
                         content=[TextContent(type="text", text=json.dumps(
-                            result, indent=2, ensure_ascii=False))],
+                            result, indent=2, ensure_ascii=False))] + (
+                                [ImageContent(type="image", mimeType="image/png", data=desktop_png)]
+                                if desktop_png else []),
                         structuredContent=result,
                         isError=not result.get("ok", True),
                     )
@@ -259,8 +267,11 @@ class CATIAMCPServer:
             except Exception as e:
                 error_msg = f"Error in {name}: {e}"
                 logger.exception(error_msg)
+                failure = fallback_advice({"ok": False, "code": "TOOL_EXCEPTION",
+                                           "message": error_msg})
                 return CallToolResult(
-                    content=[TextContent(type="text", text=error_msg)],
+                    content=[TextContent(type="text", text=json.dumps(failure, ensure_ascii=False))],
+                    structuredContent=failure,
                     isError=True,
                 )
 
@@ -289,9 +300,22 @@ class CATIAMCPServer:
 
     def _execute_with_timeout_marker(self, name, arguments, timeout_event):
         # Executed on the COM thread, including the health transition.
+        self.desktop_tools.cancel_event = timeout_event
         try:
             return self._execute_serial(name, arguments)
         finally:
+            self.desktop_tools.cancel_event = None
+            if name == "catia_ui_action" and self.session.mutation_started:
+                # UI may enter/exit edition or delete an object without COM handles
+                # reflecting it. Rebind/adopt the actual sketch after inspection.
+                self.session.objects.clear()
+                self.desktop_tools.snapshot = None
+                self.sketcher_tools._active_factory = None
+                self.sketcher_tools._active_sketch = None
+                self.sketcher_tools._active_document_identity = None
+                self.sketcher_tools._active_document = None
+                self.sketcher_tools._adopted_ui_sketch = False
+                self.session.reconciliation_required = True
             if timeout_event.is_set():
                 self.session.reconciliation_required = True
 
@@ -306,6 +330,7 @@ class CATIAMCPServer:
             "catia_capability_request",
             "catia_sketch_context", "catia_v5_reference_search", "catia_v5_reference_read",
             "catia_sketch_constraints",
+            "catia_ui_snapshot",
         }
         write = name not in read_names
         creates_document = name in {"catia_new_part", "catia_new_product", "catia_open_document", "catia_new_drawing"}
@@ -370,6 +395,11 @@ class CATIAMCPServer:
                 if key:
                     state.finish_write(key)
                 state.reconciliation_required = failed
+                if name == "catia_ui_action":
+                    # A click can change selection, edition or document. Nothing is
+                    # geometrically verified just because Windows accepted input.
+                    state.objects.clear()
+                    state.reconciliation_required = True
                 if not isinstance(result, dict):
                     result = {"ok": True, "message": result}
                 result.update(status="partial_failure" if failed else "success",
@@ -385,6 +415,8 @@ class CATIAMCPServer:
             if name == "catia_disconnect":
                 self.session = SessionState(self.connection)
                 self.engineering_tools.state = self.session
+                self.desktop_tools.state = self.session
+                self.desktop_tools.snapshot = None
                 self.connection.session = self.session
             if request_id and write:
                 state.requests[request_id] = (fingerprint, deepcopy(result))

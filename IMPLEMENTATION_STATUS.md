@@ -1,5 +1,21 @@
 # Реализация CATIA_AGENT_CODEX_PACKAGE — 2026-10-09
 
+## Дополнение 2026-10-20: Windows UI fallback
+
+134 инструмента, включая `catia_ui_snapshot` и `catia_ui_action`.
+Драйвер Windows использует Pillow window capture, pywin32 и SendInput.
+Одно действие требует нативного Yes/No с default No; поздний Yes после
+60 секунд не отправляет ввод. Snapshot одноразовый и связан с документом,
+окном, revision и сроком действия. UI и COM используют одну последовательную
+очередь; после UI ввода handles/кэш эскиза сбрасываются, требуется сверка модели.
+Фокус, DPI, права Windows, title binding и сама доставка ввода требуют живой
+проверки. UI title/process checks не доказывают точную COM-идентичность.
+Поддержано ограниченное подмножество: левый клик, навигационные клавиши,
+числовой ввод. Нет универсального desktop-agent/drag/hotkeys.
+Локально: 7 mock-тестов desktop входят в 35 passed / 1 skipped (desktop,
+launcher, registration). Регистрация 134/13 прошла. Windows НЕ проверена.
+При отмене запроса во время подтверждения последующий Yes не отправляет ввод.
+
 ## Дополнение 2026-10-15: переход на CAA reference
 
 Part Design: `catia_solid_operation` расширен режимами `axis_to_axis`,

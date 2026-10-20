@@ -46,6 +46,7 @@ def check_tool_definitions():
     from catia_mcp.tools.sketch_session import SketchSessionTools
     from catia_mcp.tools.v5_reference import V5ReferenceTools
     from catia_mcp.tools.shape_factory import ShapeFactoryTools, VolumeFactoryTools
+    from catia_mcp.tools.desktop import DesktopTools
 
     conn = CATIAConnection()
     engineering = EngineeringTools(conn, SessionState(conn), SketcherTools(conn))
@@ -69,6 +70,7 @@ def check_tool_definitions():
         "V5 Reference": V5ReferenceTools(),
         "ShapeFactory Advanced": ShapeFactoryTools(engineering),
         "Volume ShapeFactory": VolumeFactoryTools(engineering),
+        "Desktop": DesktopTools(conn, engineering.state),
     }
 
     total_tools = 0
@@ -81,6 +83,7 @@ def check_tool_definitions():
         "Analysis": 5, "Sketch Operations": 4,
         "Sketch Session": 4, "V5 Reference": 2,
         "ShapeFactory Advanced": 1, "Volume ShapeFactory": 1,
+        "Desktop": 2,
     }
 
     for module_name, module in modules.items():
