@@ -342,6 +342,8 @@ class CATIAMCPServer:
         state.created, state.modified = [], []
         self.connection.operation_body = None
         state.updated = state.mutation_started = False
+        if name in {"catia_ui_snapshot", "catia_ui_action"}:
+            return self._execute_desktop(name, arguments)
         try:
             fingerprint = json.dumps([name, arguments], sort_keys=True, allow_nan=False)
             errors = list(Draft202012Validator(self._schemas[name]).iter_errors(arguments))
@@ -444,6 +446,27 @@ class CATIAMCPServer:
             if isinstance(request_id, str) and fingerprint is not None and write and request_id not in state.requests:
                 state.requests[request_id] = (fingerprint, deepcopy(result))
             return result
+
+    def _execute_desktop(self, name, arguments):
+        # Desktop fallback must remain available when COM/document reads fail.
+        state = self.session
+        request_id = arguments.get("request_id")
+        fingerprint = json.dumps([name, arguments], sort_keys=True, allow_nan=False)
+        try:
+            Draft202012Validator(self._schemas[name]).validate(arguments)
+            if request_id in state.requests:
+                previous, result = state.requests[request_id]
+                if previous != fingerprint:
+                    raise CADOperationError("INVALID_ARGUMENT", "request_id reused with different arguments")
+                return {**deepcopy(result), "replayed": True}
+            result = self.desktop_tools.execute(name, arguments)
+        except Exception as exc:
+            error = error_details(exc, name)
+            result = {"ok": False, "code": error["code"], "error": error,
+                      "input_may_have_been_sent": state.mutation_started}
+        if name == "catia_ui_action" and isinstance(request_id, str) and request_id not in state.requests:
+            state.requests[request_id] = (fingerprint, deepcopy(result))
+        return result
 
     def _release_com_references(self):
         """Release our apartment-owned proxies before CoUninitialize, on worker."""

@@ -9,8 +9,8 @@ def fallback_advice(result: dict) -> dict:
     return {
         **result,
         "ui_fallback": {
-            "status": "blocked_pending_reconciliation" if blocked else "requires_inspection_and_user_confirmation",
-            "approval_granted": False,
+            "status": "blocked_pending_reconciliation" if blocked else "inspect_desktop_before_recovery",
+            "local_confirmation_required": False,
             "desktop_driver_provided": True,
             "desktop_tools": ["catia_ui_snapshot", "catia_ui_action"],
             "instructions": (
@@ -19,8 +19,8 @@ def fallback_advice(result: dict) -> dict:
                 if blocked else
                 "Do not automatically repeat this operation through the UI. Inspect the "
                 "document and partial results first. If an actual desktop-control tool "
-                "is available on the CATIA Windows host (catia_ui_snapshot/action), propose one exact UI operation "
-                "and wait for fresh explicit human approval. Otherwise report missing "
+                "is available on the CATIA Windows host (catia_ui_snapshot/action), use UI recovery within the authorized task. "
+                "Whole-desktop access is enabled without local confirmation. Otherwise report missing "
                 "desktop control; do not invent clicks or use shell automation."
             ),
         },

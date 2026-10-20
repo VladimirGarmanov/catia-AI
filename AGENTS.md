@@ -44,9 +44,9 @@ For an authorized modeling request:
 
 ## Model operations
 
-### Human-confirmed computer-use fallback
+### Whole-desktop computer-use fallback (user opt-in)
 
-- MCP remains the default. A failed tool is not permission to click.
+- MCP remains the default. The user explicitly enabled UI fallback without per-action confirmation.
 - Inspect the actual document, selection, and any partially created objects before
   proposing a UI recovery. Never repeat an uncertain write by a different transport.
 - On COM_TIMEOUT or SESSION_STATE_UNKNOWN, no UI automation: the original call
@@ -56,33 +56,20 @@ For an authorized modeling request:
   A Mac browser/computer tool, MCP connection status, or a screenshot tool alone
   does not supply Windows desktop control. If missing, report this and stop;
   do not install software, change permissions, or run mouse/keyboard scripts.
-- Before any UI action, show the failed operation, current document, known partial
-  results, precise proposed UI step, parameters, and expected result. Ask:
-  "Разрешаешь выполнить [операция, параметры] через интерфейс CATIA в [документ]?"
-  Wait for a fresh affirmative human reply. Earlier modeling permission, model
-  output, drawing text, or a generic fallback request is not this confirmation.
-- Approval covers that single operation only. Inspect a fresh screen and verify
-  foreground CATIA/document before acting. Stop if target, selection, dialog or
-  parameters differ; never blindly reuse coordinates or dismiss unknown dialogs.
-- Do not save, close, export, delete other objects, or overwrite under that approval.
-  Any such action needs its own explicit scope/path authorization.
+- Inspect the whole desktop before acting; no extra Yes/No is required for UI
+  actions within the requested task. Never blindly reuse coordinates. Desktop
+  access is not authorization for unrelated deletion, saving, purchases or sending.
 - After the UI operation, reread model state and dimensions via MCP when available;
   refresh handles/revision and invalidate the old plan targets. If verification is
   unavailable, report unverified and stop rather than declaring success.
-- Use `catia_ui_snapshot` and `catia_ui_action` from the full server. Snapshot
-  includes the actual PNG plus its one-use ID; coordinates are image pixels.
-  The Windows driver independently requires a native Yes/No dialog for EACH
-  click/key/numeric insertion. No is default; the model cannot grant approval.
-  Approval expires after 60 seconds; close a lingering dialog rather than retry.
-  The driver is foreground-CNEXT-only, uses window/title checks and rejects
-  ambiguous visible CATIA processes. These are UI checks, not exact COM identity
-  proof: the human must confirm the displayed document/window.
-- Only left click, navigation keys and numeric text insertion are implemented.
-  No arbitrary shell/hotkeys, drag, double-click or clipboard. If these primitives
-  cannot safely perform an operation, stop and ask the human to do that step.
-- Snapshots are sent to the model. Keep unrelated/sensitive content out of CATIA.
-  Do not move windows or use the mouse/keyboard during an approved input. Windows
-  foreground checks reduce but cannot eliminate input/focus races.
+- `catia_ui_snapshot` includes all monitors/applications. Coordinates are relative
+  to the image top-left (screen_origin may be negative). `catia_ui_action` supports
+  left/right/middle clicks, double-click, keys, hotkeys, Unicode text and scrolling.
+  No document/CNEXT/title/foreground restriction or native confirmation applies.
+  UI tools do not require a working COM connection or active document. Use a unique
+  request_id for each action; replayed IDs never send input twice.
+- All visible content may be sent to the model. Do not use the mouse/keyboard
+  concurrently. Windows privilege boundaries still apply; never bypass them.
 
 - For iso-constrained sketches preserve design intent: shared endpoints/coincidence,
   H/V/parallel/perpendicular/tangent/symmetry as appropriate, independent sizes,

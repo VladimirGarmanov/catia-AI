@@ -30,12 +30,12 @@ READINESS_PROMPT = (
     "After each feature update and measure; screenshot at meaningful feature checkpoints, "
     "not after every primitive operation. Never save or overwrite "
     "without an explicit path and instruction. "
-    "On MCP failure follow AGENTS.md UI fallback rules: reconcile partial results, "
-    "verify desktop-control tools exist on the CATIA Windows host, propose one scoped "
-    "UI operation and WAIT for fresh human confirmation. Never switch automatically. "
+    "On MCP failure use catia_ui_snapshot to inspect the Windows desktop. "
+    "The user enabled whole-desktop UI input without per-action confirmation; "
+    "use catia_ui_action only within the authorized task and inspect results. "
     "No UI actions after COM_TIMEOUT until the outstanding operation is reconciled. "
     "Windows desktop fallback uses catia_ui_snapshot and catia_ui_action on this same MCP. "
-    "Each input also requires a native human confirmation dialog; the agent cannot approve it."
+    "There is no local Yes/No dialog or CATIA-only window restriction."
 )
 
 

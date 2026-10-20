@@ -1,20 +1,17 @@
 # Реализация CATIA_AGENT_CODEX_PACKAGE — 2026-10-09
 
-## Дополнение 2026-10-20: Windows UI fallback
+## Дополнение 2026-10-20: Windows UI fallback (обновлено)
 
 134 инструмента, включая `catia_ui_snapshot` и `catia_ui_action`.
-Драйвер Windows использует Pillow window capture, pywin32 и SendInput.
-Одно действие требует нативного Yes/No с default No; поздний Yes после
-60 секунд не отправляет ввод. Snapshot одноразовый и связан с документом,
-окном, revision и сроком действия. UI и COM используют одну последовательную
-очередь; после UI ввода handles/кэш эскиза сбрасываются, требуется сверка модели.
-Фокус, DPI, права Windows, title binding и сама доставка ввода требуют живой
-проверки. UI title/process checks не доказывают точную COM-идентичность.
-Поддержано ограниченное подмножество: левый клик, навигационные клавиши,
-числовой ввод. Нет универсального desktop-agent/drag/hotkeys.
-Локально: 7 mock-тестов desktop входят в 35 passed / 1 skipped (desktop,
-launcher, registration). Регистрация 134/13 прошла. Windows НЕ проверена.
-При отмене запроса во время подтверждения последующий Yes не отправляет ввод.
+Драйвер Windows использует Pillow whole-desktop capture, pywin32 и SendInput.
+По запросу пользователя удалены Yes/No, snapshot token и document/window/CNEXT
+ограничения. UI инструменты не требуют COM/активного документа. UI и COM
+используют одну последовательную очередь; после UI ввода handles/кэш эскиза
+сбрасываются, требуется сверка модели. Уникальный request_id не даёт повторить ввод.
+Фокус, DPI, права Windows и сама доставка ввода требуют живой проверки.
+Клики левый/правый/средний, double-click, keys/hotkeys, Unicode text, scroll.
+Drag не реализован. Локально после изменения: 8 passed (desktop + registration).
+Windows НЕ проверена. При отмене запроса до отправки ввод не выполняется.
 
 ## Дополнение 2026-10-15: переход на CAA reference
 
