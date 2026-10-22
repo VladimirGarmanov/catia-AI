@@ -57,3 +57,34 @@ def test_context_does_not_open_edition():
     result = tool.execute("catia_sketch_context", {})
     assert result["ui_edition"] == "unknown" and result["sketches"][0]["in_work"]
     sketch.OpenEdition.assert_not_called()
+
+
+@pytest.mark.parametrize("initial,target", [(False, True), (True, False), (True, True)])
+def test_construction_existing_geometry(initial, target):
+    tool, sketch, editor, part, conn = setup()
+    geometry = NS(Name="Line.1", Construction=initial)
+    sketch.GeometricElements = collection([geometry])
+    sketch.CenterLine = None
+    sketch.Evaluate = Mock()
+    tool.execute("catia_sketch_begin_edit", {"source": "in_work", "mode": "open"})
+    handle = tool.state.register(geometry, "line2d")
+    result = tool.execute("catia_sketch_set_construction", {"geometry_handle": handle, "construction": target})
+    assert geometry.Construction is target and result["construction"] is target
+    assert sketch.Evaluate.call_count == int(initial != target)
+
+
+def test_construction_rejects_foreign_geometry_and_axis():
+    tool, sketch, editor, part, conn = setup()
+    geometry = NS(Name="Line.1", Construction=True)
+    sketch.Evaluate = Mock()
+    tool.execute("catia_sketch_begin_edit", {"source": "in_work", "mode": "open"})
+    handle = tool.state.register(geometry, "line2d")
+    args = {"geometry_handle": handle, "construction": False}
+    with pytest.raises(CADOperationError, match="belong"):
+        tool.execute("catia_sketch_set_construction", args)
+    sketch.GeometricElements = collection([geometry])
+    sketch.CenterLine = geometry
+    with pytest.raises(CADOperationError, match="axis"):
+        tool.execute("catia_sketch_set_construction", args)
+    assert geometry.Construction is True
+    sketch.Evaluate.assert_not_called()

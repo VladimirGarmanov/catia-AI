@@ -44,6 +44,12 @@ For an authorized modeling request:
 
 ## Model operations
 
+- Change an existing sketch element with `catia_sketch_set_construction` using
+  its handle from `catia_sketch_get_geometry`: true means construction, false
+  means standard geometry. It must belong to the bound open sketch. Constraints
+  are preserved. Reassign a revolution axis before making its line standard.
+  Read back geometry, then close/update when the editing task is complete.
+
 ### Whole-desktop computer-use fallback (user opt-in)
 
 - MCP remains the default. The user explicitly enabled UI fallback without per-action confirmation.

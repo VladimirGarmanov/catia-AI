@@ -9,7 +9,7 @@ with the original MIT license retained.
 
 ## What it does
 
-This MCP server registers **134 tools** (including the original 81 names).
+This MCP server registers **135 tools** (including the original 81 names).
 
 CAA reference migration and existing-sketch editing: see [CAA_MIGRATION.md](CAA_MIGRATION.md).
 The runtime uses direct pywin32 COM, not pycatia. New API research uses the
@@ -71,7 +71,7 @@ Node and Codex are installed locally without a Node file picker or global PATH e
 Python's publisher signature and Node's official SHA-256 are checked. Institutional
 network/application restrictions are not bypassed. Clean-Windows bootstrap validation
 is still pending; see [WINDOWS_CODEX.md](WINDOWS_CODEX.md).
-The default is now **one Codex agent with all 134 tools**: it reads the drawing and
+The default is now **one Codex agent with all 135 tools**: it reads the drawing and
 selection, plans, models and verifies the result itself. No subagent is required.
 `START_WITH_DRAWING.cmd` opens a PNG/JPEG/PDF picker; PDF pages are rendered locally
 and attached as images (optional `drawings` dependencies installed by INSTALL).

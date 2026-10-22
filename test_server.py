@@ -81,7 +81,7 @@ def check_tool_definitions():
         "Engineering": 12, "Capabilities": 2,
         "Advanced Geometry": 5, "Domains": 5, "Drafting": 6,
         "Analysis": 5, "Sketch Operations": 4,
-        "Sketch Session": 4, "V5 Reference": 2,
+        "Sketch Session": 5, "V5 Reference": 2,
         "ShapeFactory Advanced": 1, "Volume ShapeFactory": 1,
         "Desktop": 2,
     }

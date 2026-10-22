@@ -26,6 +26,9 @@ class SketchSessionTools(OperationTools):
 
     def get_tool_definitions(self):
         return [
+            tool("catia_sketch_set_construction", "Set existing geometry in the bound open sketch to construction=true or standard=false. Use a fresh handle from catia_sketch_get_geometry. Preserves geometry and constraints; Evaluate/readback checks the flag, not full constraint rank. To make the revolution centerline standard, first assign a different axis explicitly.", {
+                "geometry_handle": HANDLE, "construction": {"type": "boolean"},
+            }, ["geometry_handle", "construction"]),
             tool("catia_sketch_constraints", "Read exact constraint handles, types, modes, statuses and available dimension values in the bound sketch; no solver call.", {}, readonly=True),
             tool("catia_sketch_edit_constraint", "Edit one exact existing constraint in the bound sketch: explicit dimension in mm/deg, driving/reference mode, activation, or explicit remove. Removal deletes only this constraint. Evaluate and read status; no automatic repair.", {
                 "constraint_handle": HANDLE, "action": {"enum": ["dimension", "driving", "reference", "activate", "deactivate", "remove"]},
@@ -40,6 +43,8 @@ class SketchSessionTools(OperationTools):
         ]
 
     def execute(self, name, a):
+        if name == "catia_sketch_set_construction":
+            return self.set_construction(a)
         if name in {"catia_sketch_constraints", "catia_sketch_edit_constraint"}:
             return self.constraints(name, a)
         sketches = self.sketches()
@@ -84,6 +89,35 @@ class SketchSessionTools(OperationTools):
         return {"ok": True, "handle": self.state.register(target, "sketch"), "name": str(target.Name),
                 "created_sketch": False, "mode": a["mode"], "edition_left_open": True,
                 "warning": "UI editing state is user-confirmed, not proven by COM; do not switch sketch/document"}
+
+    def set_construction(self, a):
+        editor = self.engineering.sketcher
+        editor._ensure_sketch_open()
+        sketch = editor._active_sketch
+        geometry = self.state.resolve(a["geometry_handle"]).value
+        elements = sketch.GeometricElements
+        if not any(same_object(geometry, elements.Item(i)) for i in range(1, elements.Count + 1)):
+            raise CADOperationError("INVALID_ARGUMENT", "Geometry does not belong to the bound sketch")
+        try:
+            previous = bool(geometry.Construction)
+        except Exception as exc:
+            raise CADOperationError("CAPABILITY_UNAVAILABLE", "Element does not expose Construction") from exc
+        if not a["construction"]:
+            # Do not silently invalidate the shaft/groove axis definition.
+            centerline = sketch.CenterLine
+            if centerline is not None and same_object(centerline, geometry):
+                raise CADOperationError("INVALID_ARGUMENT", "Reassign the revolution axis before making its line standard")
+        if previous != a["construction"]:
+            self.changed(a["geometry_handle"])
+            geometry.Construction = a["construction"]
+            sketch.Evaluate()
+        actual = bool(geometry.Construction)
+        if actual != a["construction"]:
+            raise CADOperationError("POSTCONDITION_FAILED", "Construction readback differs from requested value")
+        return {"ok": True, "geometry_handle": a["geometry_handle"],
+                "previous_construction": previous, "construction": actual,
+                "changed": actual != previous, "edition_left_open": True,
+                "warnings": ["Existing constraints retained. Close/update and verify the resulting profile before using it in a feature."]}
 
     def constraints(self, name, a):
         editor = self.engineering.sketcher
