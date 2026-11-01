@@ -44,7 +44,8 @@ async def probe_transports() -> dict:
         "inspection_tools": len(inspection), "full_tools": len(full),
         "stdio_discovery": "PASS", "catia_com": "NOT_TESTED",
         "codex_session_tool_access": "NOT_TESTED",
-        "note": "No tools called. Interactive Codex access must be checked in its own session.",
+        "claude_session_tool_access": "NOT_TESTED",
+        "note": "No tools called. Interactive Codex/Claude access must be checked in each client's own session.",
     }
 
 

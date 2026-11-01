@@ -9,7 +9,13 @@ with the original MIT license retained.
 
 ## What it does
 
-This MCP server registers **135 tools** (including the original 81 names).
+This MCP server registers **146 tools** (including the original 81 names).
+
+Assembly/Drawing extensions: [operations and limitations](ASSEMBLY_DRAWING.md).
+Source ZIP installation now supports **both Codex and Claude Code**:
+`INSTALL.cmd`, then `START_AI.cmd` to choose one client. See
+[Windows client setup](WINDOWS_CLAUDE.md). Only one client may write to a CATIA
+instance at a time; the two clients do not share conversation or a COM lock.
 
 CAA reference migration and existing-sketch editing: see [CAA_MIGRATION.md](CAA_MIGRATION.md).
 The runtime uses direct pywin32 COM, not pycatia. New API research uses the
@@ -23,7 +29,12 @@ The tool groups let Claude or Codex:
 - **2D Sketching** — lines, rectangles, circles, arcs, splines, points, constraints
 - **Part Design** — Pad, Pocket, Shaft, Groove, Fillet, Chamfer, Hole, Shell, Draft, Thickness, Patterns (rectangular/circular), Mirror
 - **Generative Shape Design (GSD)** — 3D wireframe (points, lines, planes, splines, circles), Multi-sections Surface (loft), Sweep, Extrude, Revolve, Fill, Blend, Offset, Join, Split, Trim, Symmetry, ThickSurface/CloseSurface to solids
-- **Assembly** — add components, Fix/Coincidence/Offset/Angle constraints, move/rotate
+- **Assembly** — occurrence tree/poses, add/import/rename/remove components,
+  Fix/Coincidence/Offset/Angle/Parallel/Perpendicular/Contact constraints and edits,
+  move/rotate with solved-pose readback, publications and BOM
+- **Drawing** — associative views/sections and dimensions, sheet formats/projection,
+  view placement/alignment, editable text/leaders, native tables/cells/merging,
+  non-associative 2D geometry and dimension presentation
 - **Measurement** — area/volume, partial inertia, parameters; exact bounding box remains unsupported
 - **Export** — STEP, IGES, STL, 3DXML, VRML, screenshots
 - **View control** — set standard views, fit all, capture screenshots
@@ -45,7 +56,8 @@ not durable topology IDs. Failed/uncertain writes require inspection, not blind 
 
 The GitHub Actions workflow `Build CATIA AI Windows installer` creates a
 self-contained x64 `CATIA-AI-Setup.exe`. It bundles the native Codex CLI,
-portable Python 3.13.3, this MCP server, and its dependencies. End users do not
+portable Python 3.13.3, this MCP server, and its dependencies. Claude Code is
+an optional online installation step/shortcut, not a bundled binary. End users do not
 need to install Node, Python, Git, or use PowerShell. It installs per-user and
 does not change PATH. First Codex use still requires ChatGPT sign-in, and CATIA
 V5 must already be installed and licensed.
@@ -58,8 +70,9 @@ artifacts expire after 30 days; they are not a permanent public release.
 
 For local **Codex on Windows**, see [WINDOWS_CODEX.md](WINDOWS_CODEX.md). The
 one-file installer is the easiest route. A source ZIP also supports
-`INSTALL.cmd` followed by `START_CATIA_AI.cmd` and needs Python 3.10+; that
-developer route can reuse Node/Codex or ask the user to select portable Node.
+`INSTALL.cmd` followed by `START_AI.cmd`; that developer route reuses existing
+Python/Node/CLIs or installs missing runtimes locally. Windows x64 Python bootstrap
+is automatic; no portable Node file picker is required.
 Neither route changes PowerShell policy or requires Git/admin rights.
 After either route is installed, `UPDATE.cmd` downloads and applies the latest
 project files in place, preserving the local runtime and Codex config. It needs
@@ -67,11 +80,11 @@ GitHub access; bundled runtime dependencies are updated by installing a newer EX
 `DIAGNOSE.cmd` creates a report without calling CATIA tools.
 The CATIA connection still requires Windows COM automation.
 For the source ZIP, double-click `INSTALL.cmd`: missing Python (Windows x64),
-Node and Codex are installed locally without a Node file picker or global PATH edits.
+Node, Codex and Claude Code are installed locally without a Node file picker or global PATH edits.
 Python's publisher signature and Node's official SHA-256 are checked. Institutional
 network/application restrictions are not bypassed. Clean-Windows bootstrap validation
 is still pending; see [WINDOWS_CODEX.md](WINDOWS_CODEX.md).
-The default is now **one Codex agent with all 135 tools**: it reads the drawing and
+The default is **one client agent with all 146 tools**: it reads the drawing and
 selection, plans, models and verifies the result itself. No subagent is required.
 `START_WITH_DRAWING.cmd` opens a PNG/JPEG/PDF picker; PDF pages are rendered locally
 and attached as images (optional `drawings` dependencies installed by INSTALL).

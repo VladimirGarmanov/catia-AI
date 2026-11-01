@@ -82,7 +82,7 @@ class DomainTools(OperationTools):
                 elif kind == "sheet":
                     visit(value.Views, "view", h, depth + 1)
                 elif kind == "view":
-                    for attr, child in (("GeometricElements", "drawing_geometry"), ("Dimensions", "drawing_dimension"), ("Texts", "drawing_text")):
+                    for attr, child in (("GeometricElements", "drawing_geometry"), ("Dimensions", "drawing_dimension"), ("Texts", "drawing_text"), ("Tables", "drawing_table"), ("GDTs", "drawing_gdt")):
                         try:
                             visit(getattr(value, attr), child, h, depth + 1)
                         except Exception as exc:
@@ -93,6 +93,12 @@ class DomainTools(OperationTools):
         elif str(doc.Name).lower().endswith(".catproduct"):
             h = add(doc.Product, "product")
             visit(doc.Product.Products, "product", h)
+            for collection, kind in (("Publications", "publication"), ("CATIAConstraints", "constraint")):
+                try:
+                    values = doc.Product.Publications if collection == "Publications" else doc.Product.Connections(collection)
+                    visit(values, kind, h)
+                except Exception as exc:
+                    warnings.append(f"{collection}: {exc}")
         else:
             part = self.conn.get_active_part()
             visit(part.Relations, "relation")

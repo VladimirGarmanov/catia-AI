@@ -41,6 +41,8 @@ def check_tool_definitions():
     from catia_mcp.tools.advanced_geometry import AdvancedGeometryTools
     from catia_mcp.tools.domains import DomainTools
     from catia_mcp.tools.drafting import DraftingTools
+    from catia_mcp.tools.assembly_management import AssemblyManagementTools
+    from catia_mcp.tools.drawing_management import DrawingManagementTools
     from catia_mcp.tools.analysis_tools import AnalysisTools
     from catia_mcp.tools.sketch_operations import SketchOperationTools
     from catia_mcp.tools.sketch_session import SketchSessionTools
@@ -64,6 +66,8 @@ def check_tool_definitions():
         "Advanced Geometry": AdvancedGeometryTools(engineering),
         "Domains": DomainTools(engineering),
         "Drafting": DraftingTools(engineering),
+        "Assembly Management": AssemblyManagementTools(engineering),
+        "Drawing Management": DrawingManagementTools(engineering),
         "Analysis": AnalysisTools(engineering),
         "Sketch Operations": SketchOperationTools(engineering),
         "Sketch Session": SketchSessionTools(engineering),
@@ -80,6 +84,7 @@ def check_tool_definitions():
         "GSD": 24, "Assembly": 9, "Measurement": 6, "Export": 4,
         "Engineering": 12, "Capabilities": 2,
         "Advanced Geometry": 5, "Domains": 5, "Drafting": 6,
+        "Assembly Management": 4, "Drawing Management": 7,
         "Analysis": 5, "Sketch Operations": 4,
         "Sketch Session": 5, "V5 Reference": 2,
         "ShapeFactory Advanced": 1, "Volume ShapeFactory": 1,

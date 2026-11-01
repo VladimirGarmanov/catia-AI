@@ -108,6 +108,10 @@ class CATIAMCPServer:
         self.advanced_tools = AdvancedGeometryTools(self.engineering_tools)
         self.domain_tools = DomainTools(self.engineering_tools)
         self.drafting_tools = DraftingTools(self.engineering_tools)
+        from catia_mcp.tools.assembly_management import AssemblyManagementTools
+        from catia_mcp.tools.drawing_management import DrawingManagementTools
+        self.assembly_management_tools = AssemblyManagementTools(self.engineering_tools)
+        self.drawing_management_tools = DrawingManagementTools(self.engineering_tools)
         from catia_mcp.tools.analysis_tools import AnalysisTools
         from catia_mcp.tools.sketch_operations import SketchOperationTools
         self.analysis_tools = AnalysisTools(self.engineering_tools)
@@ -137,6 +141,8 @@ class CATIAMCPServer:
             self.advanced_tools,
             self.domain_tools,
             self.drafting_tools,
+            self.assembly_management_tools,
+            self.drawing_management_tools,
             self.analysis_tools,
             self.sketch_operation_tools,
             self.sketch_session_tools,
@@ -331,6 +337,7 @@ class CATIAMCPServer:
             "catia_sketch_context", "catia_v5_reference_search", "catia_v5_reference_read",
             "catia_sketch_constraints",
             "catia_ui_snapshot",
+            "catia_assembly_inspect", "catia_drawing_inspect",
         }
         write = name not in read_names
         creates_document = name in {"catia_new_part", "catia_new_product", "catia_open_document", "catia_new_drawing"}

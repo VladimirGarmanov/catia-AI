@@ -36,8 +36,12 @@ Name: "desktopicon"; Description: "Create a desktop shortcut"; GroupDescription:
 Source: "{#BundleDir}\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
 
 [Icons]
-Name: "{autoprograms}\CATIA AI"; Filename: "{app}\project\START_CATIA_AI.cmd"; WorkingDir: "{app}\project"
-Name: "{autodesktop}\CATIA AI"; Filename: "{app}\project\START_CATIA_AI.cmd"; WorkingDir: "{app}\project"; Tasks: desktopicon
+Name: "{autoprograms}\CATIA AI"; Filename: "{app}\project\START_AI.cmd"; WorkingDir: "{app}\project"
+Name: "{autoprograms}\CATIA AI - Codex"; Filename: "{app}\project\START_CATIA_AI.cmd"; WorkingDir: "{app}\project"
+Name: "{autoprograms}\CATIA AI - Claude Code"; Filename: "{app}\project\START_CLAUDE_AI.cmd"; WorkingDir: "{app}\project"
+Name: "{autoprograms}\CATIA AI - Install Claude Code"; Filename: "{app}\project\INSTALL_CLAUDE.cmd"; WorkingDir: "{app}\project"
+Name: "{autodesktop}\CATIA AI"; Filename: "{app}\project\START_AI.cmd"; WorkingDir: "{app}\project"; Tasks: desktopicon
 
 [Run]
-Filename: "{app}\project\START_CATIA_AI.cmd"; WorkingDir: "{app}\project"; Description: "Start CATIA AI"; Flags: postinstall nowait skipifsilent
+Filename: "{app}\project\INSTALL_CLAUDE.cmd"; WorkingDir: "{app}\project"; Description: "Also download and install Claude Code (internet required)"; Flags: postinstall skipifsilent unchecked
+Filename: "{app}\project\START_AI.cmd"; WorkingDir: "{app}\project"; Description: "Start CATIA AI"; Flags: postinstall nowait skipifsilent

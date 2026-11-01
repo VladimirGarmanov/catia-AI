@@ -1,5 +1,25 @@
 # Реализация CATIA_AGENT_CODEX_PACKAGE — 2026-10-09
 
+## Дополнение 2026-10-30: Assembly / Drawing / Claude Code
+
+146 MCP-инструментов. Добавлены 4 assembly и 7 drawing групп; список режимов,
+контракты единиц и ограничения — [ASSEMBLY_DRAWING.md](ASSEMBLY_DRAWING.md).
+Сохранены прежние инструменты. Новые записи используют document/revision/request
+guards, актуальную принадлежность коллекциям, owner Update и readback;
+offline-тесты не подтверждают семантику COM/BRep или качество чертежа.
+
+`INSTALL.cmd` подготавливает Codex и Claude Code в локальных каталогах.
+`START_AI.cmd` выбирает одного клиента. Claude получает session-only MCP JSON,
+абсолютный Python и общие AGENTS/CLAUDE инструкции; пользовательские конфиги
+не перезаписываются. В full EXE Claude — опциональная загрузка, не bundled binary.
+Запуск из ZIP, native Windows COM, Claude login/tool delivery и сборка Inno Setup
+в этом изменении на Windows НЕ проверены.
+
+Локально: 53 scoped tests passed, 1 skipped (optional local Codex parser).
+Проверены COM-моки, schemas, baseline registration и launcher contracts.
+Отдельный stdio discovery прошёл: 146 full / 13 inspection, без вызовов CATIA.
+Ruff F/E9 и git diff --check прошли. Инструкция: [WINDOWS_CLAUDE.md](WINDOWS_CLAUDE.md).
+
 ## Дополнение 2026-10-21: существующая sketch geometry
 
 135 инструментов. `catia_sketch_set_construction` меняет Construction у точного

@@ -1,4 +1,12 @@
-# CATIA operating rules for Codex
+# CATIA operating rules for Codex and Claude Code
+
+Both clients use the same full `catia-v5` MCP implementation. Source ZIP users
+run INSTALL.cmd to install both, then START_AI.cmd to choose one; direct
+launchers START_CATIA_AI.cmd and START_CLAUDE_AI.cmd remain available.
+CLAUDE.md imports these rules. Never run two CAD-writing clients concurrently:
+each client owns a separate MCP process, not a shared interprocess COM lock.
+The EXE bundles Codex; Claude is an optional download via INSTALL_CLAUDE.cmd.
+No separate AI API is embedded in this Python server.
 
 ## Single-agent workflow (default)
 
@@ -43,6 +51,23 @@ For an authorized modeling request:
    independent review. At most two scoped repair attempts; never broaden scope.
 
 ## Model operations
+
+- Assembly: `catia_assembly_inspect` reads occurrences, root constraints and
+  publications. `catia_assembly_component` writes immediate root occurrences;
+  nested external subassembly edits need that document explicitly activated
+  and bound by the human. Pose axes are columns, translation is parent-frame mm,
+  rotate is around the occurrence origin in parent axes. Constraints may move it
+  back during Update; a failed pose readback is a failure, not a successful move.
+- `catia_assembly_constraint` consumes fresh selection handles and reads solver
+  status after Update. `side=undefined` uses CAA enum value 4. Removing an
+  occurrence/constraint/publication is an explicit operation, never a repair default.
+- Drawing: discover text/table/dimension handles through `catia_domain_objects`;
+  inspect via `catia_drawing_inspect`. New sheet/view/table/text/geometry tools
+  update the owning drawing sheet. Drawing dimension presentation tools never
+  change the source part's size. New 2D drawing primitives are non-associative.
+- Table row/column indices are current positions: reread after insert/remove.
+  Text position inputs are mm; the new editor converts to the CAA-documented
+  DrawingText.x/y meters. This release-specific behavior needs live validation.
 
 - Change an existing sketch element with `catia_sketch_set_construction` using
   its handle from `catia_sketch_get_geometry`: true means construction, false
