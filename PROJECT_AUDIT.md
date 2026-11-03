@@ -20,6 +20,18 @@
 | Wheel 0.2.1 | Собран, все 33 Python-модуля и API-каталог присутствуют |
 | Windows EXE, клиенты и геометрия CATIA | Локально НЕ запускались |
 
+После локального аудита исправлена Windows-специфика ZIP-проверки и получены
+удалённые результаты для кода `24ce5aea0b85288fccd663278b253c2731f06932`:
+
+- [CI](https://github.com/VladimirGarmanov/catia-AI/actions/runs/41570575399)
+  прошёл на Windows Python 3.10/3.13 и macOS Python 3.12.
+- [Windows builder](https://github.com/VladimirGarmanov/catia-AI/actions/runs/41570575289)
+  успешно импортировал pywin32 встроенным Python, проверил 147/13 tools через
+  stdio, скомпилировал EXE и загрузил `CATIA-AI-Windows-Installer` (98 MB ZIP).
+  Это сборка установщика, а не запуск установленного приложения с CATIA.
+- Артефакт хранится до 2026-12-03; после истечения нужна новая сборка.
+  Interactive Codex/Claude delivery и CATIA COM остаются NOT_TESTED.
+
 Полный набор включает контракты sketch/constraints, Part Design/patterns,
 GSD/advanced operations, Assembly/Drawing, selection/context, rename, desktop
 fallback, session/replay, client launchers и PDF/image preparation. Покрытие

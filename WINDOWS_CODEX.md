@@ -105,8 +105,8 @@ installer → Run workflow**, дождись завершения, открой 
 скачай artifact `CATIA-AI-Windows-Installer`. Распакуй artifact, запусти
 `CATIA-AI-Setup.exe`, оставь выбранный ярлык и запусти **CATIA AI** после
 установки. При первом запуске войди в Codex через ChatGPT. Для сборки нужен
-Windows x64; она пока создаётся вручную из GitHub Actions и не является
-постоянной кнопкой Download на странице репозитория.
+Windows x64; сборка запускается при push в main или вручную из GitHub Actions.
+Артефакт хранится 30 дней и не является постоянным GitHub Release.
 
 Установщик содержит автономный Codex `codex.exe`; поэтому Node в этой сборке
 не нужен. Python и пакет MCP лежат рядом с приложением в его пользовательской

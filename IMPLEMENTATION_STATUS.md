@@ -9,6 +9,9 @@ EXE, обновлятор и зависимости. Регистрация/stdi
 Ruff F/E9, pip check и wheel build прошли. Набор инструментов сохранён.
 Область проверки, переход со старого UPDATE и живые Windows probes:
 [PROJECT_AUDIT.md](PROJECT_AUDIT.md). COM/BRep и Windows installer не проверены на Mac.
+Дополнительно GitHub CI прошёл на Windows Python 3.10/3.13 и macOS 3.12;
+Windows builder проверил embedded pywin32/MCP, собрал и загрузил EXE.
+Ссылки и точный проверенный source commit указаны в отчёте; это не live CATIA acceptance.
 
 ## Дополнение 2026-11-02: patterns
 
