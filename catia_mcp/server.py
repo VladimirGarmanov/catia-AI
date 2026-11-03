@@ -16,7 +16,6 @@ import asyncio
 import base64
 import json
 import logging
-import os
 import sys
 import threading
 from concurrent.futures import ThreadPoolExecutor
@@ -46,13 +45,9 @@ from catia_mcp.tools.capabilities import CapabilityTools
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s [%(name)s] %(levelname)s: %(message)s",
-    handlers=[
-        logging.FileHandler(
-            os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "catia_mcp.log"),
-            encoding="utf-8",
-        ),
-        logging.StreamHandler(sys.stderr),
-    ],
+    # MCP owns stdout. Installed packages may be read-only; diagnostics go to
+    # stderr, which the launcher/client can capture without writing site-packages.
+    handlers=[logging.StreamHandler(sys.stderr)],
 )
 logger = logging.getLogger("catia_mcp")
 
@@ -365,7 +360,7 @@ class CATIAMCPServer:
                 return replay
             if write and len(state.requests) >= 10000:
                 raise CADOperationError("CAPABILITY_UNAVAILABLE", "Session journal full; inspect/save explicitly and restart MCP")
-            if name not in {"catia_connect", "catia_disconnect", "catia_capability_status", "catia_capability_request", "catia_v5_reference_search", "catia_v5_reference_read"}:
+            if name not in {"catia_connect", "catia_disconnect", "catia_capability_status", "catia_capability_request", "catia_v5_reference_search", "catia_v5_reference_read", "catia_list_edges", "catia_get_bounding_box"}:
                 self.connection.ensure_connected()
                 if arguments.get("document_id") and self.session.document_id() != arguments["document_id"]:
                     raise CADOperationError("DOCUMENT_MISMATCH", "Explicit document_id differs from the active document")

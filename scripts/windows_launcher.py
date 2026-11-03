@@ -156,6 +156,13 @@ def project_python(root: Path) -> Path:
     return first_file((venv_python, bundled_python)) or venv_python.resolve()
 
 
+def mcp_arguments(root: Path, inspection: bool = False) -> list[str]:
+    bundled = (root.parent / "runtime" / "python" / "python.exe").resolve()
+    args = ([str((root / "scripts" / "mcp_entry.py").resolve())]
+            if project_python(root) == bundled else ["-m", "catia_mcp"])
+    return args + (["--inspection-only"] if inspection else [])
+
+
 def discover_claude(root: Path, state: dict) -> Path | None:
     return first_file([
         root.parent / "runtime" / "claude" / "claude.exe",
@@ -173,7 +180,7 @@ def claude_session_config(root: Path) -> Path:
     path.parent.mkdir(parents=True, exist_ok=True)
     config = {"mcpServers": {"catia-v5": {
         "type": "stdio", "command": str(project_python(root).resolve()),
-        "args": ["-m", "catia_mcp"], "env": {"PYTHONUTF8": "1"},
+        "args": mcp_arguments(root), "env": {"PYTHONUTF8": "1"},
     }}}
     path.write_text(json.dumps(config, indent=2), encoding="utf-8")
     return path.resolve()
@@ -190,8 +197,8 @@ def normalize_entry(entry: dict) -> dict:
             "config": config}
 
 
-def check_entry(entry: dict, python: Path, inspection: bool = False) -> None:
-    expected = ["-m", "catia_mcp"] + (["--inspection-only"] if inspection else [])
+def check_entry(entry: dict, python: Path, inspection: bool = False, root: Path | None = None) -> None:
+    expected = mcp_arguments(root, inspection) if root is not None else ["-m", "catia_mcp"] + (["--inspection-only"] if inspection else [])
     actual = normalize_entry(entry)
     same_path = ntpath.normcase(ntpath.normpath(str(actual["command"]))) == ntpath.normcase(
         ntpath.normpath(str(python)))
@@ -210,11 +217,11 @@ def session_overrides(root: Path) -> list[str]:
     an incorrectly quoted command. Complete tables also work on a clean install.
     """
     python = str(project_python(root))
-    if any(char in python for char in "'\r\n"):
+    if any(char in python + str(root.resolve()) for char in "'\r\n"):
         raise SetupError("Project path cannot contain apostrophes or newlines for CLI setup.")
     settings = ["agents.enabled=false"]
     for name, inspection in (("catia-v5", False), ("catia-v5-inspect", True)):
-        args = "['-m','catia_mcp','--inspection-only']" if inspection else "['-m','catia_mcp']"
+        args = "[" + ",".join("'" + item + "'" for item in mcp_arguments(root, inspection)) + "]"
         enabled = "false" if inspection else "true"
         # Approve CATIA MCP calls for this session without changing shell permissions.
         approval = "" if inspection else ",default_tools_approval_mode='approve'"
@@ -236,10 +243,10 @@ def read_entries(runner: Runner, codex: Path) -> dict:
         raise SetupError("Cannot parse Codex MCP listing; no configuration was changed.") from exc
 
 
-def validate_session(entries: dict, python: Path) -> None:
+def validate_session(entries: dict, python: Path, root: Path | None = None) -> None:
     if "catia-v5" not in entries:
         raise SetupError("Full catia-v5 MCP missing from effective Codex configuration")
-    check_entry(entries["catia-v5"], python)
+    check_entry(entries["catia-v5"], python, root=root)
     if ("catia-v5-inspect" in entries
             and normalize_entry(entries["catia-v5-inspect"])["enabled"]):
         raise SetupError("Inspection transport is still enabled in this single-agent session")
@@ -297,6 +304,7 @@ def install_project(runner: Runner, client: str = "codex") -> None:
         runner.run([str(python), "-c", "import sys; assert sys.version_info >= (3, 10)"])
         runner.run([str(python), "-m", "pip", "install", "-e",
                     str(runner.root) + "[drawings]"], timeout=900)
+        (runner.root / ".local" / "dependencies-pending").unlink(missing_ok=True)
     runner.run([str(python), str(runner.root / "test_server.py")])
     clients = ("codex", "claude") if client == "both" else (client,)
     for selected in clients:
@@ -348,7 +356,7 @@ def start_claude(runner: Runner, claude: Path, drawing: Path | None = None) -> i
 
 def diagnose(runner: Runner, codex: Path) -> None:
     python = project_python(runner.root)
-    validate_session(read_entries(runner, codex), python)
+    validate_session(read_entries(runner, codex), python, runner.root)
     runner.say("Single-agent configuration OK: full catia-v5 enabled; inspection disabled. "
                "No role files or persistent Codex settings were changed.")
     runner.run([str(python), str(runner.root / "scripts" / "check_mcp_transport.py")], timeout=90)

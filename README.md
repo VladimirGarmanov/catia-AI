@@ -11,6 +11,10 @@ with the original MIT license retained.
 
 This MCP server registers **147 tools** (including the original 81 names).
 
+Version **0.2.1** includes the full offline audit and installation/update fixes.
+See [audit results and Windows checks](PROJECT_AUDIT.md) and
+[pattern contracts](PATTERNS.md). Offline checks are not live geometry validation.
+
 Assembly/Drawing extensions: [operations and limitations](ASSEMBLY_DRAWING.md).
 Source ZIP installation now supports **both Codex and Claude Code**:
 `INSTALL.cmd`, then `START_AI.cmd` to choose one client. See
@@ -53,7 +57,7 @@ not durable topology IDs. Failed/uncertain writes require inspection, not blind 
 ## Requirements
 
 - **Windows** (COM automation is Windows-only)
-- **CATIA V5** installed and licensed (R2016+)
+- **CATIA V5** installed and licensed; release/workbench support needs validation on the target machine
 - **Claude Desktop**, **Claude Code**, or local **Codex**
 
 ## Windows one-file installer
@@ -82,6 +86,9 @@ After either route is installed, `UPDATE.cmd` downloads and applies the latest
 project files in place, preserving the local runtime and Codex config. It needs
 GitHub access; bundled runtime dependencies are updated by installing a newer EXE.
 `DIAGNOSE.cmd` creates a report without calling CATIA tools.
+Bundled launches now explicitly load the project's updated MCP source instead
+of an older pip-installed copy. An incomplete dependency update returns failure
+and is retried on the next update. See [upgrade notes](PROJECT_AUDIT.md#upgrading).
 The CATIA connection still requires Windows COM automation.
 For the source ZIP, double-click `INSTALL.cmd`: missing Python (Windows x64),
 Node, Codex and Claude Code are installed locally without a Node file picker or global PATH edits.
@@ -149,7 +156,7 @@ catia-v5-mcp-server/
 │       ├── __init__.py
 │       ├── document.py      # Document management (9 tools)
 │       ├── context.py       # Active model, selection, feature update (3 tools)
-│       ├── sketcher.py      # 2D Sketch tools (11 tools)
+│       ├── sketcher.py      # 2D Sketch tools (15 tools)
 │       ├── part_design.py   # 3D Part Design features (15 tools)
 │       ├── gsd.py           # Generative Shape Design — wireframe & surfaces (24 tools)
 │       ├── assembly.py      # Assembly/Product tools (9 tools)

@@ -787,7 +787,6 @@ class SketcherTools:
                     f"its dimension failed: {exc}. The new constraint remains in the sketch; "
                     "inspect it before retrying."
                 ) from exc
-            unit = "degrees" if constraint_type == "angle" else "mm"
             sketch.Evaluate()
             if int(constraint.Status) != 0 or not self._diagnose()["all_constraints_satisfied"]:
                 raise RuntimeError(f"Constraint created but not solved: status={constraint.Status}")

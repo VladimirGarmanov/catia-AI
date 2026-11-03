@@ -20,13 +20,15 @@ ROOT = Path(__file__).resolve().parents[1]
 ARCHIVE_URL = "https://github.com/VladimirGarmanov/catia-AI/archive/refs/heads/main.zip"
 PROTECTED_DIRECTORIES = {
     ".git", ".venv", ".local", "runtime", "traffic", "dist", "build",
-    "__pycache__", ".pytest_cache", ".ruff_cache", ".idea",
+    "__pycache__", ".pytest_cache", ".ruff_cache", ".idea", "drawings", "models", "user_data",
 }
 PROTECTED_EXTENSIONS = {
     ".catpart", ".catproduct", ".catdrawing", ".pdf", ".heic", ".png",
     ".jpg", ".jpeg", ".stp", ".step", ".igs", ".iges", ".stl",
 }
-PRESERVED_PATHS = {".codex/config.toml", "update.cmd", "scripts/update_project.py"}
+PRESERVED_PATHS = {".codex/config.toml", ".mcp.json", ".claude/settings.json", ".claude/settings.local.json", "update.cmd"}
+MAX_ARCHIVE = 200 * 1024 * 1024
+MAX_EXTRACTED = 512 * 1024 * 1024
 
 
 def is_preserved(relative: Path) -> bool:
@@ -35,11 +37,11 @@ def is_preserved(relative: Path) -> bool:
         return True
     if relative.as_posix().casefold() in PRESERVED_PATHS:
         return True
+    if relative.name.casefold() == ".env" or relative.name.casefold().startswith(".env."):
+        return True
     if relative.suffix.casefold() in {".pyc", ".pyo", ".log"}:
         return True
-    if relative.suffix.casefold() in PROTECTED_EXTENSIONS and (
-        len(relative.parts) == 1 or parts[0] in {"drawings", "models", "user_data"}
-    ):
+    if relative.suffix.casefold() in PROTECTED_EXTENSIONS:
         return True
     return False
 
@@ -50,13 +52,20 @@ def download_archive(destination: Path) -> None:
         headers={"User-Agent": "CATIA-AI-Project-Updater", "Accept": "application/zip"},
     )
     with urllib.request.urlopen(request, timeout=90) as response, destination.open("wb") as out:
-        shutil.copyfileobj(response, out)
+        total = 0
+        while chunk := response.read(1024 * 1024):
+            total += len(chunk)
+            if total > MAX_ARCHIVE:
+                raise RuntimeError("Project archive exceeds download size limit")
+            out.write(chunk)
 
 
 def extract_project(archive_path: Path, destination: Path) -> Path:
     destination.mkdir(parents=True, exist_ok=True)
     with zipfile.ZipFile(archive_path) as archive:
         members = archive.infolist()
+        if sum(member.file_size for member in members) > MAX_EXTRACTED:
+            raise RuntimeError("Project archive exceeds extraction size limit")
         roots = {
             PurePosixPath(member.filename).parts[0]
             for member in members if PurePosixPath(member.filename).parts
@@ -66,11 +75,16 @@ def extract_project(archive_path: Path, destination: Path) -> Path:
             raise RuntimeError("GitHub archive has an unexpected directory layout")
         archive_root = destination / next(iter(roots))
         resolved_root = archive_root.resolve()
+        seen = set()
         for member in members:
             parts = PurePosixPath(member.filename).parts
-            if (not parts or parts[0] != archive_root.name
+            if ("\\" in member.filename or not parts or parts[0] != archive_root.name
                     or any(part in {".", ".."} or ":" in part for part in parts)):
                 raise RuntimeError("GitHub archive contains a path outside the repository root")
+            key = member.filename.rstrip("/").casefold()
+            if key in seen:
+                raise RuntimeError("Project archive has duplicate/case-colliding paths")
+            seen.add(key)
             relative_parts = parts[1:]
             if not relative_parts:
                 continue
@@ -110,6 +124,15 @@ def apply_update(source_root: Path, backup_root: Path) -> int:
     try:
         for source, relative in project_files(source_root):
             target = ROOT / relative
+            candidate = target
+            while candidate != ROOT:
+                if candidate.is_symlink():
+                    raise RuntimeError(f"Refusing to overwrite a linked project path: {relative}")
+                candidate = candidate.parent
+            if not target.resolve().is_relative_to(ROOT.resolve()):
+                raise RuntimeError(f"Update target is outside the project: {relative}")
+            if target.is_file() and target.read_bytes() == source.read_bytes():
+                continue
             target.parent.mkdir(parents=True, exist_ok=True)
             if relative.as_posix().casefold() in {"pyproject.toml", "requirements.txt"}:
                 dependency_metadata_changed |= (
@@ -127,23 +150,6 @@ def apply_update(source_root: Path, backup_root: Path) -> int:
                 os.replace(temporary_target, target)
             finally:
                 temporary_target.unlink(missing_ok=True)
-        if dependency_metadata_changed:
-            environment_python = ROOT / ".venv" / "Scripts" / "python.exe"
-            if environment_python.is_file():
-                print("Dependency files changed; refreshing the project's .venv...", flush=True)
-                result = subprocess.run(
-                    [str(environment_python), "-m", "pip", "install", "-e", str(ROOT) + "[drawings]"],
-                    cwd=ROOT,
-                    check=False,
-                    timeout=900,
-                )
-                if result.returncode:
-                    print("Project files were updated, but dependency installation failed. "
-                          "Run INSTALL.cmd to finish setup.")
-            else:
-                print("Dependency metadata changed. The bundled runtime is preserved; "
-                      "install the latest CATIA-AI-Setup.exe to update Python dependencies.")
-        return len(changed)
     except Exception as exc:
         rollback_errors = []
         for target, backup in reversed(changed):
@@ -158,6 +164,24 @@ def apply_update(source_root: Path, backup_root: Path) -> int:
         if rollback_errors:
             detail = " Rollback errors: " + "; ".join(rollback_errors)
         raise RuntimeError(f"File update failed ({exc}); rollback attempted.{detail}") from exc
+    # pip is not transactional. Keep applied source files if pip fails, record
+    # the incomplete step, and make the next UPDATE retry it even with no diff.
+    pending = ROOT / ".local" / "dependencies-pending"
+    if dependency_metadata_changed or pending.exists():
+        pending.parent.mkdir(parents=True, exist_ok=True)
+        pending.write_text("Run INSTALL.cmd (source ZIP) or install the newest EXE.\n", encoding="utf-8")
+        environment_python = ROOT / ".venv" / "Scripts" / "python.exe"
+        if not environment_python.is_file():
+            raise RuntimeError("Source files updated, but bundled dependencies need the newest CATIA-AI-Setup.exe; update incomplete")
+        print("Refreshing the project's .venv dependencies...", flush=True)
+        result = subprocess.run(
+            [str(environment_python), "-m", "pip", "install", "-e", str(ROOT) + "[drawings]"],
+            cwd=ROOT, check=False, timeout=900,
+        )
+        if result.returncode:
+            raise RuntimeError("Source files updated, but dependency installation failed; rerun UPDATE.cmd or INSTALL.cmd")
+        pending.unlink()
+    return len(changed)
 
 
 def main() -> int:
@@ -171,6 +195,9 @@ def main() -> int:
             archive_path = temporary / "project.zip"
             download_archive(archive_path)
             source_root = extract_project(archive_path, temporary / "extracted")
+            for required in ("catia_mcp/server.py", "pyproject.toml", "INSTALL.cmd"):
+                if not (source_root / required).is_file():
+                    raise RuntimeError(f"Downloaded project is incomplete: missing {required}")
             count = apply_update(source_root, temporary / "backup")
         print(f"Updated {count} project files.")
         print("Preserved .venv/runtime, .local, .codex/config.toml, traffic, and local CAD/drawing files.")

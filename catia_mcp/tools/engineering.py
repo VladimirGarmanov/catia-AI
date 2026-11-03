@@ -2,7 +2,6 @@
 from __future__ import annotations
 
 import math
-from typing import Any
 
 from catia_mcp.runtime import CADOperationError, same_object
 

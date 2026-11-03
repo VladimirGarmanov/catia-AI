@@ -33,6 +33,15 @@ jobs:
       - name: Run offline test suite
         run: python -m pytest -q
 
+      - name: Check dependency consistency
+        run: python -m pip check
+
+      - name: Check static errors
+        run: python -m ruff check catia_mcp scripts tests test_server.py --select F,E9
+
+      - name: Check all tool registrations
+        run: python test_server.py
+
       - name: Check Windows setup syntax without executing setup
         if: runner.os == 'Windows'
         shell: pwsh

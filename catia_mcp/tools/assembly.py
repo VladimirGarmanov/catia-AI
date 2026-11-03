@@ -288,7 +288,7 @@ class AssemblyTools:
                                       component_names: list[str], *,
                                       require_component: bool = False) -> list[Any]:
         document = self.conn.active_document
-        product = self.conn.get_active_product()
+        self.conn.get_active_product()  # Validate document type before selection access.
         selection = document.Selection
         if selection.Count2 != expected_count:
             raise ValueError(

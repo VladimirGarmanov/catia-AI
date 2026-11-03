@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 import json
 import sys
+from pathlib import Path
 
 from mcp import ClientSession, StdioServerParameters
 from mcp.client.stdio import stdio_client
@@ -13,7 +14,7 @@ from catia_mcp.server import INSPECTION_TOOL_NAMES
 
 
 async def inspect_transport(inspection_only: bool) -> set[str]:
-    args = ["-m", "catia_mcp"]
+    args = [str(Path(__file__).with_name("mcp_entry.py").resolve())]
     if inspection_only:
         args.append("--inspection-only")
     parameters = StdioServerParameters(command=sys.executable, args=args)

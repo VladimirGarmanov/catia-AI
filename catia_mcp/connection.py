@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import logging
 from typing import Any
+from catia_mcp.runtime import CADOperationError
 
 logger = logging.getLogger("catia_mcp")
 
@@ -52,7 +53,7 @@ class CATIAConnection:
         Returns a status message string.
         """
         if not HAS_COM:
-            raise RuntimeError(
+            raise CADOperationError("NOT_CONNECTED",
                 "pywin32 is not installed. Install it with: pip install pywin32\n"
                 "Note: This MCP server requires Windows with CATIA V5 installed."
             )
@@ -74,7 +75,7 @@ class CATIAConnection:
             return f"Connected to running CATIA V5 instance ({version})"
         except Exception as exc:
             if not self.allow_launch:
-                raise RuntimeError(
+                raise CADOperationError("NOT_CONNECTED",
                     "No running CATIA V5 instance was found. "
                     "Inspection-only mode will not launch CATIA."
                 ) from exc
@@ -89,7 +90,7 @@ class CATIAConnection:
             return f"Launched new CATIA V5 instance ({version})"
         except Exception as e:
             self.app = None
-            raise RuntimeError(
+            raise CADOperationError("NOT_CONNECTED",
                 f"Failed to connect to CATIA V5: {e}\n"
                 "Make sure CATIA V5 is installed and licensed on this machine."
             ) from e
@@ -134,8 +135,15 @@ class CATIAConnection:
         self.ensure_connected()
         try:
             return self.app.ActiveDocument
-        except Exception:
-            raise RuntimeError("No active document in CATIA. Create or open a document first.")
+        except Exception as exc:
+            # An RPC/busy error is not evidence that the user has no document.
+            try:
+                empty = self.app.Documents.Count == 0
+            except Exception:
+                empty = False
+            if empty:
+                raise CADOperationError("NO_ACTIVE_DOCUMENT", "No active document in CATIA. Create or open a document first.") from exc
+            raise CADOperationError("DOCUMENT_UNAVAILABLE", f"Cannot read CATIA ActiveDocument: {exc}") from exc
 
     @property
     def active_window(self) -> Any:
@@ -163,11 +171,11 @@ class CATIAConnection:
         doc = self.active_document
         try:
             return doc.Part
-        except Exception:
-            raise RuntimeError(
-                "Active document is not a Part document. "
-                "Open or create a Part document first."
-            )
+        except Exception as exc:
+            name = str(getattr(doc, "Name", "")).lower()
+            code = ("WRONG_DOCUMENT_TYPE" if name.endswith((".catproduct", ".catdrawing", ".catfct"))
+                    or isinstance(exc, AttributeError) else "DOCUMENT_UNAVAILABLE")
+            raise CADOperationError(code, f"Cannot access a Part in the active document: {exc}") from exc
 
     def get_active_product(self) -> Any:
         """Get the Product object from the active ProductDocument."""
@@ -176,7 +184,7 @@ class CATIAConnection:
         # distinguish an assembly from a CATPart (including an unsaved one).
         document_name = str(getattr(doc, "Name", "")).lower()
         if document_name.endswith(".catpart"):
-            raise RuntimeError("WRONG_DOCUMENT_TYPE: Active document is a CATPart, not a CATProduct")
+            raise CADOperationError("WRONG_DOCUMENT_TYPE", "Active document is a CATPart, not a CATProduct")
         if document_name.endswith(".catproduct"):
             return doc.Product
         try:
@@ -184,19 +192,19 @@ class CATIAConnection:
         except AttributeError:
             pass
         except Exception as exc:
-            raise RuntimeError(
+            raise CADOperationError("DOCUMENT_TYPE_UNVERIFIED",
                 "DOCUMENT_TYPE_UNVERIFIED: Cannot determine whether the active document "
                 f"is a CATPart or CATProduct: {exc}"
             ) from exc
         else:
-            raise RuntimeError("WRONG_DOCUMENT_TYPE: Active document is a CATPart, not a CATProduct")
+            raise CADOperationError("WRONG_DOCUMENT_TYPE", "Active document is a CATPart, not a CATProduct")
         try:
             return doc.Product
-        except Exception:
-            raise RuntimeError(
+        except Exception as exc:
+            raise CADOperationError("WRONG_DOCUMENT_TYPE",
                 "Active document is not a Product document. "
                 "Open or create an Assembly (Product) document first."
-            )
+            ) from exc
 
     def get_active_part_body(self) -> Any:
         """Get the main PartBody from the active Part document."""

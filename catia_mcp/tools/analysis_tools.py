@@ -1,10 +1,9 @@
 """Measurement, material assignment, DMU and state-based diagnostics."""
-import math
 
 from catia_mcp.com_arrays import read_array
 from catia_mcp.runtime import CADOperationError, same_object
 from catia_mcp.tools.engineering import HANDLE, NUMBER, POSITIVE, tool
-from catia_mcp.tools.operations import OperationTools, BOOL, INTEGER, VECTOR, array, group
+from catia_mcp.tools.operations import OperationTools, BOOL, array, group
 
 
 class AnalysisTools(OperationTools):

@@ -65,7 +65,7 @@ def install_python_runtime(temporary: Path) -> dict[str, str]:
 
     pth = python_dir / "python313._pth"
     pth.write_text(
-        "python313.zip\n.\nLib\\site-packages\nimport site\n", encoding="utf-8"
+        "python313.zip\n.\n..\\..\\project\nLib\\site-packages\nimport site\n", encoding="utf-8"
     )
     site_packages = python_dir / "Lib" / "site-packages"
     site_packages.mkdir(parents=True, exist_ok=True)

@@ -4,7 +4,7 @@ from __future__ import annotations
 import math
 
 from catia_mcp.runtime import CADOperationError
-from catia_mcp.tools.engineering import HANDLE, NUMBER, tool
+from catia_mcp.tools.engineering import NUMBER, tool
 
 
 BOOL = {"type": "boolean"}
@@ -30,12 +30,18 @@ def group(name, description, modes, common=None, readonly=False):
     common = common or {}
     properties = {"mode": {"enum": list(modes)}, **common}
     alternatives = []
+    variants = {}
     for mode, fields in modes.items():
-        properties.update(fields)
+        for key, schema in fields.items():
+            choices = variants.setdefault(key, [])
+            if schema not in choices:
+                choices.append(schema)
         allowed = {"mode", *common, *fields, "document_id", "request_id", "expected_revision"}
-        alternatives.append({"properties": {"mode": {"const": mode}},
+        alternatives.append({"properties": {"mode": {"const": mode}, **fields},
                              "required": list(fields),
                              "propertyNames": {"enum": sorted(allowed)}})
+    for key, choices in variants.items():
+        properties[key] = choices[0] if len(choices) == 1 else {"anyOf": choices}
     result = tool(name, description, properties, ["mode", *common], readonly)
     result["inputSchema"]["oneOf"] = alternatives
     return result

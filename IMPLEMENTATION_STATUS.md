@@ -1,5 +1,15 @@
 # Реализация CATIA_AGENT_CODEX_PACKAGE — 2026-10-09
 
+## Общий аудит 0.2.1 — 2026-11-02
+
+Полный offline-набор: **213 passed, 1 skipped** (реальный cmd.exe на Mac).
+Устранены 8 исходных падений; исправлены общие схемы mode-полей, typed connection
+errors, preflight legacy topology arguments, запуск обновлённого source MCP в
+EXE, обновлятор и зависимости. Регистрация/stdio: 147 full / 13 inspection;
+Ruff F/E9, pip check и wheel build прошли. Набор инструментов сохранён.
+Область проверки, переход со старого UPDATE и живые Windows probes:
+[PROJECT_AUDIT.md](PROJECT_AUDIT.md). COM/BRep и Windows installer не проверены на Mac.
+
 ## Дополнение 2026-11-02: patterns
 
 Исправлены существующие rectangular/circular/user pattern пути, включая

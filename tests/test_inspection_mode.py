@@ -22,7 +22,7 @@ except ImportError:
 def test_inspection_server_only_lists_explicit_tools():
     full = CATIAMCPServer()
     inspection = CATIAMCPServer(inspection_only=True)
-    assert len(full._tool_router) == 81
+    assert len(full._tool_router) == 147
     assert set(inspection._tool_router) == INSPECTION_TOOL_NAMES
     assert inspection.connection.allow_launch is False
 
@@ -63,7 +63,7 @@ def test_inspection_connection_never_launches_catia(monkeypatch):
 
     monkeypatch.setattr(connection_module, "HAS_COM", True)
     monkeypatch.setattr(connection_module, "pythoncom", SimpleNamespace(
-        CoInitialize=lambda: None), raising=False)
+        COINIT_APARTMENTTHREADED=2, CoInitializeEx=lambda mode: None), raising=False)
     monkeypatch.setattr(connection_module, "win32com", SimpleNamespace(
         client=SimpleNamespace(GetActiveObject=no_running_catia,
                                Dispatch=forbidden_dispatch)), raising=False)

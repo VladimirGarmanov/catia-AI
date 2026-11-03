@@ -227,8 +227,6 @@ class MeasurementTools:
         return {"ok": True, "code": "PARTIAL_MEASUREMENT", "data": result}
 
     def _get_bounding_box(self) -> dict[str, Any]:
-        self.conn.ensure_connected()
-        self.conn.get_active_part()
         return {
             "ok": False, "code": "UNSUPPORTED_EXACT_BOUNDING_BOX",
             "message": "Measurable.GetBoundingBox is not a documented CATIA V5 method. "

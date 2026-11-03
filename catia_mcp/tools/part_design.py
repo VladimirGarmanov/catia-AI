@@ -466,6 +466,12 @@ class PartDesignTools:
         return definitions
 
     def execute(self, tool_name: str, arguments: dict[str, Any]) -> str | dict[str, Any]:
+        # Reject obsolete name-based topology before even changing InWorkObject.
+        if tool_name in {"catia_fillet", "catia_chamfer"} and arguments.get("edge_name"):
+            raise ValueError("Exact edge targeting by name is unsupported; use a fresh selected Reference")
+        if ((tool_name in {"catia_draft", "catia_thickness"} and arguments.get("face_name"))
+                or (tool_name == "catia_shell" and arguments.get("faces_to_remove"))):
+            raise ValueError("Exact face targeting by name is unsupported; use a fresh selected Reference")
         self._arguments = arguments
         if arguments.get("body_handle"):
             self.conn.operation_body = self.conn.session.resolve(arguments["body_handle"], {"body"}).value
@@ -507,7 +513,7 @@ class PartDesignTools:
 
     def _get_last_sketch(self, sketch_name: str | None = None) -> Any:
         """Get a sketch by name or the last sketch in the body."""
-        part = self.conn.get_active_part()
+        self.conn.get_active_part()
         body = self.conn.get_active_part_body()
         sketches = body.Sketches
         handle = getattr(self, "_arguments", {}).get("sketch_handle")
@@ -582,7 +588,7 @@ class PartDesignTools:
                 != ntpath.normcase(ntpath.normpath(active_path))
             ):
                 raise RuntimeError("Selected topology belongs to a different document")
-        part = self.conn.get_active_part()
+        self.conn.get_active_part()
         try:
             reference = selected.Reference
             if reference is not None:
@@ -1138,7 +1144,7 @@ class PartDesignTools:
             )
         self.conn.ensure_connected()
         part = self.conn.get_active_part()
-        body = self.conn.get_active_part_body()
+        self.conn.get_active_part_body()
         sf = part.ShapeFactory
 
         plane_key = args["plane"].lower()

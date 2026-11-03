@@ -86,7 +86,7 @@ def test_selection_describes_but_does_not_identify_geometry():
         "catia_get_selection", {})
     item = result["data"]["selection"]["items"][0]
     assert item == {"position": 1, "selection_type": "Face", "name": "Face.1",
-                    "leaf_product_name": "Bracket.1"}
+                    "leaf_product_name": "Bracket.1", "leaf_product_status": "available"}
     assert "not persistent or exact" in result["data"]["selection"]["identity_note"]
     assert "id" not in item
 
@@ -348,12 +348,12 @@ def test_failed_capture_does_not_return_or_replace_old_image(tmp_path):
 
 def test_server_registers_legacy_tools_and_returns_mcp_image():
     server = CATIAMCPServer()
-    assert len(server._tool_router) == 81
+    assert len(server._tool_router) == 147
     assert "catia_get_selection" in server._tool_router
     assert "catia_get_model_state" in server._tool_router
     listed = asyncio.run(server.server.request_handlers[ListToolsRequest](ListToolsRequest()))
     by_name = {tool.name: tool for tool in listed.root.tools}
-    assert len(by_name) == 81
+    assert len(by_name) == 147
     assert by_name["catia_get_selection"].annotations.readOnlyHint is True
     assert by_name["catia_get_model_state"].annotations.readOnlyHint is True
     server.connection.app = SimpleNamespace(Caption="Mock CATIA")

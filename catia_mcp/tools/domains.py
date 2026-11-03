@@ -2,8 +2,8 @@
 from pathlib import Path
 
 from catia_mcp.runtime import CADOperationError, same_object
-from catia_mcp.tools.engineering import HANDLE, NUMBER, POSITIVE, tool, geometry_kind
-from catia_mcp.tools.operations import OperationTools, BOOL, INTEGER, array, group
+from catia_mcp.tools.engineering import HANDLE, tool
+from catia_mcp.tools.operations import OperationTools, BOOL, array, group
 
 
 def absolute_file(value, existing=False):

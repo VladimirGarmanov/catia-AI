@@ -73,7 +73,7 @@ class ContextTools:
         try:
             doc = self.conn.active_document
         except Exception as exc:
-            return self._error("NO_ACTIVE_DOCUMENT", f"Cannot read active CATIA document: {exc}")
+            return self._error(getattr(exc, "code", "NO_ACTIVE_DOCUMENT"), f"Cannot read active CATIA document: {exc}")
 
         if tool_name == "catia_update_selected_feature":
             return self._update_selected_feature(doc)
