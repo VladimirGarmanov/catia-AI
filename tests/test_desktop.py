@@ -1,6 +1,5 @@
 from types import SimpleNamespace as NS
 from unittest.mock import Mock
-import threading
 
 import pytest
 
@@ -25,24 +24,21 @@ def test_snapshot_without_com_or_active_document():
     backend.approve.assert_not_called()
 
 
-def test_action_without_snapshot_or_confirmation():
+@pytest.mark.parametrize("action", [
+    {"kind": "click", "x": 10, "y": 10}, {"kind": "key", "key": "enter"},
+    {"kind": "text", "text": "Fix"}, {"kind": "numeric_text", "text": "0"},
+    {"kind": "hotkey", "keys": ["ctrl", "a"]}, {"kind": "scroll", "steps": 1},
+])
+def test_all_ui_input_disabled_before_backend_access(action):
     tool, backend = setup()
-    result = tool.execute("catia_ui_action", {"action": {"kind": "text", "text": "Привет"}})
-    assert result["input_sent"] and not result["geometry_verified"]
-    backend.send.assert_called_once()
-    backend.approve.assert_not_called()
-
-
-def test_cancellation_prevents_input():
-    tool, backend = setup()
-    tool.cancel_event = threading.Event()
-    tool.cancel_event.set()
-    with pytest.raises(CADOperationError, match="cancelled"):
-        tool.execute("catia_ui_action", {"action": {"kind": "key", "key": "enter"}})
+    with pytest.raises(CADOperationError) as error:
+        tool.execute("catia_ui_action", {"action": action})
+    assert error.value.code == "OPERATION_DISABLED"
+    backend.window.assert_not_called()
     backend.send.assert_not_called()
 
 
-def test_server_desktop_route_never_connects_and_deduplicates():
+def test_server_desktop_route_rejects_input_without_com():
     from catia_mcp.server import CATIAMCPServer
     server = CATIAMCPServer()
     server.connection.ensure_connected = Mock(side_effect=AssertionError("COM should not be called"))
@@ -52,6 +48,9 @@ def test_server_desktop_route_never_connects_and_deduplicates():
     args = {"request_id": "ui1", "reason": "test", "action": {"kind": "hotkey", "keys": ["ctrl", "a"]}}
     first = server._execute_serial("catia_ui_action", args)
     second = server._execute_serial("catia_ui_action", args)
-    assert first["ok"] and second["replayed"]
-    backend.send.assert_called_once()
+    assert not first["ok"] and not second["ok"]
+    assert first["code"] == second["code"] == "OPERATION_DISABLED"
+    assert first["input_may_have_been_sent"] is False
+    backend.send.assert_not_called()
     server.connection.ensure_connected.assert_not_called()
+    server.worker.shutdown()

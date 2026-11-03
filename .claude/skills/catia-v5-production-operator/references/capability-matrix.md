@@ -77,7 +77,7 @@ If the active server provides a newer explicit capability contract, reclassify o
 |---|---|---|
 | `catia_add_component` | `CONDITIONAL` | Verify component listing after insertion. |
 | `catia_add_new_part` | `CONDITIONAL` | Verify component listing. |
-| `catia_fix_constraint` | `CONDITIONAL` | Verify constraint listing/status. |
+| `catia_fix_constraint` | `DISABLED` | Fix is forbidden by project policy; returns OPERATION_DISABLED. |
 | `catia_coincidence_constraint` | `UNSUPPORTED_EXACT` for geometry-specific mating | Baseline does not establish deterministic `element1`/`element2` geometry resolution. |
 | `catia_offset_constraint` | `UNSUPPORTED_EXACT` for geometry-specific mating | Requires exact component-local reference resolution. |
 | `catia_angle_constraint` | `UNSUPPORTED_EXACT` for geometry-specific mating | Requires exact component-local reference resolution. |

@@ -56,4 +56,4 @@ Precision assembly mating requires component-local geometry references. A produc
 
 The baseline coincidence/offset/angle paths do not establish that the advertised element references are resolved to exact geometry. Do not claim exact face-to-face/plane-to-plane/axis mating under that baseline.
 
-Safe baseline assembly actions are limited to actions whose results can be verified independently, such as component listing, component insertion, constraint listing, coarse move/rotation, and fix constraint when sufficient for the task.
+Safe baseline assembly actions are limited to actions whose results can be verified independently, such as component listing, component insertion, constraint listing and coarse move/rotation. Fix and Fix Together are disabled by project policy; never use them or UI/script substitutes.

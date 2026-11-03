@@ -9,19 +9,18 @@ def fallback_advice(result: dict) -> dict:
     return {
         **result,
         "ui_fallback": {
-            "status": "blocked_pending_reconciliation" if blocked else "inspect_desktop_before_recovery",
+            "status": "blocked_pending_reconciliation" if blocked else "input_disabled_by_policy",
             "local_confirmation_required": False,
-            "desktop_driver_provided": True,
-            "desktop_tools": ["catia_ui_snapshot", "catia_ui_action"],
+            "desktop_driver_provided": False,
+            "desktop_tools": ["catia_ui_snapshot"],
             "instructions": (
                 "Do not click or retry: the COM operation may still be running. "
                 "Resolve busy/modal state with the human and reconcile the model first."
                 if blocked else
-                "Do not automatically repeat this operation through the UI. Inspect the "
-                "document and partial results first. If an actual desktop-control tool "
-                "is available on the CATIA Windows host (catia_ui_snapshot/action), use UI recovery within the authorized task. "
-                "Whole-desktop access is enabled without local confirmation. Otherwise report missing "
-                "desktop control; do not invent clicks or use shell automation."
+                "UI input is disabled because generic clicks/keys could bypass the "
+                "Fix/AutoConstraint ban. Snapshots are read-only. Do not retry disabled "
+                "commands through scripts, another client or external desktop tools. "
+                "For other failures inspect partial results before proposing a typed-tool repair."
             ),
         },
     }

@@ -11,6 +11,7 @@ import math
 from typing import Any
 
 from catia_mcp.connection import CATIAConnection
+from catia_mcp.constraint_policy import check_constraint_command
 from catia_mcp.runtime import same_object
 
 # Plane name mapping
@@ -36,7 +37,6 @@ CONSTRAINT_SPECS = {
     "parallel": (8, 2),       # catCstTypeParallelism
     "horizontal": (10, 1),    # catCstTypeHorizontality
     "vertical": (13, 1),      # catCstTypeVerticality
-    "fix": (0, 1),            # catCstTypeReference
     "length": (5, 1),
     "midpoint": (16, 2),
     "equidistance": (17, 3),
@@ -258,7 +258,7 @@ class SketcherTools:
                 "description": (
                     "Add a dimensional or geometric constraint to the active sketch. "
                     "Supports distance, length, radius, angle, coincidence, tangent, "
-                    "perpendicular, parallel, horizontal, vertical, fix, concentricity, symmetry, midpoint, equidistance and ellipse radii. "
+                    "perpendicular, parallel, horizontal, vertical, concentricity, symmetry, midpoint, equidistance and ellipse radii. Fix and AutoConstraint are disabled. "
                     "Refresh catia_sketch_get_geometry immediately before using indices; "
                     "they are transient positions, not stable IDs. Radius needs a circle/arc. "
                     "Distance with one element sets a line's length; with two it sets their "
@@ -274,7 +274,7 @@ class SketcherTools:
                             "enum": [
                                 "distance", "radius", "angle",
                                 "coincidence", "tangent", "perpendicular",
-                                "parallel", "horizontal", "vertical", "fix",
+                                "parallel", "horizontal", "vertical",
                                 "concentricity", "symmetry", "length", "midpoint",
                                 "equidistance", "major_radius", "minor_radius",
                             ],
@@ -525,7 +525,7 @@ class SketcherTools:
                 "inactive_count": sum(c["inactive"] for c in statuses),
                 "profile_closed": "not_verified", "remaining_dof": None,
                 "iso_constrained": None,
-                "warning": "Satisfied constraints do not prove zero DOF or absence of redundancy. This documented Automation interface exposes no full sketch DOF status. Verify Sketch Analysis in CATIA; never fix everything merely to turn it green."}
+                "warning": "Satisfied constraints do not prove zero DOF or absence of redundancy. This documented Automation interface exposes no full sketch DOF status. Verify Sketch Analysis in CATIA; Fix and AutoConstraint are disabled; use explicit design constraints."}
 
     def _draw_rectangle(self, x1: float, y1: float, x2: float, y2: float, anchor_origin: bool = False) -> str:
         self._ensure_sketch_open()
@@ -652,6 +652,7 @@ class SketcherTools:
         return f"Point created at ({x}, {y}) mm"
 
     def _add_constraint(self, args: dict[str, Any]) -> str:
+        check_constraint_command("catia_sketch_constraint", args)
         self._ensure_sketch_open()
         sketch = self._active_sketch
         constraint_type = args["type"]

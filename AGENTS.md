@@ -88,36 +88,26 @@ For an authorized modeling request:
   are preserved. Reassign a revolution axis before making its line standard.
   Read back geometry, then close/update when the editing task is complete.
 
-### Whole-desktop computer-use fallback (user opt-in)
+### Forbidden constraint commands and read-only desktop inspection
 
-- MCP remains the default. The user explicitly enabled UI fallback without per-action confirmation.
-- Inspect the actual document, selection, and any partially created objects before
-  proposing a UI recovery. Never repeat an uncertain write by a different transport.
-- On COM_TIMEOUT or SESSION_STATE_UNKNOWN, no UI automation: the original call
-  may still be running. Ask the human to resolve CATIA busy/modal state and
-  reconcile the completed model before considering another operation.
-- Check actual callable desktop tools for the SAME Windows host running CATIA.
-  A Mac browser/computer tool, MCP connection status, or a screenshot tool alone
-  does not supply Windows desktop control. If missing, report this and stop;
-  do not install software, change permissions, or run mouse/keyboard scripts.
-- Inspect the whole desktop before acting; no extra Yes/No is required for UI
-  actions within the requested task. Never blindly reuse coordinates. Desktop
-  access is not authorization for unrelated deletion, saving, purchases or sending.
-- After the UI operation, reread model state and dimensions via MCP when available;
-  refresh handles/revision and invalidate the old plan targets. If verification is
-  unavailable, report unverified and stop rather than declaring success.
-- `catia_ui_snapshot` includes all monitors/applications. Coordinates are relative
-  to the image top-left (screen_origin may be negative). `catia_ui_action` supports
-  left/right/middle clicks, double-click, keys, hotkeys, Unicode text and scrolling.
-  No document/CNEXT/title/foreground restriction or native confirmation applies.
-  UI tools do not require a working COM connection or active document. Use a unique
-  request_id for each action; replayed IDs never send input twice.
-- All visible content may be sent to the model. Do not use the mouse/keyboard
-  concurrently. Windows privilege boundaries still apply; never bypass them.
+- Fix and AutoConstraint are forbidden, including Fix Component, Fix Together
+  and creating a DMU mechanism with FixedPart. Never create, reactivate or edit
+  a Fix constraint. Existing ones may be read, explicitly deactivated or removed.
+  Reference dimensions remain supported; they are not catCstTypeReference/Fix.
+- The server rejects these writes with OPERATION_DISABLED. This is not a missing
+  API to repair: do not change the policy, use scripts, another client, templates
+  or UI automation to bypass it. Use deliberate geometric/dimensional constraints.
+- Generic desktop input cannot distinguish a Fix button from other clicks, so
+  catia_ui_action is disabled. Do not substitute external computer-use tools.
+  catia_ui_snapshot still reads all monitors/apps without a COM connection.
+  Visible content may include personal data; Windows permissions still apply.
+- On COM_TIMEOUT or SESSION_STATE_UNKNOWN the original operation may still be
+  running. Ask the human to resolve busy/modal state and reconcile the model.
+  Never repeat an uncertain write through a different transport.
 
 - For iso-constrained sketches preserve design intent: shared endpoints/coincidence,
   H/V/parallel/perpendicular/tangent/symmetry as appropriate, independent sizes,
-  then location relative to the origin. Never apply Fix to all geometry as a shortcut.
+  then location relative to the origin. Never use Fix or AutoConstraint, even on one element.
 - `catia_sketch_constraint` supports exact Line2D `element_1/2/3=start/end` with
   fresh geometry indices. `origin`, `horizontal_axis`, `vertical_axis` omit that
   index. Two endpoints of the same line are distinct targets, not the whole line.

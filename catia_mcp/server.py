@@ -29,6 +29,7 @@ from mcp.server.stdio import stdio_server
 from mcp.types import CallToolResult, ImageContent, TextContent, Tool, ToolAnnotations
 
 from catia_mcp.connection import CATIAConnection
+from catia_mcp.constraint_policy import check_constraint_command
 from catia_mcp.fallback import fallback_advice
 from catia_mcp.runtime import SessionState, CADOperationError, error_details
 from catia_mcp.tools.assembly import AssemblyTools
@@ -348,6 +349,7 @@ class CATIAMCPServer:
             return self._execute_desktop(name, arguments)
         try:
             fingerprint = json.dumps([name, arguments], sort_keys=True, allow_nan=False)
+            check_constraint_command(name, arguments)
             errors = list(Draft202012Validator(self._schemas[name]).iter_errors(arguments))
             if errors:
                 raise CADOperationError("INVALID_ARGUMENT", errors[0].message)
@@ -455,6 +457,7 @@ class CATIAMCPServer:
         request_id = arguments.get("request_id")
         fingerprint = json.dumps([name, arguments], sort_keys=True, allow_nan=False)
         try:
+            check_constraint_command(name, arguments)
             Draft202012Validator(self._schemas[name]).validate(arguments)
             if request_id in state.requests:
                 previous, result = state.requests[request_id]

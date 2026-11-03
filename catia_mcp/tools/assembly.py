@@ -1,10 +1,12 @@
 """Assembly tools for CATIA V5.
 
-Product/Assembly management: add components, constraints (Fix, Coincidence,
+Product/Assembly management: add components, constraints (Coincidence,
 Contact, Offset, Angle), move components, and manage the product tree.
 """
 
 from __future__ import annotations
+
+from catia_mcp.constraint_policy import disabled
 
 import json
 import math
@@ -59,15 +61,14 @@ class AssemblyTools:
             {
                 "name": "catia_fix_constraint",
                 "description": (
-                    "Fix the one currently selected assembly instance in place. "
-                    "Selection must be the component Product itself, not a face or feature."
+                    "DISABLED: Fix Component is forbidden by project policy. This legacy tool always returns OPERATION_DISABLED. "
                 ),
                 "inputSchema": {
                     "type": "object",
                     "properties": {
                         "component_name": {
                             "type": "string",
-                            "description": "Name of the component to fix",
+                            "description": "Legacy argument; the operation is disabled",
                         },
                     },
                     "required": ["component_name"],
@@ -335,17 +336,7 @@ class AssemblyTools:
         return references
 
     def _fix_constraint(self, component_name: str) -> str:
-        product = self.conn.get_active_product()
-        constraints = product.Connections("CATIAConstraints")
-        reference = self._selected_assembly_references(
-            1, [component_name], require_component=True)[0]
-        cst = constraints.AddMonoEltCst(0, reference)  # catCstTypeReference
-        cst.Name = f"Fix.{component_name}"
-        product.Update()
-        self.conn.refresh_display()
-        return (f"Fix constraint {cst.Name!r} created for selected instance "
-                f"{component_name!r}; status={getattr(cst, 'Status', 'unavailable')!r}. "
-                "Verify instance pose and solved status in CATIA.")
+        disabled("Fix Component")
 
     def _coincidence_constraint(self, args: dict[str, Any]) -> str:
         if args.get("element1") is not None or args.get("element2") is not None:

@@ -86,6 +86,10 @@ for numbers, handler in (
     for number in numbers:
         IMPLEMENTATIONS.setdefault(number, []).append(handler)
 
+DISABLED_CAPABILITIES = {44, 142, 147}  # Fix, Fix Component, Fix Together
+for number in DISABLED_CAPABILITIES:
+    IMPLEMENTATIONS.pop(number, None)
+
 UNSUPPORTED_REASONS = {
     138: "Occurrence-aware external copy/link workflow not confirmed; publication alone is not Design in Context.",
     196: "Arbitrary scripts forbidden; no audited fixed-contract macro supplied.",
@@ -118,6 +122,10 @@ class CapabilityTools:
             if not entries:
                 return {"ok": False, "status": "unsupported", "code": "UNSUPPORTED_OPERATION", "message": "Unknown handbook capability"}
             entry = entries[0]
+            if entry["handbook_id"] in DISABLED_CAPABILITIES:
+                return {"ok": False, "status": "disabled", "code": "OPERATION_DISABLED",
+                        "executed": False, "capability_id": entry["capability_id"],
+                        "message": "Fix is disabled everywhere by project policy; no UI or script bypass."}
             available = [h for h in IMPLEMENTATIONS.get(entry["handbook_id"], []) if h in self.available_tools]
             if available:
                 return {"ok": True, "status": "routing_only", "executed": False, "tools": available,
@@ -145,5 +153,8 @@ class CapabilityTools:
                             "api_bindings": entry["api_bindings"], "limitations": entry["implementation_notes"],
                             "unsupported_reason": None if available else UNSUPPORTED_REASONS.get(entry["handbook_id"], entry["implementation_notes"])})
             matches[-1]["alternative"] = ALTERNATIVES.get(entry["handbook_id"])
+            if entry["handbook_id"] in DISABLED_CAPABILITIES:
+                matches[-1].update(implementation_coverage="disabled_by_policy",
+                                  unsupported_reason="Fix is disabled everywhere by project policy")
         return {"ok": True, "matches": matches[:args.get("limit", 10)], "total_matches": len(matches),
                 "note": "Capability-level validation is not inferred from registration/schema smoke tests. Unimplemented entries are research tasks, not executable tools."}

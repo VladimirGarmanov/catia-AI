@@ -59,6 +59,23 @@ def test_context_does_not_open_edition():
     sketch.OpenEdition.assert_not_called()
 
 
+def test_existing_fix_activation_is_blocked_but_read_and_deactivation_work():
+    tool, sketch, editor, _, _ = setup()
+    fixed = NS(Name="Fix.1", Type=0, Mode=0, Status=0, Activate=Mock(), Deactivate=Mock())
+    sketch.Constraints = collection([fixed])
+    sketch.Evaluate = Mock()
+    tool.execute("catia_sketch_begin_edit", {"source": "in_work", "mode": "open"})
+    rows = tool.execute("catia_sketch_constraints", {})["constraints"]
+    args = {"constraint_handle": rows[0]["handle"], "action": "activate"}
+    with pytest.raises(CADOperationError) as error:
+        tool.execute("catia_sketch_edit_constraint", args)
+    assert error.value.code == "OPERATION_DISABLED"
+    fixed.Activate.assert_not_called()
+    sketch.Evaluate.assert_not_called()
+    assert tool.execute("catia_sketch_edit_constraint", {**args, "action": "deactivate"})["ok"]
+    fixed.Deactivate.assert_called_once()
+
+
 @pytest.mark.parametrize("initial,target", [(False, True), (True, False), (True, True)])
 def test_construction_existing_geometry(initial, target):
     tool, sketch, editor, part, conn = setup()

@@ -54,7 +54,7 @@ def assembly_fixture():
     return tools, root, occurrence, constraints
 
 
-def test_new_schemas_guard_writes_keep_read_only_and_fix_arity():
+def test_new_schemas_guard_writes_keep_read_only_and_reject_fix():
     server = CATIAMCPServer()
     try:
         for module in (server.assembly_management_tools, server.drawing_management_tools):
@@ -64,7 +64,7 @@ def test_new_schemas_guard_writes_keep_read_only_and_fix_arity():
                 assert ("request_id" in schema["required"]) != definition["readOnlyHint"]
         schema = Draft202012Validator(server._schemas["catia_assembly_constraint"])
         guards = {"document_id": "d", "request_id": "r", "expected_revision": 0}
-        assert schema.is_valid({**guards, "mode": "fix", "selection_handle": "s"})
+        assert not schema.is_valid({**guards, "mode": "fix", "selection_handle": "s"})
         assert not schema.is_valid({**guards, "mode": "fix", "selection_handles": ["a", "b"]})
         assert not schema.is_valid({**guards, "mode": "distance", "selection_handles": ["a"], "value": 10})
         assert len(server._tool_router) == 147
@@ -164,6 +164,20 @@ def test_constraint_side_uses_caa_enum_and_unsolved_is_failure():
     root.Update.side_effect = lambda: setattr(cst, "Status", 1)
     with pytest.raises(CADOperationError, match="not solved"):
         tools.constraint(args)
+
+
+def test_existing_assembly_fix_cannot_activate_but_can_be_removed():
+    tools, root, _, constraints = assembly_fixture()
+    fixed = NS(Name="Fix.1", Type=0, Activate=Mock())
+    constraints.items.append(fixed)
+    handle = tools.state.register(fixed, "constraint")
+    with pytest.raises(CADOperationError) as error:
+        tools.constraint({"mode": "activate", "constraint_handle": handle})
+    assert error.value.code == "OPERATION_DISABLED"
+    fixed.Activate.assert_not_called()
+    root.Update.assert_not_called()
+    assert tools.constraint({"mode": "remove", "constraint_handle": handle})["ok"]
+    assert constraints.Count == 0
 
 
 def test_server_propagates_partial_failure_and_inspection_does_not_mutate():

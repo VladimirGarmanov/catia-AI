@@ -64,7 +64,6 @@ def test_same_line_distinct_endpoints_are_valid(rig):
     {"type": "length", "geometry_index_1": 1, "value": -1},
     {"type": "length", "geometry_index_1": 1, "value": 25, "distance_direction": "horizontal"},
     {"type": "coincidence", "geometry_index_1": 1, "geometry_index_2": 1},
-    {"type": "fix", "element_1": "origin", "geometry_index_1": 1},
     {"type": "midpoint", "geometry_index_1": 1, "geometry_index_2": 2},
 ])
 def test_invalid_requests_do_not_mutate(rig, args):

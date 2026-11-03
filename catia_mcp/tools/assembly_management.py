@@ -7,6 +7,7 @@ import math
 
 from catia_mcp.com_arrays import read_array
 from catia_mcp.runtime import CADOperationError, same_object
+from catia_mcp.constraint_policy import check_constraint_command, check_constraint_edit
 from catia_mcp.tools.domains import DomainTools, absolute_file
 from catia_mcp.tools.domain_support import members, member_index, read_properties, verify_equal
 from catia_mcp.tools.engineering import HANDLE, NUMBER, tool, dimension
@@ -35,8 +36,7 @@ class AssemblyManagementTools(DomainTools):
                 "rotate": {"component_handle": HANDLE, "axis": VECTOR, "angle_deg": NUMBER},
                 "update": {},
             }),
-            group("catia_assembly_constraint", "Create or edit root assembly constraints. Creation/replacement requires fresh exact selection handles, never names or edge indices. Read native solver status after Update. Geometry compatibility is checked by CATIA.", {
-                "fix": {"selection_handle": HANDLE},
+            group("catia_assembly_constraint", "Create or edit root assembly constraints. Fix is disabled; existing Fix constraints may only be deactivated or removed. Creation/replacement requires fresh exact selection handles, never names or edge indices. Read native solver status after Update. Geometry compatibility is checked by CATIA.", {
                 **{mode: PAIR for mode in ("coincidence", "parallel", "perpendicular", "contact")},
                 "distance": {**PAIR, "value": NUMBER},
                 "angle": {**PAIR, "value": NUMBER},
@@ -227,16 +227,17 @@ class AssemblyManagementTools(DomainTools):
         return record.reference
 
     def constraint(self, a):
+        check_constraint_command("catia_assembly_constraint", a)
         root, mode = self.product(), a["mode"]
         collection = root.Connections("CATIAConstraints")
-        kinds = {"fix": 0, "distance": 1, "coincidence": 2, "angle": 6,
+        kinds = {"distance": 1, "coincidence": 2, "angle": 6,
                  "parallel": 8, "perpendicular": 11, "contact": 20}
         expected_dimension = None
         if mode in kinds:
-            handles = [a["selection_handle"]] if mode == "fix" else a["selection_handles"]
+            handles = a["selection_handles"]
             refs = [self.selected_reference(h) for h in handles]
             self.state.mutation_started = True
-            obj = collection.AddMonoEltCst(kinds[mode], refs[0]) if mode == "fix" else collection.AddBiEltCst(kinds[mode], *refs)
+            obj = collection.AddBiEltCst(kinds[mode], *refs)
             handle = self.state.mark_created(obj, "constraint")
             if mode in {"distance", "angle"}:
                 dimension(obj.Dimension, a["value"], "mm" if mode == "distance" else "deg")
@@ -245,6 +246,7 @@ class AssemblyManagementTools(DomainTools):
             handle = a["constraint_handle"]
             obj = self.obj(handle, {"constraint"})
             index = member_index(collection, obj)
+            check_constraint_edit(obj, mode)
             if mode == "edit_value" and int(obj.Type) not in {1, 6}:
                 raise CADOperationError("INVALID_ARGUMENT", "Only distance and angle constraints have an editable dimension here")
             ref = self.selected_reference(a["selection_handle"]) if mode == "replace_element" else None

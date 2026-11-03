@@ -2,6 +2,7 @@
 
 from catia_mcp.com_arrays import read_array
 from catia_mcp.runtime import CADOperationError, same_object
+from catia_mcp.constraint_policy import check_constraint_command
 from catia_mcp.tools.engineering import HANDLE, NUMBER, POSITIVE, tool
 from catia_mcp.tools.operations import OperationTools, BOOL, array, group
 
@@ -26,10 +27,9 @@ class AnalysisTools(OperationTools):
             }, {"expected_material_name": HANDLE}),
             tool("catia_material_catalog", "List actual material families/items from an already open catalog document. Indices are transient and apply must include expected material name.",
                  {"catalog_document_id": HANDLE}, ["catalog_document_id"], readonly=True),
-            group("catia_dmu", "Explicit licensed DMU operations in the active Product. Creates analysis objects; does not export, save or simulate commands implicitly. Live license/API verification pending.", {
+            group("catia_dmu", "Explicit licensed DMU operations in the active Product. Creates analysis objects; does not export, save or simulate commands implicitly. New mechanisms with FixedPart anchors are disabled by policy; existing mechanisms can be inspected/operated. Live license/API verification pending.", {
                 "clash": {"clearance_mm": {"type": "number", "minimum": 0}, "interference": {"enum": [0, 1, 2, 3]}},
                 "section": {"position": array(NUMBER, 12, 12), "width_mm": POSITIVE, "height_mm": POSITIVE},
-                "mechanism": {"fixed_product_handle": HANDLE},
                 "joint": {"mechanism_handle": HANDLE, "joint_type": HANDLE, "element_handles": array(HANDLE)},
                 "command": {"mechanism_handle": HANDLE, "joint_handle": HANDLE, "command_type": HANDLE},
                 "command_values": {"mechanism_handle": HANDLE, "values": array(NUMBER)},
@@ -144,6 +144,7 @@ class AnalysisTools(OperationTools):
         return result
 
     def dmu(self, a):
+        check_constraint_command("catia_dmu", a)
         if not str(self.conn.active_document.Name).lower().endswith(".catproduct"):
             raise CADOperationError("WRONG_DOCUMENT_TYPE", "DMU tool requires active CATProduct")
         product, mode = self.conn.active_document.Product, a["mode"]
@@ -161,12 +162,7 @@ class AnalysisTools(OperationTools):
             result = self.update(product)
             result.update(handle=h, is_empty=bool(obj.IsEmpty()))
             return result
-        if mode == "mechanism":
-            fixed = self.obj(a["fixed_product_handle"], {"product"})
-            obj = product.GetTechnologicalObject("Mechanisms").Add()
-            h = self.state.mark_created(obj, "mechanism")
-            obj.FixedPart = fixed
-        else:
+        if mode in {"joint", "command", "command_values"}:
             obj = self.obj(a["mechanism_handle"], {"mechanism"})
             self.changed(a["mechanism_handle"])
             h = a["mechanism_handle"]
@@ -182,6 +178,8 @@ class AnalysisTools(OperationTools):
                 if len(a["values"]) != obj.NbCommands:
                     raise CADOperationError("INVALID_ARGUMENT", "Value count differs from mechanism command count")
                 obj.PutCommandValues(tuple(a["values"]))
+        else:
+            raise CADOperationError("INVALID_ARGUMENT", "Unknown DMU operation")
         result = self.update(obj)
         result.update(handle=h, degrees_of_freedom=int(obj.NbDof), commands=int(obj.NbCommands))
         return result

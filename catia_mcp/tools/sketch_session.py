@@ -1,5 +1,6 @@
 """Existing-sketch editing. InWorkObject is NOT proof of a UI edition state."""
 from catia_mcp.runtime import CADOperationError, same_object
+from catia_mcp.constraint_policy import check_constraint_edit
 from catia_mcp.tools.engineering import HANDLE, NUMBER, tool, dimension
 from catia_mcp.tools.operations import OperationTools
 
@@ -30,7 +31,7 @@ class SketchSessionTools(OperationTools):
                 "geometry_handle": HANDLE, "construction": {"type": "boolean"},
             }, ["geometry_handle", "construction"]),
             tool("catia_sketch_constraints", "Read exact constraint handles, types, modes, statuses and available dimension values in the bound sketch; no solver call.", {}, readonly=True),
-            tool("catia_sketch_edit_constraint", "Edit one exact existing constraint in the bound sketch: explicit dimension in mm/deg, driving/reference mode, activation, or explicit remove. Removal deletes only this constraint. Evaluate and read status; no automatic repair.", {
+            tool("catia_sketch_edit_constraint", "Edit one exact existing constraint in the bound sketch: explicit dimension in mm/deg, driving/reference mode, activation, or explicit remove. Existing Fix constraints may only be deactivated or removed. Removal deletes only this constraint. Evaluate and read status; no automatic repair.", {
                 "constraint_handle": HANDLE, "action": {"enum": ["dimension", "driving", "reference", "activate", "deactivate", "remove"]},
                 "value": NUMBER, "unit": {"enum": ["mm", "deg"]},
             }, ["constraint_handle", "action"]),
@@ -141,6 +142,7 @@ class SketchSessionTools(OperationTools):
         if len(indices) != 1:
             raise CADOperationError("INVALID_ARGUMENT", "Constraint does not belong to the bound sketch")
         action = a["action"]
+        check_constraint_edit(obj, action)
         if action != "dimension" and ("value" in a or "unit" in a):
             raise CADOperationError("INVALID_ARGUMENT", "value/unit are only valid for dimension edits")
         if action == "dimension":

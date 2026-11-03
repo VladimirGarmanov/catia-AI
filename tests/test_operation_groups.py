@@ -29,7 +29,8 @@ def test_discriminators_and_all_catalog_rows():
         assert missing and all(row["unsupported_reason"] for row in missing)
         for row in missing:
             response = server._execute_serial("catia_capability_request", {"capability_id": row["capability_id"]})
-            assert response["ok"] is False and response["status"] == "unsupported"
+            expected_status = "disabled" if row["implementation_coverage"] == "disabled_by_policy" else "unsupported"
+            assert response["ok"] is False and response["status"] == expected_status
     finally:
         server.worker.shutdown()
 

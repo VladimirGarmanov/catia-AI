@@ -7,6 +7,12 @@ Drive CATIA V5 CAD modeling from Claude Desktop, Claude Code, or local Codex usi
 Based on [daiemon12/catia-v5-mcp-server](https://github.com/daiemon12/catia-v5-mcp-server),
 with the original MIT license retained.
 
+**Constraint policy:** Fix and AutoConstraint are disabled in sketches and
+assemblies, including Fix Together and new FixedPart mechanism anchors. Existing
+Fix constraints may only be inspected, deactivated or removed. Generic UI input
+is disabled to prevent bypassing this rule; desktop snapshots remain available.
+This restricts this MCP server, not manual CATIA use. Restart clients after updating.
+
 ## What it does
 
 This MCP server registers **147 tools** (including the original 81 names).
@@ -34,7 +40,7 @@ The tool groups let Claude or Codex:
 - **Part Design** — Pad, Pocket, Shaft, Groove, Fillet, Chamfer, Hole, Shell, Draft, Thickness, Patterns (rectangular/circular), Mirror
 - **Generative Shape Design (GSD)** — 3D wireframe (points, lines, planes, splines, circles), Multi-sections Surface (loft), Sweep, Extrude, Revolve, Fill, Blend, Offset, Join, Split, Trim, Symmetry, ThickSurface/CloseSurface to solids
 - **Assembly** — occurrence tree/poses, add/import/rename/remove components,
-  Fix/Coincidence/Offset/Angle/Parallel/Perpendicular/Contact constraints and edits,
+  Coincidence/Offset/Angle/Parallel/Perpendicular/Contact constraints and edits,
   move/rotate with solved-pose readback, publications and BOM
 - **Drawing** — associative views/sections and dimensions, sheet formats/projection,
   view placement/alignment, editable text/leaders, native tables/cells/merging,
@@ -141,7 +147,7 @@ Once configured, talk to Codex:
 > "Export the current part to STEP format at C:/export/bracket.stp and take a screenshot of the isometric view."
 
 ### Assembly
-> "Create a new assembly. Add the bracket from C:/parts/bracket.CATPart and the base from C:/parts/base.CATPart. Fix the base, then create a coincidence constraint between the two."
+> "Create a new assembly. Add the bracket from C:/parts/bracket.CATPart and the base from C:/parts/base.CATPart. Create a coincidence constraint between their explicitly selected supports."
 
 ## Architecture
 
@@ -285,7 +291,7 @@ validation. See [WINDOWS_CODEX.md](WINDOWS_CODEX.md).
 |------|-------------|
 | `catia_add_component` | Add existing part to assembly |
 | `catia_add_new_part` | Create new part in assembly |
-| `catia_fix_constraint` | Fix a component in place |
+| `catia_fix_constraint` | Disabled by policy; returns OPERATION_DISABLED |
 | `catia_coincidence_constraint` | Coincidence constraint |
 | `catia_offset_constraint` | Offset constraint |
 | `catia_angle_constraint` | Angle constraint |

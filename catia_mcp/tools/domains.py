@@ -2,6 +2,7 @@
 from pathlib import Path
 
 from catia_mcp.runtime import CADOperationError, same_object
+from catia_mcp.constraint_policy import check_constraint_command
 from catia_mcp.tools.engineering import HANDLE, tool
 from catia_mcp.tools.operations import OperationTools, BOOL, array, group
 
@@ -29,7 +30,6 @@ class DomainTools(OperationTools):
                 "publish_selection": {"product_handle": HANDLE, "selection_handle": HANDLE, "name": HANDLE},
                 "bom": {"product_handle": HANDLE, "file_path": HANDLE, "format": {"enum": ["text", "html"]}, "allow_overwrite": BOOL},
                 "contact": {"first_selection_handle": HANDLE, "second_selection_handle": HANDLE},
-                "fix_together": {"product_handles": array(HANDLE, 2)},
             }),
             group("catia_knowledgeware", "Typed relations and design tables in active Part. Rule uses CreateProgram, not CreateRule. CATIA expressions only; no Python/macros.", {
                 "rule": {"name": HANDLE, "body": HANDLE},
@@ -116,20 +116,8 @@ class DomainTools(OperationTools):
         return doc.Product
 
     def assembly(self, a):
+        check_constraint_command("catia_assembly_operation", a)
         root, mode = self.product(), a["mode"]
-        if mode == "fix_together":
-            products = [self.obj(h, {"product"}) for h in a["product_handles"]]
-            try:
-                collection = root.FixTogethers
-            except Exception as exc:
-                raise CADOperationError("CAPABILITY_UNAVAILABLE", "Product.FixTogethers is not exposed by this COM release; no alternate getter is guessed") from exc
-            group_object = collection.Add()
-            h = self.state.mark_created(group_object, "fix_together")
-            for product in products:
-                group_object.AddProduct(product)
-            result = self.update(root)
-            result.update(handle=h, warning="Collection getter is release-dependent; independent relative-transform verification required")
-            return result
         if mode in {"new_product", "add_occurrence", "replace_component"}:
             parent = self.obj(a["parent_handle"], {"product"})
             if mode == "new_product":
