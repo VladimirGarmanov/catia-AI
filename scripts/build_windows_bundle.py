@@ -127,6 +127,22 @@ def main() -> int:
     try:
         manifest = install_python_runtime(temporary)
         manifest.update(install_codex(temporary))
+        # Exercise the shipped interpreter/DLLs, not just the hosted builder's
+        # Python. These checks import pywin32 and list tools; no COM calls.
+        embedded_python = RUNTIME / "python" / "python.exe"
+        subprocess.run(
+            [str(embedded_python), "-c",
+             "import sys, pythoncom, win32com.client, mcp, catia_mcp; "
+             "from pathlib import Path; "
+             "assert Path(catia_mcp.__file__).resolve() == Path(sys.argv[1]).resolve(), "
+             "'Bundled MCP is loading stale site-packages instead of project source'",
+             str(PROJECT / "catia_mcp" / "__init__.py")],
+            cwd=PROJECT, check=True, timeout=60,
+        )
+        subprocess.run(
+            [str(embedded_python), str(PROJECT / "scripts" / "check_mcp_transport.py")],
+            cwd=PROJECT, check=True, timeout=90,
+        )
     finally:
         shutil.rmtree(temporary, ignore_errors=True)
 

@@ -9,7 +9,9 @@ from scripts import install_node as node
 def make_archive(path, entries):
     with zipfile.ZipFile(path, "w") as archive:
         for name, content in entries.items():
-            archive.writestr(name, content)
+            member = zipfile.ZipInfo(name)
+            member.filename = name  # Keep deliberately unsafe raw names on Windows too.
+            archive.writestr(member, content)
 
 
 def test_install_download_verify_extract_and_reuse(tmp_path, monkeypatch):

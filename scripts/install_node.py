@@ -40,9 +40,12 @@ def extract(archive_path, destination, top_directory):
             raise RuntimeError("Node archive exceeds extraction limit")
         paths = set()
         for info in infos:
-            path = PurePosixPath(info.filename)
-            if (path.is_absolute() or ".." in path.parts or "\\" in info.filename
-                    or ":" in info.filename or not path.parts or path.parts[0] != top_directory
+            # ZipInfo.filename normalizes backslashes on Windows. Validate the
+            # actual ZIP member name before accepting that normalized path.
+            raw_name = info.orig_filename
+            path = PurePosixPath(raw_name)
+            if (path.is_absolute() or ".." in path.parts or "\\" in raw_name
+                    or ":" in raw_name or not path.parts or path.parts[0] != top_directory
                     or stat.S_ISLNK(info.external_attr >> 16)):
                 raise RuntimeError("Unsafe member in Node archive")
             relative = Path(*path.parts[1:])

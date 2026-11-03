@@ -77,8 +77,9 @@ def extract_project(archive_path: Path, destination: Path) -> Path:
         resolved_root = archive_root.resolve()
         seen = set()
         for member in members:
-            parts = PurePosixPath(member.filename).parts
-            if ("\\" in member.filename or not parts or parts[0] != archive_root.name
+            raw_name = member.orig_filename
+            parts = PurePosixPath(raw_name).parts
+            if ("\\" in raw_name or not parts or parts[0] != archive_root.name
                     or any(part in {".", ".."} or ":" in part for part in parts)):
                 raise RuntimeError("GitHub archive contains a path outside the repository root")
             key = member.filename.rstrip("/").casefold()

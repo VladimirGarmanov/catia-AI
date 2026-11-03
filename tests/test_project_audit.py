@@ -136,6 +136,8 @@ def test_update_rejects_unsafe_windows_archive_paths(tmp_path, names):
     archive = tmp_path / "source.zip"
     with zipfile.ZipFile(archive, "w") as stream:
         for name in names:
-            stream.writestr(name, "data")
+            member = zipfile.ZipInfo(name)
+            member.filename = name  # Do not let the test writer normalize the attack.
+            stream.writestr(member, "data")
     with pytest.raises(RuntimeError):
         updater.extract_project(archive, tmp_path / "unpacked")

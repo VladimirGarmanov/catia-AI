@@ -44,6 +44,8 @@ fallback, session/replay, client launchers и PDF/image preparation. Покры�
    подпапках; отвергает некорректные архивные пути и linked targets. Неизменённые
    файлы не переписываются. При ошибке копирования восстанавливаются заменённые
    файлы. Старые/лишние файлы автоматически не удаляются.
+   Node installer и UPDATE проверяют raw ZIP member names: Windows-normalization
+   в ZipInfo.filename не скрывает обратные слеши от проверки.
 6. Ошибка установки зависимостей теперь завершает UPDATE ненулевым кодом.
    Новые файлы остаются, поскольку pip не транзакционный; `.local/dependencies-pending`
    обеспечивает повтор этой стадии при следующем запуске. Успешный INSTALL
@@ -56,6 +58,8 @@ fallback, session/replay, client launchers и PDF/image preparation. Покры�
    пакета. Исправлены устаревшие тесты, неиспользуемые imports/variables.
    Offline-тесты отключают реальный COM даже на Windows; тест COM-подключения
    явно заменяет pywin32 двойниками. CI дополнен lint/pip check/registration.
+   Windows builder проверяет импорт DLL pywin32, источник catia_mcp и stdio
+   discovery именно встроенным Python до упаковки EXE, без подключения к CATIA.
 
 ## Upgrading
 
