@@ -10,6 +10,7 @@ import os
 import shutil
 import stat
 import subprocess
+import sys
 import tempfile
 import urllib.request
 import uuid
@@ -17,6 +18,11 @@ import zipfile
 from pathlib import Path, PurePosixPath
 
 ROOT = Path(__file__).resolve().parents[1]
+# Embedded Python does not add the script directory to sys.path. Resolve the
+# same current project source as the launcher, not a stale installed copy.
+sys.path.insert(0, str(ROOT))
+from scripts.project_layout import retired_files
+
 ARCHIVE_URL = "https://github.com/VladimirGarmanov/catia-AI/archive/refs/heads/main.zip"
 PROTECTED_DIRECTORIES = {
     ".git", ".venv", ".local", "runtime", "traffic", "dist", "build",
@@ -123,6 +129,17 @@ def apply_update(source_root: Path, backup_root: Path) -> int:
     token = uuid.uuid4().hex
     dependency_metadata_changed = False
     try:
+        # Older UPDATE.cmd/Python copies also remain usable: on their first
+        # update START_AI/INSTALL will perform the same bounded cleanup.
+        if (source_root / "WINDOWS.md").is_file():
+            retired = [(target, relative) for target, relative in retired_files(ROOT)
+                       if not (source_root / relative).exists()]
+            for target, relative in retired:
+                backup = backup_root / relative
+                backup.parent.mkdir(parents=True, exist_ok=True)
+                shutil.copy2(target, backup)
+                changed.append((target, backup))
+                target.unlink()
         for source, relative in project_files(source_root):
             target = ROOT / relative
             candidate = target

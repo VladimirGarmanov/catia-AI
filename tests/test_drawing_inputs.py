@@ -1,6 +1,10 @@
 """Real PDF rasterization tests; never start Codex or call CATIA."""
 
 import pytest
+import sys
+from pathlib import Path
+from types import SimpleNamespace
+from unittest.mock import Mock
 
 from scripts import drawing_inputs as drawing
 
@@ -102,3 +106,12 @@ def test_large_image_is_bounded(tmp_path):
         image.save(source)
     with Image.open(drawing.prepare_drawing(source, tmp_path / "out")[0]) as image:
         assert max(image.size) <= drawing.MAX_SIDE
+
+
+def test_batch_picker_keeps_selection_order_and_closes_window(monkeypatch):
+    window = Mock()
+    picker = Mock(return_value=("C:/drawings/one.pdf", "C:/drawings/two.CATPart"))
+    module = SimpleNamespace(Tk=lambda: window, filedialog=SimpleNamespace(askopenfilenames=picker))
+    monkeypatch.setitem(sys.modules, "tkinter", module)
+    assert drawing.choose_drawings() == [Path("C:/drawings/one.pdf"), Path("C:/drawings/two.CATPart")]
+    window.destroy.assert_called_once()

@@ -55,7 +55,10 @@ def test_bundled_clients_use_the_updated_source_not_site_packages(tmp_path):
     python = tmp_path / "runtime/python/python.exe"
     python.parent.mkdir(parents=True)
     python.touch()
-    from scripts.configure_codex_agents import tomllib
+    try:
+        import tomllib
+    except ImportError:
+        import tomli as tomllib
     overrides = tomllib.loads("\n".join(launcher.session_overrides(root)[1::2]))
     expected = [str(root / "scripts/mcp_entry.py")]
     full = overrides["mcp_servers"]["catia-v5"]

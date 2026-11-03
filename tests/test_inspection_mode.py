@@ -11,7 +11,6 @@ from mcp.types import CallToolRequest, CallToolRequestParams, ListToolsRequest
 
 import catia_mcp.connection as connection_module
 from catia_mcp.server import CATIAMCPServer, INSPECTION_TOOL_NAMES
-from scripts.configure_codex_agents import ROLE_ACCESS, configure_agents, render_agent_config
 
 try:
     import tomllib
@@ -22,7 +21,7 @@ except ImportError:
 def test_inspection_server_only_lists_explicit_tools():
     full = CATIAMCPServer()
     inspection = CATIAMCPServer(inspection_only=True)
-    assert len(full._tool_router) == 147
+    assert len(full._tool_router) == 151
     assert set(inspection._tool_router) == INSPECTION_TOOL_NAMES
     assert inspection.connection.allow_launch is False
 
@@ -92,40 +91,3 @@ def test_portable_agents_load_without_incomplete_mcp_stubs():
     project = tomllib.loads((root / ".codex" / "config.toml").read_text(
         encoding="utf-8"))
     assert project["agents"]["enabled"] is True
-
-
-def test_windows_role_generation_is_complete_idempotent_and_preserves_main_config(tmp_path):
-    root = Path(__file__).resolve().parents[1]
-    agent_dir = tmp_path / ".codex" / "agents"
-    agent_dir.mkdir(parents=True)
-    config = tmp_path / ".codex" / "config.toml"
-    original = b"[agents]\nenabled = true\n"
-    config.write_bytes(original)
-    python_path = tmp_path / ".venv" / "Scripts" / "python.exe"
-    python_path.parent.mkdir(parents=True)
-    python_path.touch()
-    for role in ROLE_ACCESS:
-        source = (root / ".codex" / "agents" / f"{role}.toml").read_text(encoding="utf-8")
-        (agent_dir / f"{role}.toml").write_text(source, encoding="utf-8")
-
-    configure_agents(tmp_path, python_path)
-    first = {path.name: path.read_bytes() for path in agent_dir.glob("*.toml")}
-    configure_agents(tmp_path, python_path)
-    assert first == {path.name: path.read_bytes() for path in agent_dir.glob("*.toml")}
-    assert config.read_bytes() == original
-    for role, (writer, inspector) in ROLE_ACCESS.items():
-        agent = tomllib.loads((agent_dir / f"{role}.toml").read_text(encoding="utf-8"))
-        servers = agent["mcp_servers"]
-        assert servers["catia-v5"]["enabled"] is writer
-        assert servers["catia-v5-inspect"]["enabled"] is inspector
-        assert servers["catia-v5"]["command"] == str(python_path.resolve())
-        assert servers["catia-v5-inspect"]["args"] == [
-            "-m", "catia_mcp", "--inspection-only"]
-
-
-def test_role_generator_preserves_manual_mcp_configuration():
-    with pytest.raises(ValueError, match="refusing to overwrite"):
-        render_agent_config(
-            '[mcp_servers.custom]\ncommand = "custom"\n',
-            "cad_verifier", Path("python.exe"),
-        )

@@ -2,9 +2,10 @@
 
 @AGENTS.md
 
-The CATIA operating rules in AGENTS.md apply equally to Claude Code. Work as one
-agent through the full `catia-v5` MCP. Do not start Codex, subagents, installers,
-or direct COM scripts during a modeling request. Another client must not write
+The CATIA operating rules in AGENTS.md apply equally to Claude Code. The main
+agent is the only CATIA caller through the full `catia-v5` MCP. START_AI.cmd's Team mode
+or an explicit user team request enables parallel offline planning workers; see
+TEAM_WORKFLOW.md. Do not start Codex, installers or direct COM scripts during modeling. Another client must not write
 to the same CATIA instance concurrently.
 
 For an existing feature/body/sketch name, use `catia_rename_object` with a fresh

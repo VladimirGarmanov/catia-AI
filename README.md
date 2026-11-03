@@ -1,361 +1,107 @@
-# CATIA AI — CATIA V5 MCP Server
+# CATIA AI
 
-> Connect Claude or local Codex to Dassault Systemes CATIA V5 via the Model Context Protocol (MCP).
+CATIA V5 MCP server for **Codex and Claude Code** on Windows. The AI client
+reads drawings and calls typed Python tools; the server talks to CATIA through
+pywin32/COM. No separate paid AI API is embedded in the server.
 
-Drive CATIA V5 CAD modeling from Claude Desktop, Claude Code, or local Codex using natural language.
+## Start on Windows
 
-Based on [daiemon12/catia-v5-mcp-server](https://github.com/daiemon12/catia-v5-mcp-server),
-with the original MIT license retained.
+Download the project ZIP from [catia-AI](https://github.com/VladimirGarmanov/catia-AI),
+extract it, and open **INSTALL.cmd**. Choose Codex, Claude Code, or both.
+Then open CATIA and **START_AI.cmd**. Python, Node when needed, and the selected
+client are installed locally; Git and administrator rights are not required.
+Network and organization restrictions still apply.
 
-**Constraint policy:** Fix and AutoConstraint are disabled in sketches and
-assemblies, including Fix Together and new FixedPart mechanism anchors. Existing
-Fix constraints may only be inspected, deactivated or removed. Generic UI input
-is disabled to prevent bypassing this rule; desktop snapshots remain available.
-This restricts this MCP server, not manual CATIA use. Restart clients after updating.
+| Entry point | Purpose |
+| --- | --- |
+| `INSTALL.cmd` | Install or repair dependencies and selected clients |
+| `START_AI.cmd` | Choose client and work mode |
+| `UPDATE.cmd` | Update project files from published GitHub main |
+| `DIAGNOSE.cmd` | Check client configuration and MCP transport |
 
-## What it does
+**One launch menu:** Chat, One drawing, Multiple files + planning team, or
+Codex Astra-to-Luna drawing handoff. No separate launcher for each combination.
+The full EXE installer opens the same menu through one CATIA AI shortcut.
 
-This MCP server registers **147 tools** (including the original 81 names).
+Full instructions in Russian: **[WINDOWS.md](WINDOWS.md)**.
+Ready-to-copy demonstrations: **[DEMO_PROMPTS.md](DEMO_PROMPTS.md)**.
 
-Version **0.2.1** includes the full offline audit and installation/update fixes.
-See [audit results and Windows checks](PROJECT_AUDIT.md) and
-[pattern contracts](PATTERNS.md). Offline checks are not live geometry validation.
+## Working with CATIA
 
-Assembly/Drawing extensions: [operations and limitations](ASSEMBLY_DRAWING.md).
-Source ZIP installation now supports **both Codex and Claude Code**:
-`INSTALL.cmd`, then `START_AI.cmd` to choose one client. See
-[Windows client setup](WINDOWS_CLAUDE.md). Only one client may write to a CATIA
-instance at a time; the two clients do not share conversation or a COM lock.
+Read the drawing and active model/selection, resolve missing dimensions, then
+execute one feature at a time through MCP. Update and measure the result.
+Screenshots are useful at meaningful checkpoints, not after every primitive.
+The agent does not infer invisible dimensions or overwrite CAD files without
+an explicit path and instruction.
 
-CAA reference migration and existing-sketch editing: see [CAA_MIGRATION.md](CAA_MIGRATION.md).
-The runtime uses direct pywin32 COM, not pycatia. New API research uses the
-downloaded CAA V5 Automation reference; the old 218-entry catalog is legacy coverage metadata.
-Registration is not live CATIA validation. See [implementation status](IMPLEMENTATION_STATUS.md)
-for the implemented subset of the supplied 218-capability catalog and remaining gaps.
+The current server registers **151 full tools**; the separate inspection mode
+exposes 13. Tool count describes registration, not full native GUI coverage or
+live Windows validation. Available groups include document/model context,
+Sketcher, Part Design, GSD, assembly, drafting, measurement, and exports.
+Read each tool's current schema rather than relying on an old copied tool list.
 
-The tool groups let Claude or Codex:
+- [Multiple files and agents](TEAM_WORKFLOW.md): independent planning tasks,
+  one coordinator making all CATIA calls serially; explicit document switching.
+- [Sketch constraint checks](SKETCH_CONSTRAINT_STATUS.md): constraint health and
+  update state; unknown whole-sketch DOF is never reported as fully constrained.
+- [Assembly and drawing](ASSEMBLY_DRAWING.md), [patterns](PATTERNS.md),
+  [renaming](NAMING.md): scoped operations and live-check requirements.
+- [Implementation status](IMPLEMENTATION_STATUS.md): coverage and known limits.
+- [Saving and the tool backlog](SAVE_AND_TOOL_GAPS.md): verified native saves
+  and a local missing-tools journal; UI input remains disabled.
+- [Agent operating rules](AGENTS.md): document identity, fresh references,
+  failure handling and the ban on Fix/AutoConstraint. Desktop input is disabled;
+  read-only snapshots remain available.
 
-- **Create and manage documents** — new Part, Product (assembly), open, save, close
-- **2D Sketching** — lines, rectangles, circles, arcs, splines, points, constraints
-- **Part Design** — Pad, Pocket, Shaft, Groove, Fillet, Chamfer, Hole, Shell, Draft, Thickness, Patterns (rectangular/circular), Mirror
-- **Generative Shape Design (GSD)** — 3D wireframe (points, lines, planes, splines, circles), Multi-sections Surface (loft), Sweep, Extrude, Revolve, Fill, Blend, Offset, Join, Split, Trim, Symmetry, ThickSurface/CloseSurface to solids
-- **Assembly** — occurrence tree/poses, add/import/rename/remove components,
-  Coincidence/Offset/Angle/Parallel/Perpendicular/Contact constraints and edits,
-  move/rotate with solved-pose readback, publications and BOM
-- **Drawing** — associative views/sections and dimensions, sheet formats/projection,
-  view placement/alignment, editable text/leaders, native tables/cells/merging,
-  non-associative 2D geometry and dimension presentation
-- **Measurement** — area/volume, partial inertia, parameters; exact bounding box remains unsupported
-- **Export** — STEP, IGES, STL, 3DXML, VRML, screenshots
-- **View control** — set standard views, fit all, capture screenshots
-- **Current context** — inspect the active model and CATIA selection
-- **Rename existing objects** — `catia_rename_object` changes whole tree objects
-  (features, sketches, bodies, GSD objects and supported assembly/drawing objects)
-  by handle, with ownership checks and name readback. It preserves sketch edition
-  and does not rebuild geometry or rename files. See [naming](NAMING.md).
-- **Handle-based engineering** — explicit containers, reference planes/points, Rib/Slot,
-  solid lofts, body booleans, typed parameters/formulas and API-catalog lookup
+Run only one CAD-writing client at a time. Multiple MCP processes do not share
+an interprocess CATIA lock. Parallel agents analyze supplied context; they do
+not independently drive the same CATIA session.
 
-COM access is serialized on one STA worker. Read model state before existing-document
-writes; use its document ID/revision and a unique request ID. Handles are session-local,
-not durable topology IDs. Failed/uncertain writes require inspection, not blind retries.
+Example request:
 
-## Requirements
+> Создай кронштейн по приложенному чертежу в новой детали; размеры, которых
+> не видно, сначала уточни. Ничего не сохраняй без моего указания пути.
 
-- **Windows** (COM automation is Windows-only)
-- **CATIA V5** installed and licensed; release/workbench support needs validation on the target machine
-- **Claude Desktop**, **Claude Code**, or local **Codex**
+## Project layout
 
-## Windows one-file installer
+| Path | Responsibility |
+| --- | --- |
+| `scripts/windows_launcher.py` | Shared installation, launch menus and diagnostics |
+| `scripts/install_node.py`, `scripts/update_project.py` | Local runtime download and source update |
+| `scripts/drawing_inputs.py`, `scripts/drawing_handoff.py`, `scripts/cad_team.py` | Drawing preparation and planning context |
+| `catia_mcp/server.py` | MCP schema registration and dispatch |
+| `catia_mcp/runtime.py`, `catia_mcp/connection.py` | Serialized COM operations and session state |
+| `catia_mcp/tools/` | Typed CATIA operations |
+| `CATIA_AGENT_CODEX_PACKAGE/` | API reference data used by the server |
+| `.codex/agents/` | Optional offline planning/review roles |
+| `installer/`, `scripts/build_windows_bundle.py` | Full Windows installer build |
+| `tests/` | Offline contract and mock checks |
 
-The GitHub Actions workflow `Build CATIA AI Windows installer` creates a
-self-contained x64 `CATIA-AI-Setup.exe`. It bundles the native Codex CLI,
-portable Python 3.13.3, this MCP server, and its dependencies. Claude Code is
-an optional online installation step/shortcut, not a bundled binary. End users do not
-need to install Node, Python, Git, or use PowerShell. It installs per-user and
-does not change PATH. First Codex use still requires ChatGPT sign-in, and CATIA
-V5 must already be installed and licensed.
+Runtime and user task data live in `.venv` / `.local`. The launcher does not
+rewrite `.codex/config.toml` or global client settings. Retired entry points are
+removed by a bounded migration; no archive folder or second source tree is kept.
 
-Run the workflow from GitHub **Actions**, download its
-`CATIA-AI-Windows-Installer` artifact, extract it, and launch
-`CATIA-AI-Setup.exe`. A Windows x64 GitHub Actions runner is required to build
-the package; Python MCP development can continue offline on macOS. Workflow
-artifacts expire after 30 days; they are not a permanent public release.
+## Development on Mac or Windows
 
-For local **Codex on Windows**, see [WINDOWS_CODEX.md](WINDOWS_CODEX.md). The
-one-file installer is the easiest route. A source ZIP also supports
-`INSTALL.cmd` followed by `START_AI.cmd`; that developer route reuses existing
-Python/Node/CLIs or installs missing runtimes locally. Windows x64 Python bootstrap
-is automatic; no portable Node file picker is required.
-Neither route changes PowerShell policy or requires Git/admin rights.
-After either route is installed, `UPDATE.cmd` downloads and applies the latest
-project files in place, preserving the local runtime and Codex config. It needs
-GitHub access; bundled runtime dependencies are updated by installing a newer EXE.
-`DIAGNOSE.cmd` creates a report without calling CATIA tools.
-Bundled launches now explicitly load the project's updated MCP source instead
-of an older pip-installed copy. An incomplete dependency update returns failure
-and is retried on the next update. See [upgrade notes](PROJECT_AUDIT.md#upgrading).
-The CATIA connection still requires Windows COM automation.
-For the source ZIP, double-click `INSTALL.cmd`: missing Python (Windows x64),
-Node, Codex and Claude Code are installed locally without a Node file picker or global PATH edits.
-Python's publisher signature and Node's official SHA-256 are checked. Institutional
-network/application restrictions are not bypassed. Clean-Windows bootstrap validation
-is still pending; see [WINDOWS_CODEX.md](WINDOWS_CODEX.md).
-The default is **one client agent with all 147 tools**: it reads the drawing and
-selection, plans, models and verifies the result itself. No subagent is required.
-`START_WITH_DRAWING.cmd` opens a PNG/JPEG/PDF picker; PDF pages are rendered locally
-and attached as images (optional `drawings` dependencies installed by INSTALL).
-Launchers use session-only configuration overrides: full MCP enabled, inspection
-transport and subagents disabled. User/project config files are not rewritten.
-Agent-role configurations are not used by this workflow.
-Offline tests do not validate live CATIA geometry or COM behavior.
+Python 3.10+ is required. From the project folder on macOS:
 
-## Developer installation
-
-### 1. Clone the repository
-
-```bash
-git clone https://github.com/VladimirGarmanov/catia-AI.git
-cd catia-AI
+```sh
+python3 -m venv .venv
+.venv/bin/python -m pip install -e '.[dev,drawings]'
+.venv/bin/python -m pytest -q
+.venv/bin/python test_server.py
 ```
 
-### 2. Install dependencies
+`pywin32` is installed only on Windows. Mac supports offline development,
+reference lookup and mocked tests; it cannot validate CATIA COM geometry.
+Never run live modeling probes against a user's working document.
 
-```bash
-pip install -e .
-```
+The Windows bundle is built by `.github/workflows/windows-installer.yml` with
+`scripts/build_windows_bundle.py` and Inno Setup. A successful installer build
+or stdio discovery is not proof of live CATIA operation.
 
-### 3. Windows modeling
+## License and origins
 
-Use `INSTALL.cmd`, open CATIA, then `START_CATIA_AI.cmd`.
-See [WINDOWS_CODEX.md](WINDOWS_CODEX.md). macOS supports offline development only.
-
-## Usage Examples
-
-Once configured, talk to Codex:
-
-### Create a simple part
-> "Create a new CATIA part. Draw a 100x60mm rectangle centered at the origin on the XY plane, then extrude it 40mm."
-
-### Design a bracket
-> "Design a mounting bracket: start with a 120x80mm base plate, 5mm thick. Add 4 M6 mounting holes at the corners with 10mm edge distance. Then add two vertical ribs 30mm tall."
-
-### Parametric modification
-> "Show me all parameters of the active part. Then change the pad height to 60mm."
-
-### Export for manufacturing
-> "Export the current part to STEP format at C:/export/bracket.stp and take a screenshot of the isometric view."
-
-### Assembly
-> "Create a new assembly. Add the bracket from C:/parts/bracket.CATPart and the base from C:/parts/base.CATPart. Create a coincidence constraint between their explicitly selected supports."
-
-## Architecture
-
-```
-catia-v5-mcp-server/
-├── catia_mcp/
-│   ├── __init__.py
-│   ├── __main__.py          # python -m catia_mcp entry point
-│   ├── server.py            # MCP Server — tool registration & routing
-│   ├── connection.py        # COM connection manager (win32com)
-│   └── tools/
-│       ├── __init__.py
-│       ├── document.py      # Document management (9 tools)
-│       ├── context.py       # Active model, selection, feature update (3 tools)
-│       ├── sketcher.py      # 2D Sketch tools (15 tools)
-│       ├── part_design.py   # 3D Part Design features (15 tools)
-│       ├── gsd.py           # Generative Shape Design — wireframe & surfaces (24 tools)
-│       ├── assembly.py      # Assembly/Product tools (9 tools)
-│       ├── measurement.py   # Measurement & analysis (6 tools)
-│       └── export.py        # Export & view control (4 tools)
-├── pyproject.toml
-├── requirements.txt
-└── README.md
-```
-
-### How it works
-
-```
-Claude or local Codex
-    │
-    │ stdio (MCP JSON-RPC)
-    ▼
-catia_mcp/server.py (MCP Server)
-    │
-    │ Tool routing
-    ▼
-catia_mcp/tools/*.py (Tool modules)
-    │
-    │ win32com.client (COM Automation)
-    ▼
-CATIA V5 Application
-```
-
-1. The MCP client sends tool calls over stdio
-2. The server routes each call to the appropriate tool module
-3. Each tool module uses `win32com.client` to drive CATIA V5 via COM
-4. Results (text, JSON, or screenshot image content) are returned to the client
-
-## Tool Reference
-
-### Current Context Tools (3)
-| Tool | Description |
-|------|-------------|
-| `catia_get_selection` | Read current selection count, types/names, owning documents, and available feature dimensions |
-| `catia_get_model_state` | Read active document, bodies/sketches/features or components, parameters, and selection |
-| `catia_update_selected_feature` | Update exactly one selected CATPart feature/sketch through its live COM object; does not save |
-
-Selection names and positions are transient observations, not exact face or edge IDs.
-The legacy `catia_list_edges` does not provide a stable topology resolver; it now
-returns an explicit unsupported-capability error without clearing the user's
-selection. Exact selected face/edge operations still require live Windows
-validation. See [WINDOWS_CODEX.md](WINDOWS_CODEX.md).
-
-### Document Tools (9)
-| Tool | Description |
-|------|-------------|
-| `catia_connect` | Connect to CATIA V5 |
-| `catia_disconnect` | Disconnect from CATIA V5 |
-| `catia_new_part` | Create a new Part document |
-| `catia_new_product` | Create a new Product (assembly) |
-| `catia_open_document` | Open an existing document |
-| `catia_save_document` | Save As to an explicit path; overwrite requires opt-in |
-| `catia_close_document` | Close active document without saving |
-| `catia_list_documents` | List all open documents |
-| `catia_get_active_document_info` | Get detailed info about active document |
-
-### Sketcher Tools (11)
-| Tool | Description |
-|------|-------------|
-| `catia_create_sketch` | Create sketch on XY/YZ/ZX plane |
-| `catia_close_sketch` | Close sketch, return to Part Design |
-| `catia_sketch_line` | Draw a line |
-| `catia_sketch_rectangle` | Draw a rectangle (2 corners) |
-| `catia_sketch_centered_rectangle` | Draw a centered rectangle |
-| `catia_sketch_circle` | Draw a circle |
-| `catia_sketch_arc` | Draw an arc |
-| `catia_sketch_spline` | Draw a spline through points |
-| `catia_sketch_point` | Create a point |
-| `catia_sketch_constraint` | Add dimensional/geometric constraint |
-| `catia_sketch_get_geometry` | List sketch geometry elements |
-
-### Part Design Tools (15)
-| Tool | Description |
-|------|-------------|
-| `catia_pad` | Pad (extrusion) |
-| `catia_pocket` | Pocket (cut extrusion) |
-| `catia_shaft` | Shaft (revolution) |
-| `catia_groove` | Groove (revolution cut) |
-| `catia_fillet` | Fillet (edge rounding) |
-| `catia_chamfer` | Chamfer (edge bevel) |
-| `catia_hole` | Hole (simple, counterbored, countersunk) |
-| `catia_rect_pattern` | Rectangular pattern |
-| `catia_circ_pattern` | Circular pattern |
-| `catia_mirror` | Mirror about a plane |
-| `catia_shell` | Shell (hollow out) |
-| `catia_draft` | Draft angle |
-| `catia_thickness` | Thickness offset |
-| `catia_list_features` | List features in body |
-| `catia_list_edges` | Reports that exact edge enumeration/addressing is not yet supported |
-
-### Generative Shape Design Tools (24)
-| Tool | Description |
-|------|-------------|
-| `catia_gsd_create_geoset` | Create a Geometrical Set and make it active |
-| `catia_gsd_set_active_geoset` | Select the target Geometrical Set |
-| `catia_gsd_list_elements` | List geosets, wireframe/surface elements, sketches |
-| `catia_gsd_point` | 3D point at (x, y, z) |
-| `catia_gsd_line` | 3D line between two points |
-| `catia_gsd_plane_offset` | Plane offset from a reference plane |
-| `catia_gsd_plane_3points` | Plane through three points |
-| `catia_gsd_spline` | 3D spline through points |
-| `catia_gsd_circle` | 3D circle on a support plane |
-| `catia_gsd_project` | Project a curve/point onto a support |
-| `catia_gsd_intersection` | Intersection of two elements |
-| `catia_gsd_multi_section_surface` | Multi-sections Surface (loft) through sections + guides |
-| `catia_gsd_sweep` | Swept surface (profile along guide) |
-| `catia_gsd_extrude` | Extruded surface along a direction |
-| `catia_gsd_revolve` | Surface of revolution around an axis |
-| `catia_gsd_fill` | Fill surface from boundary curves |
-| `catia_gsd_blend` | Blend surface between two curves |
-| `catia_gsd_offset_surface` | Offset surface |
-| `catia_gsd_join` | Join curves/surfaces into one element |
-| `catia_gsd_split` | Split an element by a cutter |
-| `catia_gsd_trim` | Mutual trim of two elements |
-| `catia_gsd_symmetry` | Mirror an element about a plane |
-| `catia_gsd_thick_surface` | Surface → solid by thickness (Part Design) |
-| `catia_gsd_close_surface` | Closed surface → solid (Part Design) |
-
-### Assembly Tools (9)
-| Tool | Description |
-|------|-------------|
-| `catia_add_component` | Add existing part to assembly |
-| `catia_add_new_part` | Create new part in assembly |
-| `catia_fix_constraint` | Disabled by policy; returns OPERATION_DISABLED |
-| `catia_coincidence_constraint` | Coincidence constraint |
-| `catia_offset_constraint` | Offset constraint |
-| `catia_angle_constraint` | Angle constraint |
-| `catia_move_component` | Move/rotate a component |
-| `catia_list_components` | List assembly components |
-| `catia_list_constraints` | List assembly constraints |
-
-### Measurement Tools (6)
-| Tool | Description |
-|------|-------------|
-| `catia_measure_distance` | Measure distance between elements |
-| `catia_get_inertia` | Volume, area, mass, center of gravity |
-| `catia_get_bounding_box` | Bounding box dimensions |
-| `catia_get_parameters` | List all parameters |
-| `catia_set_parameter` | Modify a parameter value |
-| `catia_update_part` | Force rebuild |
-
-### Export Tools (4)
-| Tool | Description |
-|------|-------------|
-| `catia_export` | Export to STEP/IGES/STL/3DXML/VRML |
-| `catia_screenshot` | Save 3D view and return MCP image content (viewer pixel size) |
-| `catia_set_view` | Set view orientation |
-| `catia_fit_all` | Fit all in view |
-
-## Troubleshooting
-
-### "pywin32 is not installed"
-```bash
-pip install pywin32
-```
-This server requires Windows. It will not work on macOS or Linux.
-
-### "Failed to connect to CATIA V5"
-1. Make sure CATIA V5 is running
-2. Register CATIA as COM server: navigate to `C:\Program Files\Dassault Systemes\B<version>\<os>\code\bin\` and run `cnext.exe /regserver`
-3. Check that no modal dialog is blocking CATIA
-
-### "No active document"
-Create or open a document first using `catia_new_part` or `catia_open_document`.
-
-### COM ByRef array limitations
-Some measurement methods may not work with late binding. Report the exact COM
-error and verify the documented SAFEARRAY contract on Windows; do not switch
-backends or execute scripts as an automatic fallback.
-
-## Contributing
-
-This project is open-source. See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines. Contributions welcome:
-
-- **Drawing** tools (2D drafting)
-- **Knowledgeware** (formulas, rules, check)
-- **CAA Automation coverage** with typed raw-COM adapters and live Windows verification
-- **Tests** with COM mocking
-- **3DEXPERIENCE** CATIA support
-
-## License
-
-MIT
-
-## Credits
-
-Inspired by:
-- [SolidWorks-MCP](https://github.com/Sam-Of-The-Arth/SolidWorks-MCP)
-- [freecad-mcp](https://github.com/contextform/freecad-mcp)
-- [abaqus-mcp-server](https://github.com/jianzhichun/abaqus-mcp-server)
-- [pycatia](https://github.com/evereux/pycatia)
+MIT — see [LICENSE](LICENSE). Based on
+[daiemon12/catia-v5-mcp-server](https://github.com/daiemon12/catia-v5-mcp-server).
+CATIA is a Dassault Systèmes product; Codex and Claude are separate clients.

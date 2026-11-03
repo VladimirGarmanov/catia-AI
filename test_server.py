@@ -49,6 +49,7 @@ def check_tool_definitions():
     from catia_mcp.tools.v5_reference import V5ReferenceTools
     from catia_mcp.tools.shape_factory import ShapeFactoryTools, VolumeFactoryTools
     from catia_mcp.tools.desktop import DesktopTools
+    from catia_mcp.tools.workspace import WorkspaceTools
 
     conn = CATIAConnection()
     engineering = EngineeringTools(conn, SessionState(conn), SketcherTools(conn))
@@ -75,6 +76,7 @@ def check_tool_definitions():
         "ShapeFactory Advanced": ShapeFactoryTools(engineering),
         "Volume ShapeFactory": VolumeFactoryTools(engineering),
         "Desktop": DesktopTools(conn, engineering.state),
+        "Workspace": WorkspaceTools(engineering),
     }
 
     total_tools = 0
@@ -82,13 +84,14 @@ def check_tool_definitions():
     expected_counts = {
         "Document": 9, "Context": 3, "Sketcher": 15, "Part Design": 15,
         "GSD": 24, "Assembly": 9, "Measurement": 6, "Export": 4,
-        "Engineering": 13, "Capabilities": 2,
+        "Engineering": 13, "Capabilities": 3,
         "Advanced Geometry": 5, "Domains": 5, "Drafting": 6,
         "Assembly Management": 4, "Drawing Management": 7,
         "Analysis": 5, "Sketch Operations": 4,
-        "Sketch Session": 5, "V5 Reference": 2,
+        "Sketch Session": 6, "V5 Reference": 2,
         "ShapeFactory Advanced": 1, "Volume ShapeFactory": 1,
         "Desktop": 2,
+        "Workspace": 2,
     }
 
     for module_name, module in modules.items():

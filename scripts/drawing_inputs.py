@@ -12,6 +12,30 @@ MAX_SIDE = 4096
 MAX_FILE_BYTES = 50 * 1024 * 1024
 
 
+def choose_paths_in_terminal(*, multiple: bool) -> list[Path]:
+    """Embedded Python may lack Tk; keep the same launcher usable without it."""
+    print("File picker unavailable. Paste a file path (Explorer: Copy as path).")
+    print("One path per line; empty line finishes, 0 cancels." if multiple
+          else "Empty line or 0 cancels.")
+    paths = []
+    while True:
+        try:
+            value = input("File path: ").strip()
+        except (EOFError, KeyboardInterrupt):
+            return []
+        if value == "0":
+            return []
+        if not value:
+            return paths
+        if len(value) >= 2 and value[0] == value[-1] == '"':
+            value = value[1:-1]
+        if not value:
+            continue
+        paths.append(Path(value))
+        if not multiple:
+            return paths
+
+
 def choose_drawing() -> Path | None:
     try:
         import tkinter
@@ -25,10 +49,30 @@ def choose_drawing() -> Path | None:
                 filetypes=[("Drawings", "*.png *.jpg *.jpeg *.pdf")])
         finally:
             window.destroy()
-    except Exception as exc:
-        raise ValueError("File picker unavailable. Use windows_launcher.py start "
-                         "--drawing PATH, or paste a PNG into START_CATIA_AI.cmd's chat.") from exc
+    except Exception:
+        paths = choose_paths_in_terminal(multiple=False)
+        return paths[0] if paths else None
     return Path(selected) if selected else None
+
+
+def choose_drawings() -> list[Path]:
+    """Choose one ordered input batch without opening CAD documents."""
+    try:
+        import tkinter
+        from tkinter import filedialog
+
+        window = tkinter.Tk()
+        window.withdraw()
+        try:
+            selected = filedialog.askopenfilenames(
+                title="Select team inputs (drawings and CATIA documents)",
+                filetypes=[("CAD task inputs", "*.png *.jpg *.jpeg *.pdf *.CATPart *.CATProduct *.CATDrawing"),
+                           ("All files", "*.*")])
+        finally:
+            window.destroy()
+    except Exception:
+        return choose_paths_in_terminal(multiple=True)
+    return [Path(item) for item in selected]
 
 
 def prepare_drawing(source: Path, output_root: Path) -> list[Path]:

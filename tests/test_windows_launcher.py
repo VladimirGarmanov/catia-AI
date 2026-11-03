@@ -7,6 +7,7 @@ import json
 import os
 import shutil
 import subprocess
+import sys
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -14,7 +15,10 @@ import pytest
 
 from scripts import windows_launcher as launcher
 from scripts.check_mcp_transport import probe_transports
-from scripts.configure_codex_agents import ROLE_ACCESS, configure_agents, render_agent_config
+try:
+    import tomllib
+except ImportError:
+    import tomli as tomllib
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -25,54 +29,29 @@ def prepared_project(tmp_path):
     python.touch()
     agents = tmp_path / ".codex" / "agents"
     agents.mkdir(parents=True)
-    for role in ROLE_ACCESS:
-        shutil.copyfile(ROOT / ".codex" / "agents" / f"{role}.toml", agents / f"{role}.toml")
+    for role_file in (ROOT / ".codex" / "agents").glob("*.toml"):
+        shutil.copyfile(role_file, agents / role_file.name)
     (tmp_path / ".codex" / "config.toml").write_bytes(b"# user settings\n[agents]\nenabled=true\n")
     return python
 
 
-def test_role_validation_and_backup_preserve_root_config(tmp_path):
-    python = prepared_project(tmp_path)
-    source = (tmp_path / ".codex" / "agents" / "cad_executor.toml").read_bytes()
-    config = (tmp_path / ".codex" / "config.toml").read_bytes()
-    configure_agents(tmp_path, python)
-    assert len(list((tmp_path / ".codex" / "agents").glob("*.toml"))) == len(ROLE_ACCESS)
-    backup = tmp_path / ".local" / "role-backups" / "cad_executor.toml"
-    assert backup.read_bytes() == source
-    configure_agents(tmp_path, python)
-    assert backup.read_bytes() == source
-    assert (tmp_path / ".codex" / "config.toml").read_bytes() == config
+def test_roles_do_not_claim_independent_mcp_access():
+    for role_file in (ROOT / ".codex" / "agents").glob("*.toml"):
+        result = tomllib.loads(role_file.read_text())
+        assert "mcp_servers" not in result and "sandbox_mode" not in result
+        assert "Never call CATIA" in " ".join(result["developer_instructions"].split())
 
 
-def test_all_roles_validated_before_any_write(tmp_path):
-    python = prepared_project(tmp_path)
-    directory = tmp_path / ".codex" / "agents"
-    (directory / "cad_verifier.toml").write_text('name = "broken', encoding="utf-8")
-    before = {p.name: p.read_bytes() for p in directory.glob("*.toml")}
-    with pytest.raises(ValueError):
-        configure_agents(tmp_path, python)
-    assert before == {p.name: p.read_bytes() for p in directory.glob("*.toml")}
-    assert not (tmp_path / ".local").exists()
-
-
-def test_transport_is_required_only_for_enabled_roles():
-    from scripts.configure_codex_agents import tomllib
-    for role, flags in ROLE_ACCESS.items():
-        source = (ROOT / ".codex" / "agents" / f"{role}.toml").read_text()
-        result = tomllib.loads(render_agent_config(source, role, Path("C:/my project/python.exe")))
-        servers = result["mcp_servers"]
-        assert servers["catia-v5"]["required"] is flags[0]
-        assert servers["catia-v5-inspect"]["required"] is flags[1]
-
-
-def test_single_agent_overrides_are_complete_and_do_not_write_config(tmp_path):
-    from scripts.configure_codex_agents import tomllib
+@pytest.mark.parametrize("team", [False, True])
+def test_session_overrides_are_complete_and_do_not_write_config(tmp_path, team):
     python = prepared_project(tmp_path)
     config = tmp_path / ".codex" / "config.toml"
     original = config.read_bytes()
-    args = launcher.session_overrides(tmp_path)
+    args = launcher.session_overrides(tmp_path, team=team)
     data = tomllib.loads("\n".join(args[1::2]))
-    assert data["agents"]["enabled"] is False
+    assert data["agents"]["enabled"] is team
+    if team:
+        assert data["agents"]["max_concurrent_threads_per_session"] == 5
     full = data["mcp_servers"]["catia-v5"]
     assert full["command"] == str(python.resolve())
     assert full["enabled"] is full["required"] is True
@@ -211,13 +190,13 @@ def test_private_mcp_config_not_logged(tmp_path, monkeypatch):
 def test_real_stdio_discovery_without_catia():
     report = asyncio.run(probe_transports())
     assert report["inspection_tools"] == 13
-    assert report["full_tools"] == 147
+    assert report["full_tools"] == 151
     assert report["catia_com"] == "NOT_TESTED"
     assert report["codex_session_tool_access"] == "NOT_TESTED"
 
 
 def test_start_uses_fresh_session_and_readiness_only(tmp_path, monkeypatch):
-    monkeypatch.setattr(launcher, "diagnose", lambda *a: None)
+    monkeypatch.setattr(launcher, "diagnose", lambda *a, **kw: None)
     called = []
     monkeypatch.setattr(launcher.subprocess, "call", lambda args, **kw: called.append(args) or 0)
     runner = launcher.Runner(tmp_path, tmp_path / "start.log")
@@ -230,8 +209,51 @@ def test_start_uses_fresh_session_and_readiness_only(tmp_path, monkeypatch):
     assert "do not spawn" in called[0][-1]
 
 
+@pytest.mark.parametrize("client", ["codex", "claude"])
+def test_team_batch_launch_keeps_one_cad_caller_and_bounded_overview(tmp_path, monkeypatch, client):
+    inputs = [tmp_path / f"part-{i}.pdf" for i in range(5)]
+    pages = [tmp_path / f"part-{i}-page-{j}.png" for i in range(5) for j in range(3)]
+    manifest = tmp_path / "manifest.json"
+    manifest.write_text(json.dumps({"files": [
+        {"source": str(source), "pages": list(map(str, pages[i*3:(i+1)*3]))}
+        for i, source in enumerate(inputs)]}))
+    received = []
+    def prepare_bundle(sources, output_root):
+        received.append((sources, output_root))
+        return manifest
+    monkeypatch.setitem(sys.modules, "scripts.cad_team", SimpleNamespace(prepare_bundle=prepare_bundle))
+    monkeypatch.setattr(launcher, "diagnose", lambda *a, **kw: None)
+    monkeypatch.setattr(launcher, "diagnose_claude", lambda *a: tmp_path / "claude.json")
+    calls = []
+    monkeypatch.setattr(launcher.subprocess, "call", lambda args, **kw: calls.append(args) or 0)
+    runner = launcher.Runner(tmp_path, tmp_path / "start.log")
+    monkeypatch.setattr(runner, "run", lambda *a, **kw: SimpleNamespace(stdout="--no-daemon"))
+    start = launcher.start if client == "codex" else launcher.start_claude
+    assert start(runner, Path(client + ".exe"), inputs, team=True) == 0
+    assert received[0][0] == inputs
+    argv = calls[0]
+    prompt = argv[-1]
+    assert str(manifest) in prompt and "NOT the complete batch" in prompt
+    assert "NO CATIA calls" in prompt and "FIVE parallel" in prompt
+    assert "not authorization to model" in prompt and "Fix and AutoConstraint" in prompt
+    assert "whole-desktop UI input" not in prompt and "--model" not in argv
+    if client == "codex":
+        assert "agents.enabled=true" in argv
+        assert "agents.max_concurrent_threads_per_session=5" in argv
+        attached = [argv[i+1] for i, arg in enumerate(argv) if arg == "--image"]
+        assert attached == list(map(str, pages[:5]))
+    launcher.windows_command([client + ".cmd", *argv[1:]], "cmd.exe")
+
+
+def test_single_or_smart_mode_cannot_silently_consume_a_batch(tmp_path):
+    with pytest.raises(launcher.SetupError, match="Multiple inputs"):
+        launcher.launch_inputs([tmp_path / "one.pdf", tmp_path / "two.pdf"], team=False)
+    with pytest.raises(launcher.SetupError, match="cannot combine"):
+        launcher.start(None, Path("codex.exe"), smart=True, team=True)
+
+
 def test_no_windows_launcher_changes_powershell_policy():
-    for name in ("INSTALL.cmd", "START_CATIA_AI.cmd", "START_WITH_DRAWING.cmd", "DIAGNOSE.cmd"):
+    for name in ("INSTALL.cmd", "START_AI.cmd", "DIAGNOSE.cmd", "UPDATE.cmd"):
         source = (ROOT / name).read_text().lower()
         if name == "INSTALL.cmd":
             ps_lines = [line for line in source.splitlines() if line.startswith("powershell.exe")]
@@ -248,7 +270,7 @@ def test_no_windows_launcher_changes_powershell_policy():
 
 def test_start_attaches_all_drawing_images_without_modeling(tmp_path, monkeypatch):
     from scripts import drawing_inputs
-    monkeypatch.setattr(launcher, "diagnose", lambda *a: None)
+    monkeypatch.setattr(launcher, "diagnose", lambda *a, **kw: None)
     pages = [tmp_path / "page-001.png", tmp_path / "page-002.png"]
     monkeypatch.setattr(drawing_inputs, "prepare_drawing", lambda *a: pages)
     captured = []
@@ -262,10 +284,11 @@ def test_start_attaches_all_drawing_images_without_modeling(tmp_path, monkeypatc
 
 
 @pytest.mark.skipif(shutil.which("codex") is None, reason="Optional local Codex config parser")
-def test_real_codex_parses_session_overrides_without_registering(tmp_path):
+@pytest.mark.parametrize("team", [False, True])
+def test_real_codex_parses_session_overrides_without_registering(tmp_path, team):
     # list only: no model request, authentication or CATIA server startup.
     # Never print the returned JSON: unrelated user MCP entries may have secrets.
-    result = subprocess.run([shutil.which("codex"), *launcher.session_overrides(tmp_path),
+    result = subprocess.run([shutil.which("codex"), *launcher.session_overrides(tmp_path, team=team),
                              "mcp", "list", "--json"], cwd=tmp_path,
                             capture_output=True, text=True, timeout=30, check=False)
     assert result.returncode == 0, "Codex could not parse scoped overrides"

@@ -11,7 +11,6 @@ from mcp.types import CallToolRequest, CallToolRequestParams, ImageContent, List
 
 from catia_mcp.server import CATIAMCPServer
 from catia_mcp.tools.context import ContextTools
-from catia_mcp.tools.document import DocumentTools
 from catia_mcp.tools.export import ExportTools, ScreenshotCapture
 from catia_mcp.tools.measurement import MeasurementTools
 from catia_mcp.tools.part_design import PartDesignTools
@@ -269,31 +268,6 @@ def test_legacy_face_name_is_rejected_before_any_com_mutation():
             raise AssertionError("A face name must not be accepted as an exact target")
 
 
-def test_save_requires_explicit_path_and_overwrite_opt_in(tmp_path):
-    saved = []
-    doc = SimpleNamespace(Name="Part1.CATPart", SaveAs=lambda path: saved.append(path))
-    tools = DocumentTools(FakeConnection(doc))
-    try:
-        tools.execute("catia_save_document", {})
-    except KeyError:
-        pass
-    else:
-        raise AssertionError("Saving without a path must fail")
-
-    existing = tmp_path / "Part1.CATPart"
-    existing.write_bytes(b"user data")
-    try:
-        tools.execute("catia_save_document", {"file_path": str(existing)})
-    except FileExistsError:
-        pass
-    else:
-        raise AssertionError("Existing document must not be overwritten by default")
-    assert saved == []
-    tools.execute("catia_save_document", {"file_path": str(existing),
-                                          "allow_overwrite": True})
-    assert saved == [str(existing)]
-
-
 def test_failed_part_update_is_not_reported_as_success():
     body = SimpleNamespace()
     part = SimpleNamespace(MainBody=body, Update=lambda: None, IsUpToDate=lambda _: False)
@@ -348,12 +322,12 @@ def test_failed_capture_does_not_return_or_replace_old_image(tmp_path):
 
 def test_server_registers_legacy_tools_and_returns_mcp_image():
     server = CATIAMCPServer()
-    assert len(server._tool_router) == 147
+    assert len(server._tool_router) == 151
     assert "catia_get_selection" in server._tool_router
     assert "catia_get_model_state" in server._tool_router
     listed = asyncio.run(server.server.request_handlers[ListToolsRequest](ListToolsRequest()))
     by_name = {tool.name: tool for tool in listed.root.tools}
-    assert len(by_name) == 147
+    assert len(by_name) == 151
     assert by_name["catia_get_selection"].annotations.readOnlyHint is True
     assert by_name["catia_get_model_state"].annotations.readOnlyHint is True
     server.connection.app = SimpleNamespace(Caption="Mock CATIA")

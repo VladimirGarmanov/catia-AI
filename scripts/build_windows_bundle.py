@@ -25,6 +25,19 @@ OUTPUT = ROOT / "dist" / "windows-full"
 APP = OUTPUT / "CATIA-AI"
 PROJECT = APP / "project"
 RUNTIME = APP / "runtime"
+PROJECT_ENTRIES = (
+    "catia_mcp", "CATIA_AGENT_CODEX_PACKAGE", ".codex/agents",
+    "scripts/windows_launcher.py", "scripts/install_node.py", "scripts/update_project.py",
+    "scripts/project_layout.py", "scripts/mcp_entry.py", "scripts/check_mcp_transport.py",
+    "scripts/drawing_inputs.py", "scripts/drawing_handoff.py", "scripts/cad_team.py",
+    ".codex/config.toml", "AGENTS.md", "CLAUDE.md", "README.md", "WINDOWS.md",
+    "TEAM_WORKFLOW.md", "SKETCH_CONSTRAINT_STATUS.md", "ASSEMBLY_DRAWING.md",
+    "DEMO_PROMPTS.md", "SAVE_AND_TOOL_GAPS.md",
+    "PATTERNS.md", "NAMING.md", "IMPLEMENTATION_STATUS.md", "CAA_MIGRATION.md",
+    "PROJECT_AUDIT.md", "LICENSE",
+    "pyproject.toml", "requirements.txt", "test_server.py",
+    "INSTALL.cmd", "START_AI.cmd", "DIAGNOSE.cmd", "UPDATE.cmd",
+)
 
 
 def download(url: str, destination: Path) -> str:
@@ -40,13 +53,23 @@ def download(url: str, destination: Path) -> str:
 
 def copy_project() -> None:
     ignored = shutil.ignore_patterns(
-        ".git", ".venv", ".local", ".pytest_cache", ".ruff_cache", "__pycache__",
-        "*.pyc", "*.egg-info", "tests", "dist", "build", ".claude", ".github",
-        "installer", "build_windows_bundle.py",
+        "__pycache__", "*.pyc", "*.log", "build_windows_bundle.py",
     )
+    # Only ship application inputs. A build made from a developer checkout must
+    # not absorb old builds, IDE files, logs, drawings or arbitrary root files.
+    for relative in PROJECT_ENTRIES:
+        if not (ROOT / relative).exists():
+            raise RuntimeError(f"Missing bundle input: {relative}")
     if PROJECT.exists():
         shutil.rmtree(PROJECT)
-    shutil.copytree(ROOT, PROJECT, ignore=ignored)
+    PROJECT.mkdir(parents=True)
+    for relative in PROJECT_ENTRIES:
+        source, target = ROOT / relative, PROJECT / relative
+        if source.is_dir():
+            shutil.copytree(source, target, ignore=ignored)
+        else:
+            target.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(source, target)
 
 
 def install_python_runtime(temporary: Path) -> dict[str, str]:
@@ -124,6 +147,8 @@ def install_codex(temporary: Path) -> dict[str, str]:
 
 
 def main() -> int:
+    if sys.platform != "win32" or sys.version_info[:3] != (3, 13, 3):
+        raise RuntimeError("Build this installer on Windows with CPython 3.13.3 x64.")
     if OUTPUT.exists():
         shutil.rmtree(OUTPUT)
     OUTPUT.mkdir(parents=True)

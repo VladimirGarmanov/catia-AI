@@ -1,5 +1,99 @@
 # Реализация CATIA_AGENT_CODEX_PACKAGE — 2026-10-09
 
+## Сохранение, журнал запросов и демо — 2026-11-03
+
+`catia_save_document`: абсолютное имя, проверка Windows path components и
+нативного расширения, явное создание папок, Save для текущего пути / SaveAs для
+нового. Перезапись требует opt-in; файл другого открытого документа запрещён.
+Успех подтверждается FullName, Saved и непустым файлом. Ответ разделяет file_name,
+document_name и model_name. Неудачная проверка/COM-вызов оставляет partial failure;
+повтор request_id не вызывает сохранение ещё раз. Серверный открытый Sketch
+блокирует Save до COM. Имена с Unicode/пробелами проверены на файловых doubles.
+
+`catia_report_missing_tool` пишет локальный JSONL без COM, в том числе при
+зависшем COM-вызове. Блокированные попытки ui_action тоже фиксируются: missing_tool,
+reason, outcome=input_disabled_by_policy; ввод остаётся отключённым. Координаты,
+вводимый UI-текст и скриншоты в журнал не копируются. Есть дедупликация request_id,
+межпроцессная блокировка журнала, лимит 8 MB и явные ошибки записи. Файл .local
+не публикуется и сохраняется UPDATE. Подробнее: [SAVE_AND_TOOL_GAPS.md](SAVE_AND_TOOL_GAPS.md).
+
+[DEMO_PROMPTS.md](DEMO_PROMPTS.md) содержит восемь готовых сценариев, включая
+моделирование, параметрическую правку, Drawing и несколько файлов/агентов.
+Это задания для демонстрации, не отчёт о пройденной live-приёмке.
+
+Offline: **279 passed, 2 skipped**, Ruff F/E9; **151 full / 13 inspection**.
+Windows CATIA Save/SaveAs, имена, диалоги и геометрия демо ещё не проверены.
+
+## Единый запуск и удаление устаревших входов — 2026-11-03
+
+В корне оставлены четыре entry points: INSTALL, START_AI, UPDATE и DIAGNOSE.
+START_AI выбирает Codex/Claude и Chat/Drawing/Team/Smart; все режимы идут через
+один `scripts/windows_launcher.py`. INSTALL предлагает нужный клиент или оба.
+Прямые `--client`/`--mode`/`--drawing` обходят меню. Отмена не запускает клиента.
+Если Tk/file picker недоступен, пути вводятся в том же окне без новой команды.
+
+Удалены девять отдельных CMD, PowerShell-обёртка, старый генератор executor
+транспортов и две пересекающиеся Windows-инструкции. Актуальная инструкция:
+[WINDOWS.md](WINDOWS.md). UPDATE удаляет только явный список устаревших файлов
+и восстанавливает их при сбое копирования; первый новый START_AI/INSTALL также
+чистит остатки после старого updater. DIAGNOSE эту очистку не делает.
+Пользовательские runtime, конфигурация, модели и .local сохраняются.
+
+Inno Setup оставляет один ярлык, убирает прежние ярлыки/кнопки при обновлении.
+Builder копирует явный список входов, без старых build, IDE-файлов и локальных
+данных из корня. Локальные сгенерированные build и проверочный wheel удалены.
+Изолированный embedded Python загружает update/Node helpers из текущего проекта.
+
+Offline: **267 passed, 2 skipped**, Ruff F/E9, регистрация и stdio discovery
+**150 full / 13 inspection**. Проверены маршруты меню, отмена, CLI-флаги,
+очистка, rollback, состав payload и импорт в isolated Python.
+Два реальных cmd.exe теста пропущены на Mac. Windows EXE не пересобирался;
+Windows запуск, аккаунты и живой CATIA COM остаются непроверенными.
+Изменения локальные; commit/push не выполнялись.
+
+## Проверка ограничений Sketch — 2026-11-03
+
+Добавлен read-only `catia_sketch_constraint_status`: точный sketch handle или
+привязанный открытый эскиз, активные/inactive/reference constraints, native
+статусы и handles проблемных ограничений, состояние `Part.IsUpToDate`.
+Инструмент не вызывает Evaluate/Update и не открывает/закрывает Sketch.
+Общий reader также исправляет `catia_sketch_diagnose`: пустой или полностью
+отключённый набор больше не даёт положительную проверку удовлетворённости.
+
+В проверенном CAA Automation интерфейсе нет документированного getter полноты
+ограничений/DOF всего Sketch. Поэтому `fully_constrained` и `remaining_dof`
+остаются `null`; `require_fully_constrained=true` возвращает MCP-ошибку при
+неподтверждённой полноте. Это диагностика constraints, а не полная замена native
+Sketch Analysis. Подробности и Windows probe: [SKETCH_CONSTRAINT_STATUS.md](SKETCH_CONSTRAINT_STATUS.md).
+
+Offline: **259 passed, 1 skipped**, регистрация **150 full / 13 inspection**.
+Проверены частичные ошибки чтения, неактуальный расчёт, пустые/inactive наборы,
+точные handles, отсутствие записей и MCP isError. Native CATIA solver и COM на
+Windows не проверены. Изменения локальные, без commit/push.
+
+## Локальный team workflow и несколько документов — 2026-11-02
+
+`START_AI.cmd`, режим Team: пакет из нескольких PDF/PNG/JPEG
+или ссылок на CATPart/CATProduct/CATDrawing, до пяти offline-агентов на независимых
+задачах, затем общий план и review. Обычный одиночный запуск сохранён.
+`scripts/cad_team.py` хранит копии входов, страницы, ID задач, владельцев,
+ревизии и зависимые отчёты. Изменённые источники/устаревшие зависимости блокируют
+приём результата. Это не CAD rollback, не автоматическое разрешение на запись
+и не отдельный AI API. Подробности: [TEAM_WORKFLOW.md](TEAM_WORKFLOW.md).
+
+Добавлены `catia_get_workspace_state` и `catia_activate_document`:
+контекст всех открытых документов без активации, затем явное переключение по
+точным IDs с проверкой исходного контекста. После перехода запись блокируется
+до нового model-state read. Геометрическая revision от одного Activate не растёт.
+Всего **149 full / 13 inspection**. Все CATIA-вызовы принадлежат координатору;
+параллельны анализ и подготовка отчётов. Role TOML больше не обещают изоляцию MCP.
+`.codex/config.toml` не изменён, ограничения Fix/AutoConstraint сохранены.
+
+Offline: **253 passed, 1 skipped**, Ruff F/E9. Пять PDF реально подготовлены
+в десять PNG-страниц; проверены независимые task reports и stale/dependency guards.
+Запуск реальных подагентов Codex/Claude, передача изображений и CATIA COM на Windows
+ещё не проверены. Изменения остаются локальными по просьбе пользователя.
+
 ## Запрет Fix / AutoConstraint — 2026-11-02
 
 Запрет в MCP применяется до COM: Sketch Fix, AutoConstraint, Assembly Fix,
@@ -80,7 +174,7 @@ offline-тесты не подтверждают семантику COM/BRep и�
 Локально: 53 scoped tests passed, 1 skipped (optional local Codex parser).
 Проверены COM-моки, schemas, baseline registration и launcher contracts.
 Отдельный stdio discovery прошёл: 146 full / 13 inspection, без вызовов CATIA.
-Ruff F/E9 и git diff --check прошли. Инструкция: [WINDOWS_CLAUDE.md](WINDOWS_CLAUDE.md).
+Ruff F/E9 и git diff --check прошли. Инструкция: [WINDOWS.md](WINDOWS.md).
 
 ## Дополнение 2026-10-21: существующая sketch geometry
 
@@ -273,7 +367,7 @@ stdio discovery 124/13, без вызовов CATIA. Full test suite не зап
 ```powershell
 .\INSTALL.cmd
 .\DIAGNOSE.cmd
-.\START_CATIA_AI.cmd
+.\START_AI.cmd --client codex --mode chat
 ```
 
 В новом Codex-сеансе проверить доступ к 124 tools. На новых несохраненных документах:

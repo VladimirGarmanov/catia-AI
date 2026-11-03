@@ -1,6 +1,7 @@
 """Existing-sketch editing. InWorkObject is NOT proof of a UI edition state."""
 from catia_mcp.runtime import CADOperationError, same_object
 from catia_mcp.constraint_policy import check_constraint_edit
+from catia_mcp.sketch_status import constraint_health
 from catia_mcp.tools.engineering import HANDLE, NUMBER, tool, dimension
 from catia_mcp.tools.operations import OperationTools
 
@@ -27,6 +28,11 @@ class SketchSessionTools(OperationTools):
 
     def get_tool_definitions(self):
         return [
+            tool("catia_sketch_constraint_status", "Read constraint health for an exact sketch handle (open or closed), or the server-bound open sketch if omitted. Reports active/inactive/reference constraints, native failures and update state without Evaluate, Update, opening or closing edition. fully_constrained/remaining_dof remain null: this Automation API does not expose whole-sketch solver rank. require_fully_constrained=true returns an MCP error if completeness cannot be proven; satisfied constraints alone never pass this check.", {
+                "sketch_handle": HANDLE,
+                "max_constraints": {"type": "integer", "minimum": 1, "maximum": 5000, "default": 1000},
+                "require_fully_constrained": {"type": "boolean", "default": False},
+            }, readonly=True),
             tool("catia_sketch_set_construction", "Set existing geometry in the bound open sketch to construction=true or standard=false. Use a fresh handle from catia_sketch_get_geometry. Preserves geometry and constraints; Evaluate/readback checks the flag, not full constraint rank. To make the revolution centerline standard, first assign a different axis explicitly.", {
                 "geometry_handle": HANDLE, "construction": {"type": "boolean"},
             }, ["geometry_handle", "construction"]),
@@ -43,7 +49,58 @@ class SketchSessionTools(OperationTools):
             }, ["source", "mode"]),
         ]
 
+    def constraint_status(self, args):
+        document = self.conn.active_document
+        part = self.conn.get_active_part()  # Validate CATPart before reading sketch state.
+        editor = self.engineering.sketcher
+        if args.get("sketch_handle"):
+            sketch = self.state.resolve(args["sketch_handle"], {"sketch"}).value
+        else:
+            if editor._active_sketch is None:
+                raise CADOperationError("NO_SKETCH_TARGET", "Supply a fresh sketch_handle from catia_list_objects or bind an open sketch")
+            editor._ensure_sketch_open()
+            sketch = editor._active_sketch
+        if not any(same_object(sketch, value) for value in self.sketches()):
+            raise CADOperationError("STALE_REFERENCE", "Sketch is not in the current Part's discovered sketch collections")
+        report = constraint_health(sketch, register=self.state.register,
+                                   max_constraints=args.get("max_constraints", 1000))
+        report.update(sketch_handle=self.state.register(sketch, "sketch"), sketch_name=str(sketch.Name),
+                      document_id=self.state.document_id(document),
+                      server_bound_open=same_object(sketch, editor._active_sketch),
+                      up_to_date=None, geometry_element_count=None, unavailable={})
+        try:
+            report["up_to_date"] = bool(part.IsUpToDate(sketch))
+        except Exception as exc:
+            report["unavailable"]["up_to_date"] = str(exc)
+        try:
+            report["geometry_element_count"] = int(sketch.GeometricElements.Count)
+        except Exception as exc:
+            report["unavailable"]["geometry_element_count"] = str(exc)
+        # Even satisfied statuses may be cached. Never update as a hidden side
+        # effect of a read, and never pretend a successful Update proves DOF=0.
+        report["status_freshness"] = "up_to_date" if report["up_to_date"] is True else (
+            "update_required" if report["up_to_date"] is False else "unknown")
+        report["next_steps"] = [
+            "If update is required, finish the intended sketch edits, close/update explicitly, then reread.",
+            "Inspect problem_handles before changing identified constraints; never auto-delete constraints.",
+            "For fully/under/over-constrained status, inspect native CATIA Sketch Analysis. "
+            "A snapshot can read an already-open dialog; UI input remains disabled.",
+        ]
+        if not same_object(document, self.conn.active_document):
+            raise CADOperationError("DOCUMENT_MISMATCH", "Active document changed during sketch inspection")
+        if args.get("require_fully_constrained", False):
+            if report["up_to_date"] is False:
+                code, message = "UPDATE_REQUIRED", "Sketch is not up-to-date; constraint statuses cannot certify current geometry"
+            elif report["problem_indices"]:
+                code, message = "CONSTRAINTS_NOT_SATISFIED", "Active constraints report failures; inspect the returned exact handles"
+            else:
+                code, message = "FULLY_CONSTRAINED_UNVERIFIED", "No documented whole-sketch DOF/iso-constrained getter is available; native Sketch Analysis evidence is required"
+            report.update(ok=False, code=code, message=message)
+        return report
+
     def execute(self, name, a):
+        if name == "catia_sketch_constraint_status":
+            return self.constraint_status(a)
         if name == "catia_sketch_set_construction":
             return self.set_construction(a)
         if name in {"catia_sketch_constraints", "catia_sketch_edit_constraint"}:

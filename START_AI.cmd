@@ -1,13 +1,19 @@
 @echo off
 setlocal DisableDelayedExpansion
 cd /d "%~dp0"
-echo CATIA AI - choose ONE client for this CATIA session.
-echo 1. Codex
-echo 2. Claude Code
-choice /c 12 /n /m "Choose 1 or 2: "
-if errorlevel 2 goto claude
-call START_CATIA_AI.cmd
-exit /b %errorlevel%
-:claude
-call START_CLAUDE_AI.cmd
-exit /b %errorlevel%
+if exist ".venv\Scripts\python.exe" goto venv
+if exist "..\runtime\python\python.exe" goto bundled
+echo Run INSTALL.cmd first.
+pause
+exit /b 1
+:venv
+".venv\Scripts\python.exe" "scripts\windows_launcher.py" start %*
+goto done
+:bundled
+"..\runtime\python\python.exe" "scripts\windows_launcher.py" start %*
+:done
+set "catiaExit=%errorlevel%"
+if "%catiaExit%"=="0" exit /b 0
+echo See .local\start.log for details.
+pause
+exit /b %catiaExit%

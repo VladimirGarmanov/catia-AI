@@ -64,8 +64,10 @@ class DesktopTools:
              "description": "Read-only capture of the entire Windows desktop, all monitors and applications, as an MCP image. No CATIA connection/document required. May expose sensitive visible content. UI input is disabled by constraint policy.",
              "inputSchema": {"type": "object", "properties": {}}},
             {"name": "catia_ui_action",
-             "description": "DISABLED: generic UI input could bypass the Fix/AutoConstraint ban. Always returns OPERATION_DISABLED without sending input. catia_ui_snapshot remains available for inspection.",
+             "description": "DISABLED: generic UI input could bypass the Fix/AutoConstraint ban. Always returns OPERATION_DISABLED without sending input. The server logs the missing_tool name and reason locally for analysis; prefer catia_report_missing_tool instead of attempting input. catia_ui_snapshot remains available for inspection.",
              "inputSchema": {"type": "object", "properties": {
+                 "missing_tool": {"type": "string", "minLength": 1, "maxLength": 160,
+                                  "description": "Intended CATIA operation unavailable through typed tools; recorded even though UI input is blocked"},
                  "reason": {"type": "string", "minLength": 1, "maxLength": 500},
                  "action": {"oneOf": [
                      {"type": "object", "properties": {"kind": {"const": "click"},

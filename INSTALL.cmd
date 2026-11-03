@@ -15,7 +15,7 @@ python.exe -c "import sys; sys.exit(0 if sys.version_info >= (3,10) else 1)" >nu
 if not errorlevel 1 goto python
 goto bootstrap
 :localpython
-".local\python\python.exe" "scripts\windows_launcher.py" install --client both %*
+".local\python\python.exe" "scripts\windows_launcher.py" install %*
 goto done
 :bootstrap
 echo Python was not found. Downloading the official Python 3.13.3 x64 installer.
@@ -42,16 +42,16 @@ echo No administrator rights were requested. Security policies and file blocking
 pause
 exit /b 1
 :venv
-".venv\Scripts\python.exe" "scripts\windows_launcher.py" install --client both %*
+".venv\Scripts\python.exe" "scripts\windows_launcher.py" install %*
 goto done
 :bundled
-"..\runtime\python\python.exe" "scripts\windows_launcher.py" install --client both %*
+"..\runtime\python\python.exe" "scripts\windows_launcher.py" install %*
 goto done
 :py
-py.exe -3 "scripts\windows_launcher.py" install --client both %*
+py.exe -3 "scripts\windows_launcher.py" install %*
 goto done
 :python
-python.exe "scripts\windows_launcher.py" install --client both %*
+python.exe "scripts\windows_launcher.py" install %*
 :done
 set "catiaExit=%errorlevel%"
 echo.

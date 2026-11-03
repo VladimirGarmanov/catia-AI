@@ -13,6 +13,7 @@ from typing import Any
 from catia_mcp.connection import CATIAConnection
 from catia_mcp.constraint_policy import check_constraint_command
 from catia_mcp.runtime import same_object
+from catia_mcp.sketch_status import constraint_health
 
 # Plane name mapping
 PLANE_MAP = {
@@ -509,23 +510,7 @@ class SketcherTools:
 
     def _diagnose(self):
         self._ensure_sketch_open()
-        constraints = self._active_sketch.Constraints
-        labels = ["satisfied", "strongly_not_satisfied", "wrong_orientation_or_side",
-                  "wrong_value", "wrong_geometry_type", "broken"]
-        statuses = []
-        for i in range(1, constraints.Count + 1):
-            c = constraints.Item(i)
-            status = int(c.Status)
-            inactive = bool(c.IsInactive())
-            statuses.append({"index": i, "name": str(c.Name), "status": status,
-                             "diagnosis": labels[status] if 0 <= status < len(labels) else "unknown",
-                             "inactive": inactive})
-        return {"ok": True, "constraints": statuses,
-                "all_constraints_satisfied": all(c["status"] == 0 for c in statuses if not c["inactive"]),
-                "inactive_count": sum(c["inactive"] for c in statuses),
-                "profile_closed": "not_verified", "remaining_dof": None,
-                "iso_constrained": None,
-                "warning": "Satisfied constraints do not prove zero DOF or absence of redundancy. This documented Automation interface exposes no full sketch DOF status. Verify Sketch Analysis in CATIA; Fix and AutoConstraint are disabled; use explicit design constraints."}
+        return constraint_health(self._active_sketch)
 
     def _draw_rectangle(self, x1: float, y1: float, x2: float, y2: float, anchor_origin: bool = False) -> str:
         self._ensure_sketch_open()

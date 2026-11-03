@@ -37,11 +37,26 @@ Source: "{#BundleDir}\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs 
 
 [Icons]
 Name: "{autoprograms}\CATIA AI"; Filename: "{app}\project\START_AI.cmd"; WorkingDir: "{app}\project"
-Name: "{autoprograms}\CATIA AI - Codex"; Filename: "{app}\project\START_CATIA_AI.cmd"; WorkingDir: "{app}\project"
-Name: "{autoprograms}\CATIA AI - Claude Code"; Filename: "{app}\project\START_CLAUDE_AI.cmd"; WorkingDir: "{app}\project"
-Name: "{autoprograms}\CATIA AI - Install Claude Code"; Filename: "{app}\project\INSTALL_CLAUDE.cmd"; WorkingDir: "{app}\project"
 Name: "{autodesktop}\CATIA AI"; Filename: "{app}\project\START_AI.cmd"; WorkingDir: "{app}\project"; Tasks: desktopicon
 
+[InstallDelete]
+Type: files; Name: "{autoprograms}\CATIA AI - Codex.lnk"
+Type: files; Name: "{autoprograms}\CATIA AI - Claude Code.lnk"
+Type: files; Name: "{autoprograms}\CATIA AI - Install Claude Code.lnk"
+Type: files; Name: "{app}\project\START_CATIA_AI.cmd"
+Type: files; Name: "{app}\project\START_CLAUDE_AI.cmd"
+Type: files; Name: "{app}\project\START_WITH_DRAWING.cmd"
+Type: files; Name: "{app}\project\START_CLAUDE_WITH_DRAWING.cmd"
+Type: files; Name: "{app}\project\START_SMART_DRAWING.cmd"
+Type: files; Name: "{app}\project\START_TEAM_AI.cmd"
+Type: files; Name: "{app}\project\START_CLAUDE_TEAM.cmd"
+Type: files; Name: "{app}\project\INSTALL_CLAUDE.cmd"
+Type: files; Name: "{app}\project\DIAGNOSE_CLAUDE.cmd"
+Type: files; Name: "{app}\project\setup_codex.ps1"
+Type: files; Name: "{app}\project\WINDOWS_CODEX.md"
+Type: files; Name: "{app}\project\WINDOWS_CLAUDE.md"
+Type: files; Name: "{app}\project\scripts\configure_codex_agents.py"
+
 [Run]
-Filename: "{app}\project\INSTALL_CLAUDE.cmd"; WorkingDir: "{app}\project"; Description: "Also download and install Claude Code (internet required)"; Flags: postinstall skipifsilent unchecked
+Filename: "{app}\project\INSTALL.cmd"; Parameters: "--client claude"; WorkingDir: "{app}\project"; Description: "Also download and install Claude Code (internet required)"; Flags: postinstall skipifsilent unchecked
 Filename: "{app}\project\START_AI.cmd"; WorkingDir: "{app}\project"; Description: "Start CATIA AI"; Flags: postinstall nowait skipifsilent

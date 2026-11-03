@@ -6,10 +6,10 @@ Create, open, save, close, and list documents (Part, Product, Drawing).
 from __future__ import annotations
 
 import json
-import os
 from typing import Any
 
 from catia_mcp.connection import CATIAConnection
+from catia_mcp.document_save import save_document
 
 
 class DocumentTools:
@@ -91,19 +91,26 @@ class DocumentTools:
             {
                 "name": "catia_save_document",
                 "description": (
-                    "Save As to an explicit path. Existing files require allow_overwrite=true. "
-                    "Never silently overwrite the active CATPart/CATProduct."
+                    "Save the active CATPart/CATProduct/CATDrawing to an explicit absolute path. "
+                    "Uses Save for its current path, SaveAs for a new path; adds the native extension if absent. "
+                    "Existing files require allow_overwrite=true. Close an edited sketch first. "
+                    "Verifies FullName, Saved and a nonempty disk file; never claims geometry was verified."
                 ),
                 "inputSchema": {
                     "type": "object",
                     "properties": {
                         "file_path": {
                             "type": "string",
-                            "description": "Required explicit output path for Save As",
+                            "minLength": 1,
+                            "description": "Absolute output filename; native extension may be omitted",
                         },
                         "allow_overwrite": {
                             "type": "boolean", "default": False,
                             "description": "Explicitly allow replacing an existing file",
+                        },
+                        "create_directories": {
+                            "type": "boolean", "default": False,
+                            "description": "Explicitly create missing output folders; otherwise they must exist",
                         },
                     },
                     "required": ["file_path"],
@@ -147,7 +154,7 @@ class DocumentTools:
             },
         ]
 
-    def execute(self, tool_name: str, arguments: dict[str, Any]) -> str:
+    def execute(self, tool_name: str, arguments: dict[str, Any]) -> str | dict:
         match tool_name:
             case "catia_connect":
                 return self.conn.connect()
@@ -161,7 +168,8 @@ class DocumentTools:
                 return self._open_document(arguments["file_path"])
             case "catia_save_document":
                 return self._save_document(
-                    arguments["file_path"], arguments.get("allow_overwrite", False))
+                    arguments["file_path"], arguments.get("allow_overwrite", False),
+                    arguments.get("create_directories", False))
             case "catia_close_document":
                 return self._close_document(arguments.get("save", False))
             case "catia_list_documents":
@@ -223,16 +231,10 @@ class DocumentTools:
         doc = docs.Open(file_path)
         return f"Opened document: '{doc.Name}' from {file_path}"
 
-    def _save_document(self, file_path: str, allow_overwrite: bool = False) -> str:
-        if not file_path or not file_path.strip():
-            raise ValueError("An explicit file_path is required to save a document")
-        if os.path.exists(file_path) and not allow_overwrite:
-            raise FileExistsError(
-                f"Refusing to overwrite {file_path}. Use allow_overwrite=true only if intended."
-            )
-        doc = self.conn.active_document
-        doc.SaveAs(file_path)
-        return f"Document saved as: {file_path}"
+    def _save_document(self, file_path: str, allow_overwrite: bool = False,
+                       create_directories: bool = False) -> dict:
+        return save_document(self.conn, file_path, allow_overwrite=allow_overwrite,
+                             create_directories=create_directories)
 
     def _close_document(self, save: bool = False) -> str:
         doc = self.conn.active_document

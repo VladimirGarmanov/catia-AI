@@ -121,6 +121,8 @@ class CATIAMCPServer:
         self.volume_factory_tools = VolumeFactoryTools(self.engineering_tools)
         from catia_mcp.tools.desktop import DesktopTools
         self.desktop_tools = DesktopTools(self.connection, self.session)
+        from catia_mcp.tools.workspace import WorkspaceTools
+        self.workspace_tools = WorkspaceTools(self.engineering_tools)
 
         # All tool modules
         self._tool_modules = [
@@ -146,6 +148,7 @@ class CATIAMCPServer:
             self.shape_factory_tools,
             self.volume_factory_tools,
             self.desktop_tools,
+            self.workspace_tools,
         ]
 
         # Build tool name -> module routing table
@@ -157,11 +160,13 @@ class CATIAMCPServer:
                     raise RuntimeError(f"Duplicate tool: {tool_def['name']}")
                 self._all_tool_router[tool_def["name"]] = module
                 schema = deepcopy(tool_def["inputSchema"])
-                schema.setdefault("properties", {}).update({
+                guards = {
                     "document_id": {"type": "string", "minLength": 1},
                     "request_id": {"type": "string", "minLength": 1},
                     "expected_revision": {"type": "integer", "minimum": 0},
-                })
+                }
+                if tool_def["name"] != "catia_report_missing_tool":
+                    schema.setdefault("properties", {}).update(guards)
                 schema["additionalProperties"] = False
                 if (module is self.engineering_tools or getattr(module, "strict_writes", False)) and not tool_def.get("readOnlyHint") and tool_def["name"] != "catia_new_drawing":
                     schema["required"] = list(dict.fromkeys(schema.get("required", []) +
@@ -278,6 +283,9 @@ class CATIAMCPServer:
                 )
 
     async def _dispatch_worker(self, name, arguments):
+        if name == "catia_report_missing_tool":
+            # Local reporting must remain possible while COM is busy/timed out.
+            return await asyncio.to_thread(self._execute_local_report, arguments)
         async with self._call_lock:
             if self._timed_out and self._inflight is not None and not self._inflight.done():
                 return {"ok": False, "code": "SESSION_STATE_UNKNOWN",
@@ -322,6 +330,8 @@ class CATIAMCPServer:
                 self.session.reconciliation_required = True
 
     def _execute_serial(self, name, arguments):
+        if name == "catia_report_missing_tool":
+            return self._execute_local_report(arguments)
         state = self.session
         read_names = INSPECTION_TOOL_NAMES | {
             "catia_sketch_get_geometry", "catia_get_inertia", "catia_measure",
@@ -331,12 +341,14 @@ class CATIAMCPServer:
             "catia_material_catalog", "catia_diagnose_geometry",
             "catia_capability_request",
             "catia_sketch_context", "catia_v5_reference_search", "catia_v5_reference_read",
-            "catia_sketch_constraints",
+            "catia_sketch_constraints", "catia_sketch_constraint_status",
             "catia_ui_snapshot",
             "catia_assembly_inspect", "catia_drawing_inspect",
+            "catia_get_workspace_state",
         }
         write = name not in read_names
         creates_document = name in {"catia_new_part", "catia_new_product", "catia_open_document", "catia_new_drawing"}
+        switches_document = name == "catia_activate_document"
         request_id = arguments.get("request_id")
         fingerprint = None
         key = None
@@ -371,6 +383,8 @@ class CATIAMCPServer:
                     if state.revisions[current] != arguments["expected_revision"]:
                         raise CADOperationError("STALE_REFERENCE", "Expected revision differs; read model state")
             if write:
+                if switches_document and state.bound_document != arguments["document_id"]:
+                    raise CADOperationError("MODEL_CONTEXT_REQUIRED", "Read the active model state before switching documents")
                 if not creates_document:
                     key = state.assert_document(arguments.get("document_id"), arguments.get("expected_revision"))
                 elif state.reconciliation_required:
@@ -380,8 +394,10 @@ class CATIAMCPServer:
                     or creates_document
                 ):
                     raise CADOperationError("INVALID_ARGUMENT", "Close the edited sketch before this operation")
+                if name == "catia_save_document" and self.sketcher_tools._active_sketch is not None:
+                    raise CADOperationError("SKETCH_OPEN", "Finish and close the bound sketch before saving; edition was not changed")
             entered = True
-            if write and not creates_document:
+            if write and not creates_document and not switches_document and name != "catia_save_document":
                 try:
                     previous_in_work = self.connection.get_active_part().InWorkObject
                 except Exception:
@@ -398,9 +414,10 @@ class CATIAMCPServer:
             if write:
                 if creates_document and not failed:
                     key = state.bind()["document_id"]
-                if key:
+                if key and not switches_document:
                     state.finish_write(key)
-                state.reconciliation_required = failed
+                if not switches_document:
+                    state.reconciliation_required = failed
                 if name == "catia_ui_action":
                     # A click can change selection, edition or document. Nothing is
                     # geometrically verified just because Windows accepted input.
@@ -428,10 +445,10 @@ class CATIAMCPServer:
                 state.requests[request_id] = (fingerprint, deepcopy(result))
             return result
         except Exception as exc:
-            uncertain = write and entered
+            uncertain = write and (state.mutation_started if switches_document or name == "catia_save_document" else entered)
             if uncertain:
                 state.reconciliation_required = True
-                if key:
+                if key and not switches_document:
                     state.finish_write(key)
             error = error_details(exc, name)
             recovery_warnings = []
@@ -451,24 +468,47 @@ class CATIAMCPServer:
                 state.requests[request_id] = (fingerprint, deepcopy(result))
             return result
 
+    def _execute_local_report(self, arguments):
+        name = "catia_report_missing_tool"
+        try:
+            errors = list(Draft202012Validator(self._schemas[name]).iter_errors(arguments))
+            if errors:
+                raise CADOperationError("INVALID_ARGUMENT", errors[0].message)
+            return self._tool_router[name].execute(name, arguments)
+        except Exception as exc:
+            error = error_details(exc, name)
+            return {"ok": False, "code": error["code"], "error": error,
+                    "cad_changed": False, "ui_executed": False}
+
     def _execute_desktop(self, name, arguments):
         # Desktop fallback must remain available when COM/document reads fail.
         state = self.session
         request_id = arguments.get("request_id")
         fingerprint = json.dumps([name, arguments], sort_keys=True, allow_nan=False)
         try:
-            check_constraint_command(name, arguments)
-            Draft202012Validator(self._schemas[name]).validate(arguments)
             if request_id in state.requests:
                 previous, result = state.requests[request_id]
                 if previous != fingerprint:
                     raise CADOperationError("INVALID_ARGUMENT", "request_id reused with different arguments")
                 return {**deepcopy(result), "replayed": True}
+            check_constraint_command(name, arguments)
+            Draft202012Validator(self._schemas[name]).validate(arguments)
             result = self.desktop_tools.execute(name, arguments)
         except Exception as exc:
             error = error_details(exc, name)
             result = {"ok": False, "code": error["code"], "error": error,
                       "input_may_have_been_sent": state.mutation_started}
+        if name == "catia_ui_action" and result.get("code") == "OPERATION_DISABLED":
+            try:
+                action = arguments.get("action", {})
+                result["tool_gap"] = self.capability_tools.journal.record(
+                    tool_name=arguments.get("missing_tool") or "unspecified",
+                    reason=arguments.get("reason") or "Blocked UI input; intended capability was not supplied",
+                    request_id=request_id, source="ui_action", outcome="input_disabled_by_policy",
+                    error_code="OPERATION_DISABLED",
+                    action_kind=action.get("kind") if isinstance(action, dict) else None)
+            except Exception as exc:
+                result["tool_gap"] = {"ok": False, "error": error_details(exc, "tool_gap_log")}
         if name == "catia_ui_action" and isinstance(request_id, str) and request_id not in state.requests:
             state.requests[request_id] = (fingerprint, deepcopy(result))
         return result

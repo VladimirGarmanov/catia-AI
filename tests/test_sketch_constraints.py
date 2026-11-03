@@ -16,9 +16,10 @@ def rig():
         dimension = NS(ValuateFromString=Mock(), ValueAsString=lambda: "25mm")
         c = NS(Name="C", Status=0, Type=code, Mode=0, Dimension=dimension, IsInactive=lambda: False)
         created.append((code, refs, c))
+        constraints.Count = len(created)
         return c
     constraints = NS(AddMonoEltCst=Mock(side_effect=add), AddBiEltCst=Mock(side_effect=add),
-                     AddTriEltCst=Mock(side_effect=add), Count=0)
+                     AddTriEltCst=Mock(side_effect=add), Count=0, Item=lambda i: created[i-1][2])
     doc = NS(Name="Test.CATPart", FullName="")
     part = NS(CreateReferenceFromObject=lambda obj: obj)
     editor = SketcherTools(NS(active_document=doc, get_active_part=lambda: part))

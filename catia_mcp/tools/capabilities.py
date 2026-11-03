@@ -16,7 +16,7 @@ IMPLEMENTATIONS = {
     13: ["catia_sketch_point"], 14: ["catia_sketch_line"],
     16: ["catia_sketch_rectangle", "catia_sketch_centered_rectangle"],
     17: ["catia_sketch_circle"], 18: ["catia_sketch_arc"], 19: ["catia_sketch_ellipse"],
-    20: ["catia_sketch_spline"], 21: ["catia_sketch_set_axis"], 33: ["catia_sketch_diagnose"],
+    20: ["catia_sketch_spline"], 21: ["catia_sketch_set_axis"], 33: ["catia_sketch_diagnose", "catia_sketch_constraint_status"],
     46: ["catia_pad"], 47: ["catia_pocket"], 48: ["catia_shaft"], 49: ["catia_groove"],
     50: ["catia_hole"], 51: ["catia_swept_solid"], 52: ["catia_swept_solid"],
     54: ["catia_solid_loft"], 55: ["catia_solid_loft"],
@@ -43,7 +43,7 @@ IMPLEMENTATIONS = {
     145: ["catia_offset_constraint"], 146: ["catia_angle_constraint"],
     188: ["catia_create_parameter", "catia_set_parameter"], 189: ["catia_create_formula"],
     198: ["catia_measure_object"], 199: ["catia_measure_distance"], 200: ["catia_get_inertia"],
-    209: ["catia_pocket"], 210: ["catia_sketch_diagnose"], 218: ["catia_get_inertia"],
+    209: ["catia_pocket"], 210: ["catia_sketch_diagnose", "catia_sketch_constraint_status"], 218: ["catia_get_inertia"],
     202: ["catia_export"], 203: ["catia_export"], 204: ["catia_export"],
     205: ["catia_export"], 206: ["catia_export"], 207: ["catia_save_document"],
 }
@@ -107,15 +107,28 @@ ALTERNATIVES = {
 class CapabilityTools:
     def __init__(self):
         self.available_tools = set()
+        from catia_mcp.tool_gaps import ToolGapJournal
+        self.journal = ToolGapJournal()
 
     def get_tool_definitions(self):
         return [tool("catia_capability_status", "Look up supplied CATIA API documentation and implementation coverage without connecting to CATIA. Documentation is NOT proof of implemented or live-tested tools.",
                      {"capability_id": {"type": "string", "pattern": "^CATIA-[0-9]{3}$"},
                       "query": HANDLE, "limit": {"type": "integer", "minimum": 1, "maximum": 218, "default": 10}}, readonly=True),
                 tool("catia_capability_request", "Resolve a handbook capability to existing typed tools, or explicitly reject unsupported operations. This never executes arbitrary COM or scripts and never claims an unsupported operation succeeded.",
-                     {"capability_id": {"type": "string", "pattern": "^CATIA-[0-9]{3}$"}}, ["capability_id"], readonly=True)]
+                     {"capability_id": {"type": "string", "pattern": "^CATIA-[0-9]{3}$"}}, ["capability_id"], readonly=True),
+                {"name": "catia_report_missing_tool",
+                 "description": "Record a missing or failed CATIA capability in the local .local/missing_tools.jsonl backlog. No COM or UI input; works without CATIA. Use before requesting a manual UI step. Report the intended operation, not mouse coordinates; do not include private drawing contents or credentials. UI input and Fix/AutoConstraint remain disabled. A report is not a completed CAD operation.",
+                 "inputSchema": {"type": "object", "properties": {
+                     "tool_name": {"type": "string", "minLength": 1, "maxLength": 160},
+                     "reason": {"type": "string", "minLength": 1, "maxLength": 1000},
+                     "request_id": {"type": "string", "minLength": 1, "maxLength": 160},
+                     "failed_tool": {"type": "string", "minLength": 1, "maxLength": 160},
+                     "error_code": {"type": "string", "minLength": 1, "maxLength": 80},
+                 }, "required": ["tool_name", "reason", "request_id"], "additionalProperties": False}}]
 
     def execute(self, name, args):
+        if name == "catia_report_missing_tool":
+            return self.journal.record(**args)
         catalog = json.loads(files("CATIA_AGENT_CODEX_PACKAGE").joinpath("CATIA_AGENT_TOOL_CATALOG.json").read_text(encoding="utf-8"))
         if name == "catia_capability_request":
             entries = [e for e in catalog["capabilities"] if e["capability_id"] == args["capability_id"]]
