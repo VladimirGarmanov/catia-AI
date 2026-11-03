@@ -6,6 +6,8 @@ No generic COM invocation, silent retries, or claim of native GUI equivalence.
 from catia_mcp.runtime import CADOperationError, same_object
 from catia_mcp.tools.engineering import HANDLE, NUMBER, POSITIVE, dimension
 from catia_mcp.tools.operations import OperationTools, BOOL, VECTOR, LINE, CURVE, array, group, unit_vector
+from catia_mcp.tools.patterns import (LINEAR_SUPPORT, CENTER_SUPPORT, NONNEGATIVE_SPACING,
+    validate_pattern, configure_pattern, read_pattern, read_user_pattern, require_body_seed)
 
 
 COUNT = {"type": "integer", "minimum": 1, "maximum": 1000}
@@ -32,11 +34,12 @@ MODES = {
     "auto_draft": {"angle_deg": {"type": "number", "exclusiveMinimum": 0, "exclusiveMaximum": 90},
                    "direction_handle": HANDLE, "parting_handle": HANDLE, "functional_faces": array(HANDLE)},
     "rectangular_pattern": {"feature_handle": HANDLE, "first_direction_handle": HANDLE, "second_direction_handle": HANDLE,
-        "first_count": COUNT, "second_count": COUNT, "first_spacing_mm": POSITIVE, "second_spacing_mm": POSITIVE,
+        "first_count": COUNT, "second_count": COUNT, "first_spacing_mm": NONNEGATIVE_SPACING, "second_spacing_mm": NONNEGATIVE_SPACING,
         "first_seed_position": COUNT, "second_seed_position": COUNT,
         "first_forward": BOOL, "second_forward": BOOL, "rotation_deg": NUMBER},
     "circular_pattern": {"feature_handle": HANDLE, "center_handle": HANDLE, "axis_handle": HANDLE,
-        "radial_count": COUNT, "angular_count": COUNT, "radial_spacing_mm": POSITIVE, "angular_spacing_deg": POSITIVE,
+        "radial_count": COUNT, "angular_count": COUNT, "radial_spacing_mm": NONNEGATIVE_SPACING,
+        "angular_spacing_deg": {"type": "number", "minimum": 0, "description": "Degrees; positive for multiple angular instances unless complete_crown=true"},
         "radial_seed_position": COUNT, "angular_seed_position": COUNT,
         "axis_forward": BOOL, "rotation_deg": NUMBER, "keep_parallel": BOOL},
     "trim_divided_faces": {"operand_body_handle": HANDLE, "keep": array(FACE_PAIR, 0), "remove": array(FACE_PAIR, 0)},
@@ -84,7 +87,7 @@ CONSTRUCTORS = {
 
 class ShapeFactoryTools(OperationTools):
     def get_tool_definitions(self):
-        return [group("catia_part_design_advanced",
+        definition = group("catia_part_design_advanced",
             "Explicit CAA advanced Part Design contracts; active Part and closed sketch required. "
             "Reference profiles are not automatic conversion of arbitrary edges into valid profiles. "
             "Hole barycenter uses the support barycenter; one circular edge overrides requested XYZ with concentricity. "
@@ -95,10 +98,18 @@ class ShapeFactoryTools(OperationTools):
             "List patterns use legacy V5R8-only methods and require explicit opt-in; no fallback to ordinary patterns. "
             "Surfacic patterns target the explicit Body and accept whole surface/curve/sketch/feature seeds. "
             "complete_crown distributes circular copies at 360/count degrees, overriding angular_spacing_deg. "
+            "Zero linear spacing is allowed for an inactive one-instance direction. Counts include the source. "
+            "Circular axes also accept selected cylindrical/planar faces or planes; CATIA validates support geometry. "
             "User patterns use a positioning sketch and an anchor point. Legacy fillets are explicit API aliases, "
             "not new capabilities; prefer the explicit solid/surface variants. "
             "All modes are experimental until Windows validation. No automatic repair or rollback.",
-            MODES, {"body_handle": HANDLE})]
+            MODES, {"body_handle": HANDLE})
+        # Optional on existing solid/list modes; retained as required on the
+        # original surfacic mode for backwards compatibility.
+        for variant in definition["inputSchema"]["oneOf"]:
+            if variant["properties"]["mode"]["const"] in {"circular_pattern", "circular_pattern_list"}:
+                variant["propertyNames"]["enum"].append("complete_crown")
+        return [definition]
 
     def execute(self, name, a):
         if name != "catia_part_design_advanced" or a["mode"] not in CONSTRUCTORS:
@@ -113,13 +124,13 @@ class ShapeFactoryTools(OperationTools):
         if m.startswith("legacy_"):
             m = "surface_" + m.removeprefix("legacy_")
         kinds = {"profile_handle": {"sketch"} | CURVE, "spine_handle": {"sketch"} | CURVE,
-                 "axis_handle": LINE, "direction_handle": LINE,
+                 "axis_handle": LINEAR_SUPPORT if m == "circular_pattern" else LINE, "direction_handle": LINE,
                  "support_face_handle": {"face"}, "edge_handle": {"edge"},
                  "first_face_handle": {"face"}, "second_face_handle": {"face"}, "remove_face_handle": {"face"},
                  "first_edge_handle": {"edge"}, "second_edge_handle": {"edge"},
                  "parting_handle": {"plane", "surface", "face"},
-                 "first_direction_handle": LINE | {"plane", "face"},
-                 "second_direction_handle": LINE | {"plane", "face"}, "center_handle": {"point", "vertex"}}
+                 "first_direction_handle": LINEAR_SUPPORT,
+                 "second_direction_handle": LINEAR_SUPPORT, "center_handle": CENTER_SUPPORT}
         # Capture all exact references before any constructor changes topology.
         refs = {key: self.ref(a[key], kind) for key, kind in kinds.items() if key in a}
         faces = [self.ref(h, {"face"}) for h in a.get("functional_faces", [])]
@@ -135,8 +146,8 @@ class ShapeFactoryTools(OperationTools):
         for n, seed in enumerate(seeds):
             if any(same_object(seed, prior) for prior in seeds[:n]):
                 raise CADOperationError("INVALID_ARGUMENT", "Duplicate pattern seed")
-            if not surfacic and not any(same_object(seed, body.Shapes.Item(i)) for i in range(1, body.Shapes.Count + 1)):
-                raise CADOperationError("INVALID_ARGUMENT", "Pattern seed must belong to the explicitly targeted Body")
+            if not surfacic:
+                require_body_seed(body, seed)
         operand = self.obj(a["operand_body_handle"], {"body"}) if "operand_body_handle" in a else None
         if operand is not None:
             if same_object(body, operand):
@@ -153,13 +164,7 @@ class ShapeFactoryTools(OperationTools):
         if m == "hole_two_edges" and same_object(refs["first_edge_handle"], refs["second_edge_handle"]):
             raise CADOperationError("INVALID_ARGUMENT", "Hole requires two distinct edges")
         if m in {"rectangular_pattern", "circular_pattern"}:
-            keys = ("first", "second") if m == "rectangular_pattern" else ("radial", "angular")
-            if a[f"{keys[0]}_count"] * a[f"{keys[1]}_count"] > 10000:
-                raise CADOperationError("INVALID_ARGUMENT", "Pattern exceeds 10000-instance safety limit")
-            if any(a[f"{key}_seed_position"] > a[f"{key}_count"] for key in keys):
-                raise CADOperationError("INVALID_ARGUMENT", "Pattern seed position exceeds instance count")
-            if m == "circular_pattern" and not a.get("complete_crown", False) and a["angular_spacing_deg"] * (a["angular_count"] - 1) >= 360:
-                raise CADOperationError("INVALID_ARGUMENT", "Angular pattern repeats or exceeds a complete revolution")
+            validate_pattern(m, a)
         part = self.conn.get_active_part()
         try:
             constructor = getattr(part.ShapeFactory, CONSTRUCTORS[native_mode])
@@ -213,7 +218,8 @@ class ShapeFactoryTools(OperationTools):
                 a["first_seed_position"], a["second_seed_position"], refs["first_direction_handle"], refs["second_direction_handle"],
                 a["first_forward"], a["second_forward"], a["rotation_deg"])
         elif m == "circular_pattern":
-            args = [feature, a["radial_count"], a["angular_count"], a["radial_spacing_mm"], a["angular_spacing_deg"],
+            angular_spacing = 360 / a["angular_count"] if a.get("complete_crown", False) else a["angular_spacing_deg"]
+            args = [feature, a["radial_count"], a["angular_count"], a["radial_spacing_mm"], angular_spacing,
                 a["radial_seed_position"], a["angular_seed_position"], refs["center_handle"], refs["axis_handle"],
                 a["axis_forward"], a["rotation_deg"], a["keep_parallel"]]
             if surfacic:
@@ -235,7 +241,14 @@ class ShapeFactoryTools(OperationTools):
             self.state.mark_created(obj, "feature")
             for seed in additional:
                 obj.ItemToCopy = seed
+        if m in {"rectangular_pattern", "circular_pattern"}:
+            self.state.mark_created(obj, "feature")
+            configure_pattern(obj, m, a)
         result = self.finish(obj)
+        if m in {"rectangular_pattern", "circular_pattern"}:
+            result["pattern"] = read_pattern(obj, m, a)
+        elif m == "user_pattern":
+            result["pattern"] = read_user_pattern(obj, anchor, positions, a["instances"])
         result["constructor"] = CONSTRUCTORS[native_mode]
         if additional:
             result["warnings"].append("Legacy list-pattern membership and generated instances require Windows verification; ItemToCopy assignments alone do not prove all seeds were copied.")

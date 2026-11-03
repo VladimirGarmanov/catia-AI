@@ -242,6 +242,9 @@ class AdvancedGeometryTools(OperationTools):
         r = {k: self.ref(a[k], v) for k, v in types.items() if k in a and k != "sketch_handle"}
         sketch = self.obj(a["sketch_handle"], {"sketch"}) if "sketch_handle" in a else None
         pattern_feature = self.obj(a["feature_handle"], {"feature"}) if "feature_handle" in a else None
+        if m == "user_pattern":
+            from catia_mcp.tools.patterns import require_body_seed
+            require_body_seed(self.obj(a["body_handle"], {"body"}), pattern_feature)
         positions = self.obj(a["positions_sketch_handle"], {"sketch"}) if "positions_sketch_handle" in a else None
         anchor = self.obj(a["anchor_handle"], POINT | {"point2d"}) if "anchor_handle" in a else None
         vertices = [(self.ref(v["handle"], {"vertex"}), v["radius_mm"]) for v in a.get("vertices", [])]
@@ -355,7 +358,11 @@ class AdvancedGeometryTools(OperationTools):
             obj = f.AddNewScaling(r["reference_handle"], a["factor"])
         else:
             obj = f.AddNewSplit(r["surface_handle"], a["side"])
-        return self.finish(obj)
+        result = self.finish(obj)
+        if m == "user_pattern":
+            from catia_mcp.tools.patterns import read_user_pattern
+            result["pattern"] = read_user_pattern(obj, anchor, positions, a["instances"])
+        return result
 
     def options(self, a):
         obj = self.obj(a["feature_handle"], {"feature"})

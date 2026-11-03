@@ -160,6 +160,15 @@ For an authorized modeling request:
 
 ## Package-based tools and references
 
+- Patterns: see `PATTERNS.md`. Prefer explicit feature/body/support handles.
+  Supply both support handles or both current selected supports; never replace
+  a missing topology Reference with its parent feature. Counts include source;
+  zero spacing is allowed only on a one-instance direction. Full circular crown
+  uses 360/count, not 360/(count-1). Set keep_parallel deliberately for asymmetric
+  seeds. Native parameter readback does not prove BRep instances or orientation;
+  UserPattern actual count and legacy list membership still need live inspection.
+  A failed readback may leave a created pattern: inspect it before further writes.
+
 - `catia_part_design_advanced` exposes audited native argument lists, not an
   arbitrary API gateway. Pattern seeds must be in the explicitly targeted Body.
   Barycenter/concentric-edge holes can ignore a requested position by native design;

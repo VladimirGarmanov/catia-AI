@@ -12,7 +12,9 @@ import ntpath
 from typing import Any
 
 from catia_mcp.connection import CATIAConnection
-from catia_mcp.runtime import CADOperationError
+from catia_mcp.runtime import CADOperationError, same_object
+from catia_mcp.tools.patterns import (LINEAR_SUPPORT, CENTER_SUPPORT, validate_pattern,
+    configure_pattern, read_pattern, require_body_seed)
 
 
 class PartDesignTools:
@@ -236,8 +238,9 @@ class PartDesignTools:
             {
                 "name": "catia_rect_pattern",
                 "description": (
-                    "Pattern an explicitly named feature. Select two linear direction "
-                    "supports in CATIA immediately before calling. Counts include source."
+                    "Pattern an explicit feature_handle or unique feature_name in the targeted Body. "
+                    "Pass both direction handles or select two line/straight-edge/planar-face supports in order. "
+                    "Counts include source. Zero spacing is valid only for a one-instance direction."
                 ),
                 "inputSchema": {
                     "type": "object",
@@ -271,8 +274,10 @@ class PartDesignTools:
             {
                 "name": "catia_circ_pattern",
                 "description": (
-                    "Pattern an explicitly named feature around a selected point and "
-                    "selected linear axis. Counts include source; default is a closed ring."
+                    "Pattern an explicit feature_handle or unique feature_name in the targeted Body. "
+                    "Pass center_handle and axis_handle or select a point/vertex then a line, straight edge, "
+                    "plane or cylindrical/planar face. Counts include source; omitted angular_spacing makes a complete crown. "
+                    "keep_parallel=true preserves copy orientation (legacy default); false rotates copies around the axis."
                 ),
                 "inputSchema": {
                     "type": "object",
@@ -412,6 +417,28 @@ class PartDesignTools:
 
         for definition in definitions:
             properties = definition["inputSchema"]["properties"]
+            if definition["name"] in {"catia_rect_pattern", "catia_circ_pattern"}:
+                schema = definition["inputSchema"]
+                handle = {"type": "string", "minLength": 1}
+                properties["feature_handle"] = handle
+                properties["feature_name"]["description"] = "Unique feature name in the targeted Body; omit when using feature_handle"
+                schema["required"].remove("feature_name")
+                schema["oneOf"] = [{"required": ["feature_name"], "not": {"required": ["feature_handle"]}},
+                                   {"required": ["feature_handle"], "not": {"required": ["feature_name"]}}]
+                rectangular = definition["name"] == "catia_rect_pattern"
+                keys = ("first_direction_handle", "second_direction_handle") if rectangular else ("center_handle", "axis_handle")
+                for key in keys:
+                    properties[key] = handle
+                schema["dependentRequired"] = {keys[0]: [keys[1]], keys[1]: [keys[0]]}
+                if rectangular:
+                    for key in ("dir1_count", "dir2_count"):
+                        properties[key].update(minimum=1, maximum=1000)
+                    for key in ("dir1_forward", "dir2_forward"):
+                        properties[key] = {"type": "boolean", "default": True}
+                else:
+                    properties["count"].update(minimum=2, maximum=1000)
+                    properties["axis_forward"] = {"type": "boolean", "default": True}
+                    properties["keep_parallel"] = {"type": "boolean", "default": True}
             if definition["name"] == "catia_draft":
                 definition["description"] = "Standard Draft with explicit face, neutral and parting References and a Part-frame pulling vector. No guessed supports or DraftDomains.Add."
                 properties.clear()
@@ -442,7 +469,7 @@ class PartDesignTools:
         self._arguments = arguments
         if arguments.get("body_handle"):
             self.conn.operation_body = self.conn.session.resolve(arguments["body_handle"], {"body"}).value
-        if tool_name not in {"catia_list_features", "catia_list_edges"}:
+        if tool_name not in {"catia_list_features", "catia_list_edges", "catia_rect_pattern", "catia_circ_pattern"}:
             self.conn.get_active_part().InWorkObject = self.conn.get_active_part_body()
         match tool_name:
             case "catia_pad":
@@ -570,36 +597,49 @@ class PartDesignTools:
         selection = document.Selection
         if selection.Count2 != 2:
             raise ValueError(f"Select exactly two supports in CATIA: {expected}")
-        part = self.conn.get_active_part()
         references = []
         for position, expected_type in enumerate(expected, start=1):
             selected = selection.Item2(position)
             actual_type = str(selected.Type)
-            if not actual_type.lower().endswith(expected_type.lower()):
+            kind = actual_type.lower()
+            is_point = kind in {"point", "point2d", "vertex"} or kind.endswith("vertex") or kind.startswith("hybridshapepoint")
+            is_direction = (kind in {"line", "line2d", "edge", "face", "plane"}
+                            or kind.startswith(("hybridshapeline", "hybridshapeplane", "rectilinear"))
+                            or kind.endswith("planarface")
+                            or (expected_type == "Axis" and kind.endswith("cylindricalface")))
+            if not (is_point if expected_type == "Point" else is_direction):
                 raise ValueError(
                     f"Selection position {position} is {actual_type!r}; "
                     f"expected a {expected_type.lower()} support"
                 )
-            try:
-                owner = selected.Document
-            except AttributeError:
-                owner = None
-            if owner is not None:
-                owner_path = str(getattr(owner, "FullName", ""))
-                document_path = str(getattr(document, "FullName", ""))
-                if owner_path and document_path and (
-                    ntpath.normcase(ntpath.normpath(owner_path))
-                    != ntpath.normcase(ntpath.normpath(document_path))
-                ):
-                    raise RuntimeError("Selected support belongs to another CATIA document")
+            if not same_object(selected.Document, document):
+                raise CADOperationError("DOCUMENT_MISMATCH", "Selected support belongs to another CATIA document")
             try:
                 reference = selected.Reference
                 if reference is None:
                     raise ValueError("Selection has no COM Reference")
                 references.append(reference)
-            except Exception:
-                references.append(part.CreateReferenceFromObject(selected.Value))
+            except Exception as exc:
+                raise CADOperationError("STALE_REFERENCE", "Selected support Reference unavailable; refusing to substitute its parent feature") from exc
         return references[0], references[1]
+
+    def _pattern_seed(self, args):
+        if bool(args.get("feature_name")) == bool(args.get("feature_handle")):
+            raise CADOperationError("INVALID_ARGUMENT", "Supply exactly one feature_name or feature_handle")
+        feature = (self.conn.session.resolve(args["feature_handle"], {"feature"}).value
+                   if args.get("feature_handle") else self._get_last_shape(args["feature_name"]))
+        require_body_seed(self.conn.get_active_part_body(), feature)
+        return feature
+
+    def _pattern_supports(self, args, circular=False):
+        keys = ("center_handle", "axis_handle") if circular else ("first_direction_handle", "second_direction_handle")
+        present = [key in args for key in keys]
+        if any(present) and not all(present):
+            raise CADOperationError("INVALID_ARGUMENT", "Supply both pattern support handles or select both supports in CATIA")
+        if all(present):
+            kinds = (CENTER_SUPPORT, LINEAR_SUPPORT) if circular else (LINEAR_SUPPORT, LINEAR_SUPPORT)
+            return tuple(self.conn.session.reference(args[key], kind) for key, kind in zip(keys, kinds))
+        return self._selected_support_references(("Point", "Axis") if circular else ("Line", "Line"))
 
     def _pad(self, args: dict[str, Any]) -> str:
         self.conn.ensure_connected()
@@ -1018,25 +1058,23 @@ class PartDesignTools:
         self.conn.refresh_display()
         return f"{hole_type} Hole: D{diameter} mm, depth {depth} mm. Feature: '{hole.Name}'; volume m^3 {before} -> {after} (None=unverified)"
 
-    def _rect_pattern(self, args: dict[str, Any]) -> str:
+    def _rect_pattern(self, args: dict[str, Any]) -> dict:
         self.conn.ensure_connected()
         part = self.conn.get_active_part()
         sf = part.ShapeFactory
 
-        if not args.get("feature_name"):
-            raise ValueError("feature_name is required; the last feature is not an exact target")
-        feature = self._get_last_shape(args["feature_name"])
+        feature = self._pattern_seed(args)
         d1_count = args["dir1_count"]
         d1_spacing = args["dir1_spacing"]
         d2_count = args.get("dir2_count", 1)
         d2_spacing = args.get("dir2_spacing", 0)
-        if any(isinstance(count, bool) or not isinstance(count, int) or count < 1
-               for count in (d1_count, d2_count)):
-            raise ValueError("Pattern counts must be positive integers including the source")
-        if any(not isinstance(spacing, (int, float)) or not math.isfinite(spacing)
-               for spacing in (d1_spacing, d2_spacing)):
-            raise ValueError("Pattern spacing must be finite in mm")
-        dir1_ref, dir2_ref = self._selected_support_references(("Line", "Line"))
+        parameters = dict(first_count=d1_count, second_count=d2_count,
+                          first_spacing_mm=d1_spacing, second_spacing_mm=d2_spacing,
+                          first_seed_position=1, second_seed_position=1,
+                          first_forward=args.get("dir1_forward", True), second_forward=args.get("dir2_forward", True), rotation_deg=0)
+        validate_pattern("rectangular_pattern", parameters)
+        dir1_ref, dir2_ref = self._pattern_supports(args)
+        part.InWorkObject = self.conn.get_active_part_body()
 
         pattern = sf.AddNewRectPattern(
             feature,
@@ -1044,35 +1082,36 @@ class PartDesignTools:
             d1_spacing, d2_spacing,
             1, 1,
             dir1_ref, dir2_ref,
-            True, True,
+            parameters["first_forward"], parameters["second_forward"],
             0,
         )
 
         self._created(pattern)
+        configure_pattern(pattern, "rectangular_pattern", parameters)
         self._updated(part, pattern)
+        evidence = read_pattern(pattern, "rectangular_pattern", parameters)
         self.conn.refresh_display()
-        return (
-            f"Rectangular pattern created: {d1_count}x{d2_count}, "
-            f"spacing {d1_spacing}x{d2_spacing} mm. Feature: '{pattern.Name}'"
-        )
+        return {"ok": True, "name": str(pattern.Name), "pattern": evidence}
 
-    def _circ_pattern(self, args: dict[str, Any]) -> str:
+    def _circ_pattern(self, args: dict[str, Any]) -> dict:
         self.conn.ensure_connected()
         part = self.conn.get_active_part()
         sf = part.ShapeFactory
 
-        if not args.get("feature_name"):
-            raise ValueError("feature_name is required; the last feature is not an exact target")
-        feature = self._get_last_shape(args["feature_name"])
+        feature = self._pattern_seed(args)
         count = args["count"]
         if isinstance(count, bool) or not isinstance(count, int) or count < 2:
             raise ValueError("Circular pattern count must be an integer >= 2")
         angular_spacing = args.get("angular_spacing")
         if angular_spacing is None:
             angular_spacing = 360.0 / count
-        if not isinstance(angular_spacing, (int, float)) or not math.isfinite(angular_spacing) or angular_spacing <= 0:
-            raise ValueError("Angular spacing must be finite and positive")
-        center_ref, axis_ref = self._selected_support_references(("Point", "Line"))
+        parameters = dict(radial_count=1, angular_count=count, radial_spacing_mm=0,
+                          angular_spacing_deg=angular_spacing, radial_seed_position=1, angular_seed_position=1,
+                          axis_forward=args.get("axis_forward", True), rotation_deg=0,
+                          complete_crown=args.get("angular_spacing") is None, keep_parallel=args.get("keep_parallel", True))
+        validate_pattern("circular_pattern", parameters)
+        center_ref, axis_ref = self._pattern_supports(args, circular=True)
+        part.InWorkObject = self.conn.get_active_part_body()
 
         pattern = sf.AddNewCircPattern(
             feature,
@@ -1080,17 +1119,16 @@ class PartDesignTools:
             0, angular_spacing,
             1, 1,
             center_ref, axis_ref,
-            True, 0,
-            True,
+            parameters["axis_forward"], 0,
+            parameters["keep_parallel"],
         )
 
         self._created(pattern)
+        configure_pattern(pattern, "circular_pattern", parameters)
         self._updated(part, pattern)
+        evidence = read_pattern(pattern, "circular_pattern", parameters)
         self.conn.refresh_display()
-        return (
-            f"Circular pattern created: {count} instances, "
-            f"{angular_spacing}° spacing. Feature: '{pattern.Name}'"
-        )
+        return {"ok": True, "name": str(pattern.Name), "pattern": evidence}
 
     def _mirror(self, args: dict[str, Any]) -> str:
         if args.get("feature_name"):

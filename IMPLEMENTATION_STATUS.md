@@ -1,5 +1,17 @@
 # Реализация CATIA_AGENT_CODEX_PACKAGE — 2026-10-09
 
+## Дополнение 2026-11-02: patterns
+
+Исправлены существующие rectangular/circular/user pattern пути, включая
+surfacic и legacy list варианты: точные опоры и feature handles, проверка Body,
+нулевой неиспользуемый шаг, явное распределение полного круга, post-Update
+readback. Ошибки readback не превращаются в успех и не создают повторный pattern.
+Количество MCP-инструментов сохранено: 147 full / 13 inspection.
+UserPattern actual count и list membership не объявляются измеренными.
+Контракты, ограничения и Windows probe: [PATTERNS.md](PATTERNS.md).
+Offline: 66 targeted tests passed (ShapeFactory contracts и runtime guards).
+Windows COM/BRep и реальные направления/число копий ещё не проверены.
+
 ## Дополнение 2026-11-01: общее переименование объектов
 
 147 инструментов. `catia_rename_object` переименовывает существующие объекты
