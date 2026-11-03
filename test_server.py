@@ -82,7 +82,7 @@ def check_tool_definitions():
     expected_counts = {
         "Document": 9, "Context": 3, "Sketcher": 15, "Part Design": 15,
         "GSD": 24, "Assembly": 9, "Measurement": 6, "Export": 4,
-        "Engineering": 12, "Capabilities": 2,
+        "Engineering": 13, "Capabilities": 2,
         "Advanced Geometry": 5, "Domains": 5, "Drafting": 6,
         "Assembly Management": 4, "Drawing Management": 7,
         "Analysis": 5, "Sketch Operations": 4,

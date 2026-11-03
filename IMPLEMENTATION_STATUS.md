@@ -1,5 +1,22 @@
 # Реализация CATIA_AGENT_CODEX_PACKAGE — 2026-10-09
 
+## Дополнение 2026-11-01: общее переименование объектов
+
+147 инструментов. `catia_rename_object` переименовывает существующие объекты
+дерева по целому handle: проверяет текущую коллекцию, document/revision/request,
+опциональное старое имя, дубликаты и readback. Для параметров используется
+Parameter.Rename с global name, для остальных поддержанных объектов — Name.
+Нет геометрического Update, переключения/закрытия Sketch или Save. Расширено
+чтение Part-дерева для nested Body containers и sketch constraints.
+
+Selection/BRep handles, intrinsic axes, имена файлов, root Product PartNumber
+и чужие nested occurrences не являются целью общего rename. DrawingView.Name
+меняет prefix, а DrawingText.Name не меняет отображаемую строку.
+Windows COM и допустимость конкретных Unicode/пробельных имён ещё не проверены.
+Локально: 17 targeted tests passed (naming, runtime guards, registration),
+Ruff F/E9 и diff check прошли; stdio discovery PASS, 147 full / 13 inspection.
+Подробности и ручной Windows probe: [NAMING.md](NAMING.md).
+
 ## Дополнение 2026-10-30: Assembly / Drawing / Claude Code
 
 146 MCP-инструментов. Добавлены 4 assembly и 7 drawing групп; список режимов,

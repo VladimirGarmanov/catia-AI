@@ -56,6 +56,10 @@ class EngineeringTools:
         return [
             tool("catia_list_objects", "Enumerate CATPart objects with session handles; no topology guessing. Selection handles require the same live selection and expire on writes.",
                  {"max_objects": {"type": "integer", "minimum": 1, "maximum": 5000, "default": 500}}, readonly=True),
+            tool("catia_rename_object", "Rename an existing whole tree object by handle: Part bodies/features/sketches/GSD/constraints/relations/parameters, root assembly occurrences/constraints/publications, or Drawing sheets/views/annotations. Read tree handles first; selection/BRep handles, files and built-in origins are excluded. Component Name is instance name, not PartNumber; drawing text Name is not displayed Text; view Name changes its prefix. Parameter.Rename sets a global name. Metadata only: reads name back, leaves sketch edition open and does not run geometry Update or Save. Duplicate sibling names are rejected.",
+                 {"handle": HANDLE, "new_name": {"type": "string", "minLength": 1, "maxLength": 1024},
+                  "expected_name": {"type": "string", "description": "Optional exact old Name from discovery; reject external renaming"}},
+                 ["handle", "new_name"]),
             tool("catia_create_container", "Create a Body, HybridBody or OrderedGeometricalSet in the bound CATPart.",
                  {"kind": {"enum": ["body", "geoset", "ordered_geoset"]}, "name": HANDLE}, ["kind", "name"]),
             tool("catia_feature_state", "Set in-work object or feature activation by exact handle; no deletion.",
@@ -101,6 +105,9 @@ class EngineeringTools:
         ]
 
     def execute(self, name, args):
+        if name == "catia_rename_object":
+            from catia_mcp.tools.naming import rename_object
+            return rename_object(self, args)
         methods = {"catia_list_objects": self.list_objects, "catia_create_container": self.create_container,
                    "catia_feature_state": self.feature_state, "catia_select_objects": self.select_objects,
                    "catia_swept_solid": self.swept_solid, "catia_boolean": self.boolean,
@@ -133,11 +140,13 @@ class EngineeringTools:
                 handle = add(obj, kind, parent)
                 if handle is None:
                     break
-                children = {"body": [("Sketches", "sketch"), ("Shapes", "feature")],
+                children = {"body": [("Sketches", "sketch"), ("Shapes", "feature"), ("HybridShapes", "geometry"),
+                                     ("HybridBodies", "geoset"), ("OrderedGeometricalSets", "ordered_geoset")],
                             "geoset": [("HybridShapes", "geometry"), ("HybridSketches", "sketch"), ("HybridBodies", "geoset")],
-                            "ordered_geoset": [("HybridShapes", "geometry"), ("Sketches", "sketch")]}.get(kind, [])
+                            "ordered_geoset": [("HybridShapes", "geometry"), ("Sketches", "sketch"),
+                                               ("OrderedGeometricalSets", "ordered_geoset")]}.get(kind, [])
                 if kind == "sketch":
-                    children = [("GeometricElements", "geometry")]
+                    children = [("GeometricElements", "geometry"), ("Constraints", "constraint")]
                 for attribute, child_kind in children:
                     try:
                         visit(getattr(obj, attribute), child_kind, handle, depth + 1)

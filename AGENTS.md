@@ -52,6 +52,19 @@ For an authorized modeling request:
 
 ## Model operations
 
+- Rename whole tree objects with `catia_rename_object(handle, new_name)` after
+  `catia_list_objects` (Part) or `catia_domain_objects` (Product/Drawing).
+  Supply document_id, expected_revision, request_id and, when useful, expected_name.
+  This is a metadata-only exception to the geometry-update loop: name readback
+  verifies it; do not close an interactive sketch or run geometry Update merely
+  for renaming. No save or geometry reconstruction is needed.
+- Rename consumes whole-object tree handles, not selection/face/edge handles.
+  It must never rename a selected face's parent feature implicitly. Duplicate
+  sibling names and stale ownership are rejected. A component Name is its
+  instance label; root PartNumber uses assembly metadata. Drawing text Name is
+  not displayed Text; view Name changes the prefix. Parameters use global
+  Parameter.Rename, with no Local: prefix. Files and intrinsic axes are excluded.
+
 - Assembly: `catia_assembly_inspect` reads occurrences, root constraints and
   publications. `catia_assembly_component` writes immediate root occurrences;
   nested external subassembly edits need that document explicitly activated
@@ -213,3 +226,15 @@ For an authorized modeling request:
 - `catia_capability_status` searches the supplied API catalog without CATIA.
   Documented API, implemented subset, tool availability, offline testing and
   live validation are distinct. Read `IMPLEMENTATION_STATUS.md` for gaps.
+
+## Source maintenance and publication
+
+For requested source-code changes in this project, the user has authorized
+committing and pushing completed changes to
+`https://github.com/VladimirGarmanov/catia-AI.git`, branch `main`, unless a later
+instruction says otherwise. Complete this publication step instead of leaving
+finished work only in the local checkout. Verify the remote commit after push.
+Use the explicit destination: `origin` may still point to the upstream project.
+Never force-push or publish unrelated edits, credentials, drawings or CAD files.
+This rule applies to source maintenance, not CATIA modeling operations. Report
+an authentication, conflict or other push blocker rather than claiming upload.

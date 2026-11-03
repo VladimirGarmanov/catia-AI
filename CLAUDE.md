@@ -7,6 +7,10 @@ agent through the full `catia-v5` MCP. Do not start Codex, subagents, installers
 or direct COM scripts during a modeling request. Another client must not write
 to the same CATIA instance concurrently.
 
+For an existing feature/body/sketch name, use `catia_rename_object` with a fresh
+whole-object tree handle. Do not delete/recreate geometry to rename it, or change
+a file path, displayed drawing text, or a component's PartNumber by accident.
+
 Use runtime tool discovery before declaring a tool unavailable; lazy/deferred
 tools may need to be searched. Reading this repository's Python is not evidence
 that those tools are callable in the current conversation.

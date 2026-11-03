@@ -9,7 +9,7 @@ with the original MIT license retained.
 
 ## What it does
 
-This MCP server registers **146 tools** (including the original 81 names).
+This MCP server registers **147 tools** (including the original 81 names).
 
 Assembly/Drawing extensions: [operations and limitations](ASSEMBLY_DRAWING.md).
 Source ZIP installation now supports **both Codex and Claude Code**:
@@ -39,6 +39,10 @@ The tool groups let Claude or Codex:
 - **Export** — STEP, IGES, STL, 3DXML, VRML, screenshots
 - **View control** — set standard views, fit all, capture screenshots
 - **Current context** — inspect the active model and CATIA selection
+- **Rename existing objects** — `catia_rename_object` changes whole tree objects
+  (features, sketches, bodies, GSD objects and supported assembly/drawing objects)
+  by handle, with ownership checks and name readback. It preserves sketch edition
+  and does not rebuild geometry or rename files. See [naming](NAMING.md).
 - **Handle-based engineering** — explicit containers, reference planes/points, Rib/Slot,
   solid lofts, body booleans, typed parameters/formulas and API-catalog lookup
 
@@ -84,7 +88,7 @@ Node, Codex and Claude Code are installed locally without a Node file picker or 
 Python's publisher signature and Node's official SHA-256 are checked. Institutional
 network/application restrictions are not bypassed. Clean-Windows bootstrap validation
 is still pending; see [WINDOWS_CODEX.md](WINDOWS_CODEX.md).
-The default is **one client agent with all 146 tools**: it reads the drawing and
+The default is **one client agent with all 147 tools**: it reads the drawing and
 selection, plans, models and verifies the result itself. No subagent is required.
 `START_WITH_DRAWING.cmd` opens a PNG/JPEG/PDF picker; PDF pages are rendered locally
 and attached as images (optional `drawings` dependencies installed by INSTALL).
