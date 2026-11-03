@@ -60,6 +60,8 @@ fallback, session/replay, client launchers и PDF/image preparation. Покры�
    явно заменяет pywin32 двойниками. CI дополнен lint/pip check/registration.
    Windows builder проверяет импорт DLL pywin32, источник catia_mcp и stdio
    discovery именно встроенным Python до упаковки EXE, без подключения к CATIA.
+   Для GitHub release metadata builder использует read-only workflow token,
+   чтобы общий IP hosted runner не упирался в anonymous API rate limit.
 
 ## Upgrading
 

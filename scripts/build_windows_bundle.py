@@ -83,9 +83,15 @@ def install_python_runtime(temporary: Path) -> dict[str, str]:
 
 def install_codex(temporary: Path) -> dict[str, str]:
     release_url = f"https://api.github.com/repos/openai/codex/releases/tags/rust-v{CODEX_VERSION}"
+    headers = {"Accept": "application/vnd.github+json", "User-Agent": "CATIA-AI-Windows-Builder"}
+    # Hosted runners share unauthenticated rate limits. Use the workflow's
+    # read-only token only for this api.github.com request, never asset downloads.
+    token = os.environ.get("GITHUB_TOKEN")
+    if token:
+        headers["Authorization"] = "Bearer " + token
     request = urllib.request.Request(
         release_url,
-        headers={"Accept": "application/vnd.github+json", "User-Agent": "CATIA-AI-Windows-Builder"},
+        headers=headers,
     )
     with urllib.request.urlopen(request, timeout=45) as response:
         release = json.load(response)

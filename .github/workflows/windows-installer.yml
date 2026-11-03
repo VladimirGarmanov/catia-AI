@@ -26,6 +26,7 @@ jobs:
       - name: Assemble portable Python, CATIA MCP and native Codex
         env:
           CATIA_AI_CODEX_VERSION: ${{ inputs.codex_version || '0.159.1' }}
+          GITHUB_TOKEN: ${{ github.token }}
         run: python scripts/build_windows_bundle.py
       - name: Install Inno Setup on the hosted builder
         run: choco install innosetup --yes --no-progress
