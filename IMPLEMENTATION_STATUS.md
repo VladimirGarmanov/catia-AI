@@ -1,5 +1,32 @@
 # Реализация CATIA_AGENT_CODEX_PACKAGE — 2026-10-09
 
+## Assembly workflow — 2026-11-03
+
+Добавлены **12 MCP-инструментов**: детали экземпляра и его публикации, BOM,
+статусы сопряжений, чтение поз, вставка открытого документа, дублирование,
+замена одного экземпляра, линейный/круговой массив, групповые трансформации,
+разнесение с данными для восстановления, свойства корня и relay публикаций.
+Существующий `catia_assembly_constraint` получил 8 режимов: tangent,
+sphere_concentric, symmetry, planar_angle, distance_three, angle_sector,
+distance_direction, driving_mode. Подробные контракты и Windows-пробы:
+[ASSEMBLY_DRAWING.md](ASSEMBLY_DRAWING.md).
+
+Вставка/замена используют IDs открытых источников без их активации или сохранения.
+Запись ограничена непосредственными экземплярами активного CATProduct.
+Массивы — explicit shared-reference occurrences, не независимые файлы и не
+ассоциативная native pattern feature. Explode меняет реальные положения, не Scene.
+BOM считает reference identity, статус constraints не подменяет неизвестный DOF.
+Fix/AutoConstraint остаются запрещены. UI input не включался.
+
+Offline: **309 passed, 2 skipped**; Ruff F/E9 и git diff --check прошли.
+Регистрация и настоящий stdio discovery: **163 full / 13 inspection**.
+Проверены поворот вокруг внешнего pivot, восстановление поз, owner/cycle/revision
+guards, частичное создание, request replay без повторного COM, solver mismatch,
+родство references и MCP isError. CAA-страницы Product/Products, Position,
+Constraints, типы constraints и Publications обновлены parser v2.
+COM-моки не доказывают native API/геометрию: live Windows CATIA, SAFEARRAY,
+ReplaceProduct/mates и SetRelay/Valuation ещё не проверены.
+
 ## Сохранение, журнал запросов и демо — 2026-11-03
 
 `catia_save_document`: абсолютное имя, проверка Windows path components и

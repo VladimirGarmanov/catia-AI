@@ -34,7 +34,7 @@ Screenshots are useful at meaningful checkpoints, not after every primitive.
 The agent does not infer invisible dimensions or overwrite CAD files without
 an explicit path and instruction.
 
-The current server registers **151 full tools**; the separate inspection mode
+The current server registers **163 full tools**; the separate inspection mode
 exposes 13. Tool count describes registration, not full native GUI coverage or
 live Windows validation. Available groups include document/model context,
 Sketcher, Part Design, GSD, assembly, drafting, measurement, and exports.

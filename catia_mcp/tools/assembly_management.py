@@ -15,6 +15,7 @@ from catia_mcp.tools.operations import BOOL, VECTOR, array, group, unit_vector
 
 TEXT = {"type": "string"}
 PAIR = {"selection_handles": array(HANDLE, 2, 2)}
+TRIPLE = {"selection_handles": array(HANDLE, 3, 3)}
 
 
 class AssemblyManagementTools(DomainTools):
@@ -36,10 +37,17 @@ class AssemblyManagementTools(DomainTools):
                 "rotate": {"component_handle": HANDLE, "axis": VECTOR, "angle_deg": NUMBER},
                 "update": {},
             }),
-            group("catia_assembly_constraint", "Create or edit root assembly constraints. Fix is disabled; existing Fix constraints may only be deactivated or removed. Creation/replacement requires fresh exact selection handles, never names or edge indices. Read native solver status after Update. Geometry compatibility is checked by CATIA.", {
+            group("catia_assembly_constraint", "Create or edit root assembly constraints. Fix is disabled; existing Fix constraints may only be deactivated or removed. Creation/replacement requires fresh exact selection handles, never names or edge indices. sphere_concentric is sphere/sphere only, not cylinder-axis alignment. symmetry uses two supports then a symmetry line/plane; planar_angle uses two planes then their intersection line. distance_three uses two supports then a measurement direction. angle_sector also changes native angle/side/orientation. Read native solver status after Update. Geometry compatibility is checked by CATIA.", {
                 **{mode: PAIR for mode in ("coincidence", "parallel", "perpendicular", "contact")},
+                **{mode: PAIR for mode in ("tangent", "sphere_concentric")},
+                "symmetry": TRIPLE,
+                "planar_angle": {**TRIPLE, "value": NUMBER},
+                "distance_three": {**TRIPLE, "value": NUMBER},
                 "distance": {**PAIR, "value": NUMBER},
                 "angle": {**PAIR, "value": NUMBER},
+                "angle_sector": {"constraint_handle": HANDLE, "sector": {"type": "integer", "minimum": 0, "maximum": 3}},
+                "distance_direction": {"constraint_handle": HANDLE, "direction": {"enum": ["free", "x", "y", "z"]}},
+                "driving_mode": {"constraint_handle": HANDLE, "driving": BOOL},
                 "edit_value": {"constraint_handle": HANDLE, "value": NUMBER},
                 "orientation": {"constraint_handle": HANDLE, "orientation": {"enum": ["same", "opposite", "undefined"]}},
                 "side": {"constraint_handle": HANDLE, "side": {"enum": ["positive", "negative", "undefined"]}},
@@ -65,12 +73,18 @@ class AssemblyManagementTools(DomainTools):
         except Exception as exc:
             row["inactive"] = None
             row.setdefault("unavailable", {})["inactive"] = str(exc)
-        if row["Type"] in {1, 6}:
+        if row["Type"] in {1, 6, 7}:
             try:
                 row["dimension"] = str(obj.Dimension.ValueAsString())
             except Exception as exc:
                 row["dimension"] = None
                 row.setdefault("unavailable", {})["dimension"] = str(exc)
+        for attr, kinds in (("AngleSector", {6, 7}), ("DistanceDirection", {1})):
+            if row["Type"] in kinds:
+                extra = read_properties(obj, {attr: int})
+                row[attr] = extra[attr]
+                if "unavailable" in extra:
+                    row.setdefault("unavailable", {}).update(extra["unavailable"])
         return row
 
     def inspect(self, a):
@@ -230,25 +244,33 @@ class AssemblyManagementTools(DomainTools):
         check_constraint_command("catia_assembly_constraint", a)
         root, mode = self.product(), a["mode"]
         collection = root.Connections("CATIAConstraints")
-        kinds = {"distance": 1, "coincidence": 2, "angle": 6,
-                 "parallel": 8, "perpendicular": 11, "contact": 20}
+        kinds = {"distance": 1, "distance_three": 1, "coincidence": 2,
+                 "sphere_concentric": 3, "tangent": 4, "angle": 6, "planar_angle": 7,
+                 "parallel": 8, "perpendicular": 11, "symmetry": 15, "contact": 20}
         expected_dimension = None
         if mode in kinds:
             handles = a["selection_handles"]
+            if len(set(handles)) != len(handles):
+                raise CADOperationError("INVALID_ARGUMENT", "Constraint supports must be distinct selection handles")
             refs = [self.selected_reference(h) for h in handles]
             self.state.mutation_started = True
-            obj = collection.AddBiEltCst(kinds[mode], *refs)
+            constructor = collection.AddTriEltCst if mode in {"symmetry", "planar_angle", "distance_three"} else collection.AddBiEltCst
+            obj = constructor(kinds[mode], *refs)
             handle = self.state.mark_created(obj, "constraint")
-            if mode in {"distance", "angle"}:
-                dimension(obj.Dimension, a["value"], "mm" if mode == "distance" else "deg")
+            if mode in {"distance", "distance_three", "angle", "planar_angle"}:
+                dimension(obj.Dimension, a["value"], "mm" if kinds[mode] == 1 else "deg")
                 expected_dimension = float(obj.Dimension.Value)
         else:
             handle = a["constraint_handle"]
             obj = self.obj(handle, {"constraint"})
             index = member_index(collection, obj)
             check_constraint_edit(obj, mode)
-            if mode == "edit_value" and int(obj.Type) not in {1, 6}:
+            if mode in {"edit_value", "driving_mode"} and int(obj.Type) not in {1, 6, 7}:
                 raise CADOperationError("INVALID_ARGUMENT", "Only distance and angle constraints have an editable dimension here")
+            if mode == "angle_sector" and int(obj.Type) not in {6, 7}:
+                raise CADOperationError("INVALID_ARGUMENT", "Angle sector requires an angular constraint")
+            if mode == "distance_direction" and int(obj.Type) != 1:
+                raise CADOperationError("INVALID_ARGUMENT", "Distance direction requires a distance constraint")
             ref = self.selected_reference(a["selection_handle"]) if mode == "replace_element" else None
             count = int(collection.Count)
             self.changed(handle)
@@ -265,6 +287,12 @@ class AssemblyManagementTools(DomainTools):
                 obj.Orientation = {"same": 0, "opposite": 1, "undefined": 2}[a["orientation"]]
             elif mode == "side":
                 obj.Side = {"positive": 0, "negative": 1, "undefined": 4}[a["side"]]
+            elif mode == "angle_sector":
+                obj.AngleSector = a["sector"]
+            elif mode == "distance_direction":
+                obj.DistanceDirection = {"free": 0, "x": 1, "y": 2, "z": 3}[a["direction"]]
+            elif mode == "driving_mode":
+                obj.Mode = 0 if a["driving"] else 1
             elif mode == "rename":
                 obj.Name = a["name"]
             elif mode == "replace_element":
@@ -284,6 +312,12 @@ class AssemblyManagementTools(DomainTools):
             verify_equal(int(obj.Orientation), {"same": 0, "opposite": 1, "undefined": 2}[a["orientation"]], "Orientation")
         if mode == "side":
             verify_equal(int(obj.Side), {"positive": 0, "negative": 1, "undefined": 4}[a["side"]], "Side")
+        if mode == "angle_sector":
+            verify_equal(int(obj.AngleSector), a["sector"], "Angle sector")
+        if mode == "distance_direction":
+            verify_equal(int(obj.DistanceDirection), {"free": 0, "x": 1, "y": 2, "z": 3}[a["direction"]], "Distance direction")
+        if mode == "driving_mode":
+            verify_equal(int(obj.Mode), 0 if a["driving"] else 1, "Constraint mode")
         if not obj.IsInactive() and int(obj.Status) != 0:
             raise CADOperationError("POSTCONDITION_FAILED", f"Constraint is not solved: native Status={obj.Status}")
         return {**result, "handle": handle, "constraint": self.constraint_data(obj)}

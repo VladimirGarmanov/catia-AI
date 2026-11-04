@@ -1,8 +1,106 @@
-# Assembly и Drawing: расширение 2026-10-30
+# Assembly и Drawing
 
-Добавлены **11 MCP-имён**, всего **146**, исходные 81 и все прежние 135 сохранены.
-Новые имена группируют режимы операций. Это конкретное покрытие API, не вся GUI
-CATIA и не заявление о проверке на Windows. Runtime остаётся direct pywin32 COM.
+Обновление Assembly от 2026-11-03 добавляет **12 MCP-инструментов** и **8 режимов
+сопряжений**. Всего сервер регистрирует **163 full / 13 inspection**; существующие
+имена сохранены. Это конкретное покрытие API, не вся GUI CATIA и не заявление
+о проверке на Windows. Runtime остаётся direct pywin32 COM, общий для Codex и Claude.
+
+## Новые инструменты сборки
+
+| Инструмент | Что делает |
+| --- | --- |
+| `catia_assembly_component_details` | Читает свойства экземпляра/reference, доступный исходный документ и handles его публикаций |
+| `catia_assembly_bom` | Возвращает структурированную спецификацию: терминальные детали (`leaf`), непосредственные дети (`top`) или все уровни (`all`) |
+| `catia_assembly_constraint_status` | Показывает проблемные связи, native broken/unupdated counts, состояние активных constraints; `require_satisfied=true` требует положительной проверки |
+| `catia_assembly_get_positions` | Читает исходные позиции выбранных экземпляров для последующего явного восстановления |
+| `catia_assembly_insert_document` | Вставляет ссылку на уже открытый CATPart/CATProduct по `source_document_id`, без активации или сохранения исходника |
+| `catia_assembly_duplicate_component` | Создаёт ещё один экземпляр той же reference-детали с новым именем и заданной позой |
+| `catia_assembly_replace_component` | Заменяет один экземпляр ссылкой на открытый документ; сохраняет имя, опционально позу; проверяет соседние ссылки и состояние связей |
+| `catia_assembly_pattern` | Линейный/круговой массив экземпляров с общим reference, с заданными именами и положениями |
+| `catia_assembly_transform` | Групповые `set_positions`, `translate`, `rotate` вокруг явно заданной оси и точки |
+| `catia_assembly_explode` | Разносит экземпляры по явно заданным векторам; возвращает исходные позы и параметры обратного `set_positions` |
+| `catia_assembly_set_metadata` | Меняет выбранные свойства корня: PartNumber, Revision, Definition, Nomenclature, DescriptionRef, Source |
+| `catia_assembly_publication_relay` | Создаёт публикацию корня, ссылающуюся на существующую публикацию непосредственного компонента |
+
+### Экземпляры, исходники и файлы
+
+Перед записью читать `catia_get_model_state`, `catia_get_workspace_state` и
+`catia_assembly_inspect`/`catia_domain_objects`. Источник для вставки/замены задаётся
+точным ID открытого документа. Целью остаётся активный связанный CATProduct.
+При вставке проверяется, что исходник не содержит эту сборку: цикл запрещён.
+Исходные файлы не редактируются и не сохраняются; автоматической смены окна нет.
+Ссылки на несохранённые детали живут в текущей CATIA-сессии. Для переносимой
+сборки нужно отдельно сохранить исходные детали и сборку по разрешённым путям.
+
+Duplicate и Pattern создают **экземпляры одной reference**, а не независимые
+копии CATPart. Их геометрия общая. Сопряжения исходного экземпляра не копируются.
+Массив не является нативной ассоциативной feature: изменение шага требует явной
+правки поз. `count` включает исходный экземпляр и ограничен 2–50.
+
+Линейный `step_mm` — вектор между соседними экземплярами в системе родителя.
+Круговой режим принимает `axis`, `pivot_mm`, `angle_step_deg` и
+`rotate_orientation`. Для N экземпляров по окружности шаг равен `360/N`:
+исходник занимает первое место, копия при 360° не создаётся. Например, seed
+в `(30,0,0)`, ось `(0,0,1)`, pivot `(0,0,0)`, count=6, step=60°.
+При `rotate_orientation=false` изменяются положения начал, ориентации сохраняются.
+Пересечения и механическая пригодность массивом автоматически не проверяются.
+
+### Групповые перемещения и разнесение
+
+Перед разнесением сначала прочитать и сохранить ответ `catia_assembly_get_positions`.
+При успешном `explode` исходные позы также есть в `before_positions`/`restore`.
+При частичной ошибке ответ успешного разнесения может отсутствовать — заранее
+прочитанные позы нужны для анализа восстановления. Автоматического Undo нет.
+
+`explode` меняет реальные позиции компонентов, не создаёт CATIA Scene. Смещения
+задаются для каждого handle явно, без угадывания зазоров по bounding box.
+Восстановление: перечитать состояние, вызвать `catia_assembly_transform` с
+`mode=set_positions`, исходными позами, свежими revision/request_id.
+Все элементы пакета проверяются до первой записи; после Update перечитываются
+все целевые позы. Ограничения не отключаются. Если solver сдвинул компонент
+обратно, возвращается ошибка; уже выполненные перемещения не откатываются.
+
+Групповой `rotate` поворачивает и базис, и положение начала компонента вокруг
+`pivot_mm`. Это отличается от старого `catia_assembly_component(mode=rotate)`,
+который вращает компонент вокруг его собственного начала.
+
+### BOM, связи и свойства
+
+BOM объединяет позиции по COM-идентичности `ReferenceProduct`, не по PartNumber:
+две разные детали с одинаковым обозначением остаются разными строками. Для `all`
+учитываются и подсборки, и вложенные экземпляры; для `leaf` только терминальные
+экземпляры. Числа при `truncated=true` неполные. Путь имён — подпись, не ID.
+
+`catia_assembly_constraint_status` не запускает solver. Пустой набор, только
+неактивные связи, неполное чтение или неподтверждённая актуальность дают неизвестный
+результат; известная проблема даёт `all_active_satisfied=false`.
+Даже `all_active_satisfied=true` не доказывает полноту ограничений:
+`fully_constrained` и `remaining_dof` остаются `null`.
+
+Metadata пишет только в корень активного CATProduct. `source` принимает
+`unknown`, `made`, `bought`. Reference-свойства внешнего компонента через этот
+инструмент не меняются. `publication_relay` требует два точных handles: компонент
+и принадлежащую ему публикацию. Сигнатура CAA `SetRelay` принимает коллекцию
+`Publications`; текст старой справки называет её Product. Реальная совместимость
+и идентичность `Valuation` требуют Windows-пробы; несовпадение не считается успехом.
+
+### Новые режимы catia_assembly_constraint
+
+| Режим | Контракт |
+| --- | --- |
+| `tangent` | Две совместимые 3D-опоры; native тип 4 |
+| `sphere_concentric` | Две сферы с общим центром; native тип 3, **не соосность цилиндров** |
+| `symmetry` | Две опоры и третья опора симметрии — линия/плоскость; native тип 15 |
+| `planar_angle` | Две плоскости и линия их пересечения; угол в градусах, native тип 7 |
+| `distance_three` | Две опоры и третья, задающая направление измерения; mm, native тип 1 |
+| `angle_sector` | Сектор 0–3 существующей угловой связи; CATIA также меняет angle/side/orientation |
+| `distance_direction` | `free`, `x`, `y`, `z` для существующего расстояния |
+| `driving_mode` | Driving или driven/reference dimension для расстояния/угла |
+
+Новые связи используют `AddBiEltCst`/`AddTriEltCst` и свежие точные selection
+references. Поддержку конкретной комбинации геометрии решает CATIA; индексы
+граней или отображаемые имена не превращаются в устойчивые ссылки. Fix запрещён
+во всех новых режимах, включая редактирование уже существующего Fix.
 
 ## Сборки
 
@@ -10,12 +108,12 @@ CATIA и не заявление о проверке на Windows. Runtime ос�
 | --- | --- |
 | `catia_assembly_inspect` | Дерево occurrences, metadata, root constraints, publications, optional parent-relative poses; ограничение глубины/числа объектов |
 | `catia_assembly_component` | new_component, import_file, rename, description, remove, set_position, translate, rotate, update |
-| `catia_assembly_constraint` | fix, coincidence, parallel, perpendicular, contact, distance, angle, edit_value, orientation, side, activate, deactivate, remove, rename, replace_element |
+| `catia_assembly_constraint` | coincidence, parallel, perpendicular, contact, distance, angle, edit_value, orientation, side, activate, deactivate, remove, rename, replace_element; дополнительные режимы выше |
 | `catia_assembly_publication` | rename, rebind, remove |
 
 Прежний `catia_assembly_operation` сохраняет создание подпродуктов, повторные
 occurrences, замену компонента из файла, metadata корня, work mode, публикацию
-выделения, BOM и fix-together с прежними ограничениями.
+выделения и файловый BOM с прежними ограничениями. Fix и Fix Together отключены.
 
 Новые occurrence-записи работают только с непосредственными детьми активного
 CATProduct. Иначе изменение структуры внешней подсборки может изменить другой
@@ -84,7 +182,7 @@ COM-ошибке. Merge/unmerge вызывают native API; геометрия 
   не меняют исходные CATPart/CATProduct на диске.
 - Position.GetComponents SAFEARRAY, перемещение/вращение свободного и связанного
   компонента, отказ при solver mismatch.
-- Exact Reference + LeafProduct для Fix, contact, distance, angle и replacement;
+- Exact Reference + LeafProduct для contact, distance, angle и replacement;
   solver statuses, suppression, orientation/side, публикации и их consumers.
 - ISO/ANSI/custom paper, orientation/first-third projection, view origin/angle,
   align/lock, генеративный update и удаление clipping/breakout.
@@ -94,9 +192,37 @@ COM-ошибке. Merge/unmerge вызывают native API; геометрия 
 - INSTALL обоих клиентов с нуля без Git/admin, Claude sign-in, `/mcp`, image/PDF
   чтение и реальный write/readback. Offline registration не заменяет эти проверки.
 
+### Windows-проба нового Assembly workflow
+
+На новых тестовых документах, сохранив пользовательские документы отдельно:
+
+1. Создать два разных CATPart и пустой CATProduct. Вставить оба открытых источника
+   по ID; проверить, что active document не поменялся и источники не изменились.
+2. Дублировать один компонент; убедиться, что появился экземпляр той же reference.
+   Проверить линейный массив из 4 элементов и круговой из 6 с шагом 60°.
+3. Прочитать позиции. Выполнить групповой перенос, вращение вокруг внешней точки,
+   explode и явный restore. Проверить `Position.GetComponents` на целевой версии.
+4. Повторить перемещение на связанном компоненте: несовпадение с запрошенной позой
+   должно быть ошибкой. Не повторять неопределённый COM-вызов.
+5. Заменить один из одинаковых экземпляров другим открытым CATPart; соседние
+   экземпляры должны сохранить прежнюю reference. Проверить broken mates.
+6. Проверить BOM с повторяющейся подсборкой и двумя разными деталями с одинаковым
+   PartNumber: количества и группировка должны соответствовать реальному дереву.
+7. Проверить новые типы связей на заведомо совместимых опорах, направление/сектор,
+   native statuses и отказ изменения Fix. Проверить relay публикации и её consumer.
+8. При явном разрешении сохранить исходники и сборку, открыть заново и проверить
+   ссылки. Не считать успешную вставку несохранённого документа проверкой дисковых ссылок.
+
+Offline-тесты покрывают маршрутизацию, матрицы, владение объектами, частичные
+ошибки, дедупликацию запросов и MCP isError. Они не проверяют native solver,
+COM SAFEARRAY или геометрию. Все перечисленные Windows-пробы ещё предстоят.
+
 Контракты взяты из кеша CAA V5 Automation (копия документации Dassault, не домен
 Dassault): [Product/Products](https://catiadesign.org/_doc/V5Automation/generated/interfaces/ProductStructureInterfaces/interface_Products_41084.htm),
 [Constraint](https://catiadesign.org/_doc/V5Automation/generated/interfaces/MecModInterfaces/interface_Constraint_21016.htm),
+[Constraint types](https://catiadesign.org/_doc/V5Automation/generated/interfaces/MecModInterfaces/enum_CatConstraintType_27587.htm),
+[Position](https://catiadesign.org/_doc/V5Automation/generated/interfaces/InfInterfaces/interface_Position_14902.htm),
+[Publications](https://catiadesign.org/_doc/V5Automation/generated/interfaces/ProductStructureInterfaces/interface_Publications_45134.htm),
 [DrawingSheet](https://catiadesign.org/_doc/V5Automation/generated/interfaces/DraftingInterfaces/interface_DrawingSheet_26492.htm),
 [DrawingView](https://catiadesign.org/_doc/V5Automation/generated/interfaces/DraftingInterfaces/interface_DrawingView_25425.htm),
 [DrawingText](https://catiadesign.org/_doc/V5Automation/generated/interfaces/DraftingInterfaces/interface_DrawingText_25520.htm),

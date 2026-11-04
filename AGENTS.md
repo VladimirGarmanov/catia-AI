@@ -97,6 +97,22 @@ For an authorized modeling request:
 - `catia_assembly_constraint` consumes fresh selection handles and reads solver
   status after Update. `side=undefined` uses CAA enum value 4. Removing an
   occurrence/constraint/publication is an explicit operation, never a repair default.
+- Assembly workflows: `catia_assembly_insert_document` inserts a reference to an
+  already-open source ID without saving or activating it. Duplicate/Pattern share
+  the source reference; they do not create independent CATPart files or copy mates.
+  Patterns are explicit occurrences, not associative native features. Their count
+  includes the seed; a full circular ring uses step=360/count. Read ASSEMBLY_DRAWING.md.
+- `catia_assembly_transform` rotates about an explicit parent-frame pivot, including
+  component origins. `catia_assembly_explode` changes real poses, not a Scene.
+  Read/store `catia_assembly_get_positions` before moving, then use set_positions
+  with fresh context to restore. Never suppress constraints to force a failed pose.
+- `catia_assembly_bom` groups by actual reference identity, not PartNumber.
+  Truncated counts are incomplete. `catia_assembly_constraint_status` reports
+  satisfaction only; fully_constrained/remaining_dof remain unknown. Native
+  sphere_concentric is for sphere centers, not a cylindrical shaft/bore mate.
+- Root metadata writes do not edit external component reference properties.
+  Publication relay requires exact owner/publication handles; failed Valuation
+  identity verification is an error, not permission to guess a BRep string.
 - Drawing: discover text/table/dimension handles through `catia_domain_objects`;
   inspect via `catia_drawing_inspect`. New sheet/view/table/text/geometry tools
   update the owning drawing sheet. Drawing dimension presentation tools never
