@@ -61,7 +61,6 @@ def test_existing_fix_can_only_be_disabled_or_removed():
 def test_mcp_protocol_reports_disabled_operations_as_errors(server):
     for name, args in (
         ("catia_fix_constraint", {"component_name": "Base"}),
-        ("catia_ui_action", {"request_id": "ui-ban", "reason": "test", "action": {"kind": "key", "key": "enter"}}),
     ):
         request = CallToolRequest(params=CallToolRequestParams(name=name, arguments=args))
         response = asyncio.run(server.server.request_handlers[CallToolRequest](request)).root

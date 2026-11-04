@@ -16,7 +16,9 @@ class ToolGapJournal:
         self.path = Path(path) if path else directory / "missing_tools.jsonl"
 
     def record(self, *, tool_name, reason, request_id, source="agent_report", failed_tool=None,
-               error_code=None, outcome="not_attempted", action_kind=None):
+               error_code=None, outcome="not_attempted", action_kind=None, ui_executed=False):
+        if ui_executed is not None and not isinstance(ui_executed, bool):
+            raise CADOperationError("INVALID_ARGUMENT", "ui_executed must be boolean or unknown/null")
         payload = dict(tool_name=tool_name, reason=reason, request_id=request_id, source=source,
                        failed_tool=failed_tool, error_code=error_code, outcome=outcome,
                        action_kind=action_kind)
@@ -27,7 +29,8 @@ class ToolGapJournal:
                 continue
             if not isinstance(value, str) or not value.strip() or len(value) > limits[key]:
                 raise CADOperationError("INVALID_ARGUMENT", f"Invalid tool-gap {key}")
-        # A separate prefix distinguishes explicit reports from blocked UI calls.
+        payload["ui_executed"] = ui_executed
+        # A separate prefix distinguishes explicit reports from UI calls.
         identity = (source, request_id)
         lock = self.path.with_suffix(".lock")
         try:
@@ -50,8 +53,7 @@ class ToolGapJournal:
                                 raise CADOperationError("INVALID_ARGUMENT", "Tool-gap request_id reused with different content")
                             return self._result(row, replayed=True)
             row = {"schema_version": 1, "event_id": uuid.uuid4().hex,
-                   "timestamp_utc": datetime.now(timezone.utc).isoformat(), **payload,
-                   "ui_executed": False}
+                   "timestamp_utc": datetime.now(timezone.utc).isoformat(), **payload}
             data = (json.dumps(row, ensure_ascii=False) + "\n").encode("utf-8")
             size = self.path.stat().st_size if self.path.exists() else 0
             if size + len(data) > self.MAX_BYTES:
@@ -71,4 +73,4 @@ class ToolGapJournal:
     def _result(self, row, *, replayed):
         return {"ok": True, "status": "recorded", "event_id": row["event_id"],
                 "file_path": str(self.path.resolve()), "tool_name": row["tool_name"],
-                "replayed": replayed, "cad_changed": False, "ui_executed": False}
+                "replayed": replayed, "cad_changed": False, "ui_executed": row["ui_executed"]}

@@ -1,11 +1,10 @@
-"""Read-only Windows desktop inspection; input is disabled by constraint policy."""
+"""User-enabled Windows desktop input; Fix/AutoConstraint remain agent rules."""
 import base64
 import io
 import os
 from dataclasses import dataclass
 
 from catia_mcp.runtime import CADOperationError
-from catia_mcp.constraint_policy import check_constraint_command
 
 
 @dataclass(frozen=True)
@@ -41,6 +40,56 @@ class WindowsDesktop:
         stream = io.BytesIO()
         image.save(stream, format="PNG")
         return stream.getvalue(), width, height
+
+    def send(self, window, action):
+        import ctypes as c
+        from ctypes import wintypes as w
+
+        class Mouse(c.Structure):
+            _fields_ = [("dx", w.LONG), ("dy", w.LONG), ("data", w.DWORD),
+                        ("flags", w.DWORD), ("time", w.DWORD), ("extra", c.c_size_t)]
+
+        class Keyboard(c.Structure):
+            _fields_ = [("vk", w.WORD), ("scan", w.WORD), ("flags", w.DWORD),
+                        ("time", w.DWORD), ("extra", c.c_size_t)]
+
+        class Payload(c.Union):
+            _fields_ = [("mouse", Mouse), ("keyboard", Keyboard)]
+
+        class Input(c.Structure):
+            _anonymous_ = ("payload",)
+            _fields_ = [("type", w.DWORD), ("payload", Payload)]
+
+        events = []
+        if action["kind"] == "click":
+            x, y = window.rect[0] + action["x"], window.rect[1] + action["y"]
+            self.api.SetCursorPos((x, y))
+            flags = {"left": (2, 4), "right": (8, 16), "middle": (32, 64)}[action.get("button", "left")]
+            events = [Input(type=0, mouse=Mouse(flags=flag))
+                      for _ in range(action.get("clicks", 1)) for flag in flags]
+        elif action["kind"] == "key":
+            vk = KEYS[action["key"]]
+            events = [Input(type=1, keyboard=Keyboard(vk=vk, flags=flag)) for flag in (0, 2)]
+        elif action["kind"] == "hotkey":
+            keys = [KEYS[key] for key in action["keys"]]
+            events = ([Input(type=1, keyboard=Keyboard(vk=vk)) for vk in keys]
+                      + [Input(type=1, keyboard=Keyboard(vk=vk, flags=2)) for vk in reversed(keys)])
+        elif action["kind"] == "scroll":
+            events = [Input(type=0, mouse=Mouse(data=action["steps"] * 120 & 0xffffffff, flags=0x800))]
+        else:
+            encoded = action["text"].encode("utf-16-le")
+            for offset in range(0, len(encoded), 2):
+                unit = int.from_bytes(encoded[offset:offset + 2], "little")
+                events.extend(Input(type=1, keyboard=Keyboard(scan=unit, flags=flag))
+                              for flag in (4, 6))
+        batch = (Input * len(events))(*events)
+        send = c.windll.user32.SendInput
+        send.argtypes = [w.UINT, c.POINTER(Input), c.c_int]
+        send.restype = w.UINT
+        if send(len(events), batch, c.sizeof(Input)) != len(events):
+            raise CADOperationError("UI_INPUT_PARTIAL", "Input delivery incomplete; inspect, never replay. Windows privilege restrictions may prevent delivery.")
+
+
 KEYS = {"enter": 13, "escape": 27, "tab": 9, "backspace": 8,
         "left": 37, "up": 38, "right": 39, "down": 40, "delete": 46,
         "home": 36, "end": 35, "pageup": 33, "pagedown": 34,
@@ -61,13 +110,13 @@ class DesktopTools:
     def get_tool_definitions(self):
         return [
             {"name": "catia_ui_snapshot", "readOnlyHint": True,
-             "description": "Read-only capture of the entire Windows desktop, all monitors and applications, as an MCP image. No CATIA connection/document required. May expose sensitive visible content. UI input is disabled by constraint policy.",
+             "description": "Read-only capture of the entire Windows desktop, all monitors and applications, as an MCP image. No CATIA connection/document required. UI coordinates are relative to the image top-left; screen_origin may be negative. May expose sensitive visible content.",
              "inputSchema": {"type": "object", "properties": {}}},
             {"name": "catia_ui_action",
-             "description": "DISABLED: generic UI input could bypass the Fix/AutoConstraint ban. Always returns OPERATION_DISABLED without sending input. The server logs the missing_tool name and reason locally for analysis; prefer catia_report_missing_tool instead of attempting input. catia_ui_snapshot remains available for inspection.",
+             "description": "User-enabled Windows whole-desktop input: clicks, keys, hotkeys, Unicode text and scrolling. No local confirmation dialog or CATIA document/title restriction. Inspect a current snapshot first; use only within the authorized task. Fix/AutoConstraint remain forbidden by agent instructions; pixels cannot enforce that ban. Never repeat an uncertain COM write via UI. missing_tool logs the intended capability without recording typed text. Every action needs a unique request_id; verify UI/model afterward.",
              "inputSchema": {"type": "object", "properties": {
                  "missing_tool": {"type": "string", "minLength": 1, "maxLength": 160,
-                                  "description": "Intended CATIA operation unavailable through typed tools; recorded even though UI input is blocked"},
+                                  "description": "Intended CATIA operation unavailable through typed tools; recorded with delivery outcome"},
                  "reason": {"type": "string", "minLength": 1, "maxLength": 500},
                  "action": {"oneOf": [
                      {"type": "object", "properties": {"kind": {"const": "click"},
@@ -91,7 +140,6 @@ class DesktopTools:
         ]
 
     def execute(self, name, args):
-        check_constraint_command(name, args)
         backend = self.backend_factory()
         window = backend.window()
         if name == "catia_ui_snapshot":
@@ -100,4 +148,18 @@ class DesktopTools:
                     "width": width, "height": height, "coordinate_origin": "image top-left",
                     "screen_origin": list(window.rect[:2]),
                     "_desktop_png": base64.b64encode(image).decode("ascii")}
-        raise CADOperationError("UNSUPPORTED_OPERATION", "Only desktop snapshots are enabled")
+        if name != "catia_ui_action":
+            raise CADOperationError("UNSUPPORTED_OPERATION", "Unknown desktop operation")
+        action = args["action"]
+        if action["kind"] == "click" and not (
+            0 <= action["x"] < window.rect[2] - window.rect[0]
+            and 0 <= action["y"] < window.rect[3] - window.rect[1]
+        ):
+            raise CADOperationError("INVALID_ARGUMENT", "Click coordinates are outside desktop pixels")
+        if self.cancel_event is not None and self.cancel_event.is_set():
+            raise CADOperationError("UI_CANCELLED", "Request cancelled or timed out; nothing sent")
+        self.state.mutation_started = True
+        backend.send(window, action)
+        return {"ok": True, "input_sent": True, "geometry_verified": False,
+                "message": "Desktop input sent. Inspect UI/model before the next operation; do not replay.",
+                "requires_reconciliation": True}

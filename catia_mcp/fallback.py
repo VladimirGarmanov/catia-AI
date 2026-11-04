@@ -6,21 +6,25 @@ def fallback_advice(result: dict) -> dict:
     if result.get("ok", True):
         return result
     blocked = result.get("code") in {"COM_TIMEOUT", "SESSION_STATE_UNKNOWN"}
+    forbidden = result.get("code") == "OPERATION_DISABLED"
     return {
         **result,
         "ui_fallback": {
-            "status": "blocked_pending_reconciliation" if blocked else "input_disabled_by_policy",
+            "status": "blocked_pending_reconciliation" if blocked else "input_disabled_by_policy" if forbidden else "available_after_inspection",
             "local_confirmation_required": False,
-            "desktop_driver_provided": False,
-            "desktop_tools": ["catia_ui_snapshot"],
+            "desktop_driver_provided": True,
+            "desktop_tools": ["catia_ui_snapshot"] if blocked or forbidden else ["catia_ui_snapshot", "catia_ui_action"],
             "instructions": (
                 "Do not click or retry: the COM operation may still be running. "
                 "Resolve busy/modal state with the human and reconcile the model first."
                 if blocked else
-                "UI input is disabled because generic clicks/keys could bypass the "
-                "Fix/AutoConstraint ban. Snapshots are read-only. Do not retry disabled "
-                "commands through scripts, another client or external desktop tools. "
-                "For other failures inspect partial results before proposing a typed-tool repair."
+                "This operation is forbidden by policy. Do not bypass it through UI, "
+                "scripts or another client. Fix/AutoConstraint remain forbidden."
+                if forbidden else
+                "Inspect partial results and a current Windows desktop snapshot first. "
+                "Use UI only for the authorized task and never repeat an uncertain write. "
+                "Record the intended missing_tool, then verify UI and model state. "
+                "Fix/AutoConstraint are forbidden even through UI."
             ),
         },
     }

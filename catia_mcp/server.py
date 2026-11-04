@@ -417,7 +417,7 @@ class CATIAMCPServer:
             if write:
                 if creates_document and not failed:
                     key = state.bind()["document_id"]
-                if key and not switches_document:
+                if key and not switches_document and (name != "catia_move_component" or state.mutation_started):
                     state.finish_write(key)
                 if not switches_document:
                     state.reconciliation_required = failed
@@ -448,7 +448,7 @@ class CATIAMCPServer:
                 state.requests[request_id] = (fingerprint, deepcopy(result))
             return result
         except Exception as exc:
-            uncertain = write and (state.mutation_started if switches_document or name == "catia_save_document" else entered)
+            uncertain = write and (state.mutation_started if switches_document or name in {"catia_save_document", "catia_move_component"} else entered)
             if uncertain:
                 state.reconciliation_required = True
                 if key and not switches_document:
@@ -501,14 +501,18 @@ class CATIAMCPServer:
             error = error_details(exc, name)
             result = {"ok": False, "code": error["code"], "error": error,
                       "input_may_have_been_sent": state.mutation_started}
-        if name == "catia_ui_action" and result.get("code") == "OPERATION_DISABLED":
+        if name == "catia_ui_action":
             try:
                 action = arguments.get("action", {})
+                sent = bool(result.get("input_sent"))
+                uncertain = not sent and state.mutation_started
                 result["tool_gap"] = self.capability_tools.journal.record(
                     tool_name=arguments.get("missing_tool") or "unspecified",
-                    reason=arguments.get("reason") or "Blocked UI input; intended capability was not supplied",
-                    request_id=request_id, source="ui_action", outcome="input_disabled_by_policy",
-                    error_code="OPERATION_DISABLED",
+                    reason=arguments.get("reason") or "UI capability was not supplied",
+                    request_id=request_id, source="ui_action",
+                    outcome="input_sent" if sent else "input_delivery_unknown" if uncertain else "not_sent",
+                    ui_executed=True if sent else None if uncertain else False,
+                    error_code=result.get("code"),
                     action_kind=action.get("kind") if isinstance(action, dict) else None)
             except Exception as exc:
                 result["tool_gap"] = {"ok": False, "error": error_details(exc, "tool_gap_log")}

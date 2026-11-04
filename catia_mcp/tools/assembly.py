@@ -15,6 +15,8 @@ from pathlib import Path
 from typing import Any
 
 from catia_mcp.connection import CATIAConnection
+from catia_mcp.com_arrays import read_array
+from catia_mcp.runtime import CADOperationError
 
 
 class AssemblyTools:
@@ -154,8 +156,10 @@ class AssemblyTools:
             {
                 "name": "catia_move_component",
                 "description": (
-                    "Move a component by translation and/or rotation. "
-                    "Translation in mm, rotation in degrees."
+                    "Increment an immediate component pose: parent-axis translation in mm, "
+                    "Rz*Ry*Rx rotation in degrees about the component origin. Reads Position via "
+                    "explicit SAFEARRAY; zero increments only read the pose, without SetComponents "
+                    "or Update. Prefer exact handles with catia_assembly_transform for new workflows."
                 ),
                 "inputSchema": {
                     "type": "object",
@@ -192,7 +196,7 @@ class AssemblyTools:
             },
         ]
 
-    def execute(self, tool_name: str, arguments: dict[str, Any]) -> str:
+    def execute(self, tool_name: str, arguments: dict[str, Any]) -> str | dict[str, Any]:
         match tool_name:
             case "catia_add_component":
                 return self._add_component(arguments["file_path"])
@@ -398,7 +402,30 @@ class AssemblyTools:
             "Verify orientation and solver status in CATIA."
         )
 
-    def _move_component(self, args: dict[str, Any]) -> str:
+    @staticmethod
+    def _read_pose(position) -> list[float]:
+        # Late-bound COM cannot write an [out] SAFEARRAY back into a plain
+        # Python list. An untouched zero-filled list is not a measured pose.
+        try:
+            pose = read_array(position.GetComponents, 12)
+        except CADOperationError as exc:
+            raise CADOperationError("POSITION_UNAVAILABLE",
+                f"Position.GetComponents did not provide a usable SAFEARRAY: {exc}") from exc
+        axes = [pose[i:i+3] for i in (0, 3, 6)]
+        for first in range(3):
+            for second in range(3):
+                dot = sum(x*y for x, y in zip(axes[first], axes[second]))
+                if not math.isclose(dot, float(first == second), abs_tol=1e-5):
+                    raise CADOperationError("INVALID_COMPONENT_POSE",
+                        f"Read Position axes are non-orthonormal (dot[{first},{second}]={dot}); raw pose={pose}")
+        x, y, z = axes
+        determinant = x[0]*(y[1]*z[2]-y[2]*z[1])-x[1]*(y[0]*z[2]-y[2]*z[0])+x[2]*(y[0]*z[1]-y[1]*z[0])
+        if not math.isclose(determinant, 1., abs_tol=1e-5):
+            raise CADOperationError("INVALID_COMPONENT_POSE",
+                f"Read Position is invalid or mirrored (det={determinant}); raw pose={pose}")
+        return pose
+
+    def _move_component(self, args: dict[str, Any]) -> dict[str, Any]:
         product = self.conn.get_active_product()
         products = product.Products
         component_name = args["component_name"]
@@ -415,26 +442,12 @@ class AssemblyTools:
                or not math.isfinite(value) for value in values):
             raise ValueError("Translation and rotation increments must be finite numbers")
         position = component.Position
-        output = [0.0] * 12
-        returned = position.GetComponents(output)
-        old = list(returned) if isinstance(returned, (list, tuple)) and len(returned) == 12 else output
-        if len(old) != 12 or any(not math.isfinite(float(value)) for value in old):
-            raise RuntimeError("CATIA did not return a valid 12-component Position")
+        old = self._read_pose(position)
+        if not any(values):
+            return {"ok": True, "changed": False, "component_name": component_name,
+                    "axis_components": old, "message": "Zero increments: pose read only; no SetComponents or Update"}
         # Position stores local X, Y, Z axes as columns, followed by translation.
         old_rotation = [[old[col * 3 + row] for col in range(3)] for row in range(3)]
-        for first in range(3):
-            for second in range(3):
-                dot = sum(old_rotation[row][first] * old_rotation[row][second]
-                          for row in range(3))
-                if not math.isclose(dot, float(first == second), abs_tol=1e-5):
-                    raise RuntimeError("CATIA returned a non-orthonormal component pose")
-        determinant = (
-            old_rotation[0][0] * (old_rotation[1][1] * old_rotation[2][2] - old_rotation[1][2] * old_rotation[2][1])
-            - old_rotation[0][1] * (old_rotation[1][0] * old_rotation[2][2] - old_rotation[1][2] * old_rotation[2][0])
-            + old_rotation[0][2] * (old_rotation[1][0] * old_rotation[2][1] - old_rotation[1][1] * old_rotation[2][0])
-        )
-        if not math.isclose(determinant, 1.0, abs_tol=1e-5):
-            raise RuntimeError("CATIA returned an invalid or mirrored component pose")
 
         rx, ry, rz = (math.radians(value) for value in values[3:])
         cx, sx = math.cos(rx), math.sin(rx)
@@ -449,24 +462,31 @@ class AssemblyTools:
                      for col in range(3)] for row in range(3)]
         target = [rotation[row][col] for col in range(3) for row in range(3)]
         target.extend(old[9 + index] + values[index] for index in range(3))
-        position.SetComponents(target)
-        product.Update()
-        actual = [0.0] * 12
-        returned = position.GetComponents(actual)
-        actual = list(returned) if isinstance(returned, (list, tuple)) and len(returned) == 12 else actual
+        state = getattr(self.conn, "session", None)
+        if state is not None:
+            handle = state.register(component, "product")
+            state.modified.append(handle)
+            state.mutation_started = True
+        position.SetComponents(tuple(target))
+        try:
+            product.Update()
+        except Exception as exc:
+            raise CADOperationError("UPDATE_FAILED", str(exc)) from exc
+        if state is not None:
+            state.updated = True
+        actual = self._read_pose(position)
         if any(not math.isclose(float(actual[i]), target[i], abs_tol=1e-4)
                for i in range(12)):
-            raise RuntimeError(
+            raise CADOperationError("POSTCONDITION_FAILED",
                 "SetComponents returned, but the solved assembly pose differs from the "
                 "requested pose. The component may be constrained; inspect before retrying."
             )
         self.conn.refresh_display()
 
-        return (
-            f"Component {args['component_name']!r} pose increment applied and read back: "
-            f"translation in parent axes={values[:3]} mm; rotation about component origin "
-            f"using parent axes Rz*Ry*Rx={values[3:]} degrees."
-        )
+        return {"ok": True, "changed": True, "component_name": component_name,
+                "before_axis_components": old, "axis_components": actual,
+                "translation_increment_mm": values[:3], "rotation_increment_deg": values[3:],
+                "message": "Pose increment applied and read back; rotation uses parent axes Rz*Ry*Rx about component origin"}
 
     def _list_components(self) -> str:
         product = self.conn.get_active_product()
@@ -476,20 +496,23 @@ class AssemblyTools:
         for i in range(1, products.Count + 1):
             comp = products.Item(i)
             pos = comp.Position
-            matrix = [0.0] * 12
+            position_error = None
             try:
-                pos.GetComponents(matrix)
-            except Exception:
-                pass
+                matrix = self._read_pose(pos)
+            except Exception as exc:
+                matrix = None
+                position_error = {"code": getattr(exc, "code", "POSITION_UNAVAILABLE"), "message": str(exc)}
             components.append({
                 "index": i,
                 "name": comp.Name,
                 "part_number": comp.PartNumber,
-                "position": {
+                "position": None if matrix is None else {
                     "x": round(matrix[9], 3),
                     "y": round(matrix[10], 3),
                     "z": round(matrix[11], 3),
                 },
+                "axis_components": matrix,
+                "position_error": position_error,
             })
 
         if not components:

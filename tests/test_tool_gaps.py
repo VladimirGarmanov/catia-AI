@@ -1,6 +1,7 @@
 import asyncio
 import json
 from unittest.mock import Mock
+from catia_mcp.tools.desktop import Window
 
 import pytest
 from mcp.types import CallToolRequest, CallToolRequestParams
@@ -44,38 +45,43 @@ def test_report_tool_works_during_com_timeout_and_does_not_modify_session():
         server.worker.shutdown()
 
 
-def test_blocked_ui_attempt_logs_capability_but_not_input_and_never_sends():
+def test_ui_attempt_logs_capability_and_delivery_but_not_typed_text():
     server = CATIAMCPServer()
-    server.desktop_tools.backend_factory = Mock(side_effect=AssertionError("No UI backend"))
+    backend = Mock()
+    backend.window.return_value = Window(0, 0, "Desktop", (0, 0, 800, 600))
+    server.desktop_tools.backend_factory = lambda: backend
     args = {"request_id": "ui-gap-1", "reason": "Need a native Drafting surface finish symbol",
             "missing_tool": "Drafting Surface Finish Symbol",
             "action": {"kind": "text", "text": "PRIVATE INPUT MUST NOT BE LOGGED"}}
     try:
         first = server._execute_serial("catia_ui_action", args)
-        assert first["code"] == "OPERATION_DISABLED" and first["tool_gap"]["ok"]
-        assert first["input_may_have_been_sent"] is False
+        assert first["input_sent"] and first["tool_gap"]["ok"]
         assert server._execute_serial("catia_ui_action", args)["replayed"]
         text = server.capability_tools.journal.path.read_text()
         assert len(text.splitlines()) == 1 and "PRIVATE INPUT" not in text
         record = json.loads(text)
-        assert record["tool_name"] == args["missing_tool"] and not record["ui_executed"]
-        assert record["outcome"] == "input_disabled_by_policy"
-        server.desktop_tools.backend_factory.assert_not_called()
+        assert record["tool_name"] == args["missing_tool"] and record["ui_executed"]
+        assert record["outcome"] == "input_sent"
+        backend.send.assert_called_once()
     finally:
         server.worker.shutdown()
 
 
-def test_log_failure_does_not_mask_ui_rejection_or_claim_recorded(tmp_path):
+def test_log_failure_does_not_mask_sent_input_or_repeat_it(tmp_path):
     server = CATIAMCPServer()
+    backend = Mock()
+    backend.window.return_value = Window(0, 0, "Desktop", (0, 0, 800, 600))
+    server.desktop_tools.backend_factory = lambda: backend
     server.capability_tools.journal.path = tmp_path / "journal.jsonl"
     server.capability_tools.journal.path.write_text("broken JSON\n")
     try:
         result = server._execute_serial("catia_ui_action", {
             "request_id": "failure", "reason": "Missing operation", "missing_tool": "Example",
             "action": {"kind": "key", "key": "enter"}})
-        assert result["code"] == "OPERATION_DISABLED"
+        assert result["ok"] and result["input_sent"]
         assert result["tool_gap"]["ok"] is False
         assert result["tool_gap"]["error"]["code"] == "TOOL_GAP_LOG_INVALID"
         assert server.capability_tools.journal.path.read_text() == "broken JSON\n"
+        backend.send.assert_called_once()
     finally:
         server.worker.shutdown()

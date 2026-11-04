@@ -7,6 +7,15 @@
 
 ## Новые инструменты сборки
 
+Исправлен также старый `catia_move_component`: Position читается через явный
+by-reference SAFEARRAY, а не через нулевой Python-список. Вызов с нулевыми
+приращениями только читает позу, не вызывает SetComponents/Update и не повышает
+revision. Ошибка чтения до записи имеет статус `failed`, а не `partial_failure`.
+`POSITION_UNAVAILABLE` означает, что массив не прочитан; `INVALID_COMPONENT_POSE`
+содержит реально полученную некорректную матрицу. `catia_list_components` при
+ошибке возвращает position=null и описание причины, а не фиктивное положение (0,0,0).
+На Windows ещё нужно проверить этот путь с реальным late-bound pywin32.
+
 | Инструмент | Что делает |
 | --- | --- |
 | `catia_assembly_component_details` | Читает свойства экземпляра/reference, доступный исходный документ и handles его публикаций |

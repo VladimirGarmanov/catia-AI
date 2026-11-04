@@ -129,7 +129,7 @@ class CapabilityTools:
                 tool("catia_capability_request", "Resolve a handbook capability to existing typed tools, or explicitly reject unsupported operations. This never executes arbitrary COM or scripts and never claims an unsupported operation succeeded.",
                      {"capability_id": {"type": "string", "pattern": "^CATIA-[0-9]{3}$"}}, ["capability_id"], readonly=True),
                 {"name": "catia_report_missing_tool",
-                 "description": "Record a missing or failed CATIA capability in the local .local/missing_tools.jsonl backlog. No COM or UI input; works without CATIA. Use before requesting a manual UI step. Report the intended operation, not mouse coordinates; do not include private drawing contents or credentials. UI input and Fix/AutoConstraint remain disabled. A report is not a completed CAD operation.",
+                 "description": "Record a missing or failed CATIA capability in the local .local/missing_tools.jsonl backlog. No COM or UI input; works without CATIA. Report the intended operation, not mouse coordinates; do not include private drawing contents or credentials. UI fallback is enabled, but Fix/AutoConstraint are forbidden. A report is not a completed CAD operation.",
                  "inputSchema": {"type": "object", "properties": {
                      "tool_name": {"type": "string", "minLength": 1, "maxLength": 160},
                      "reason": {"type": "string", "minLength": 1, "maxLength": 1000},

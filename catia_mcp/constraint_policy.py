@@ -16,8 +16,6 @@ def check_constraint_command(tool_name: str, arguments: dict) -> None:
     """Reject forbidden writes before connecting, resolving targets or changing CAD."""
     if tool_name == "catia_fix_constraint":
         disabled("Fix Component")
-    if tool_name == "catia_ui_action":
-        disabled("UI input (generic clicks/keys cannot enforce the Fix/AutoConstraint ban)")
     field = {"catia_sketch_constraint": "type", "catia_assembly_constraint": "mode",
              "catia_assembly_operation": "mode"}.get(tool_name)
     if field:

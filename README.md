@@ -48,10 +48,10 @@ Read each tool's current schema rather than relying on an old copied tool list.
   [renaming](NAMING.md): scoped operations and live-check requirements.
 - [Implementation status](IMPLEMENTATION_STATUS.md): coverage and known limits.
 - [Saving and the tool backlog](SAVE_AND_TOOL_GAPS.md): verified native saves
-  and a local missing-tools journal; UI input remains disabled.
+  and a local missing-tools journal including UI fallback delivery outcomes.
 - [Agent operating rules](AGENTS.md): document identity, fresh references,
-  failure handling and the ban on Fix/AutoConstraint. Desktop input is disabled;
-  read-only snapshots remain available.
+  failure handling and the ban on Fix/AutoConstraint. Windows UI fallback is
+  enabled; the agent must respect the ban even when using clicks/keys.
 
 Run only one CAD-writing client at a time. Multiple MCP processes do not share
 an interprocess CATIA lock. Parallel agents analyze supplied context; they do

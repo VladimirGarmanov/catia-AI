@@ -26,19 +26,17 @@ def test_snapshot_without_com_or_active_document():
 
 @pytest.mark.parametrize("action", [
     {"kind": "click", "x": 10, "y": 10}, {"kind": "key", "key": "enter"},
-    {"kind": "text", "text": "Fix"}, {"kind": "numeric_text", "text": "0"},
+    {"kind": "text", "text": "Bracket"}, {"kind": "numeric_text", "text": "0"},
     {"kind": "hotkey", "keys": ["ctrl", "a"]}, {"kind": "scroll", "steps": 1},
 ])
-def test_all_ui_input_disabled_before_backend_access(action):
+def test_ui_actions_reach_mock_backend_without_com_or_confirmation(action):
     tool, backend = setup()
-    with pytest.raises(CADOperationError) as error:
-        tool.execute("catia_ui_action", {"action": action})
-    assert error.value.code == "OPERATION_DISABLED"
-    backend.window.assert_not_called()
-    backend.send.assert_not_called()
+    assert tool.execute("catia_ui_action", {"action": action})["input_sent"]
+    backend.send.assert_called_once_with(backend.window.return_value, action)
+    backend.approve.assert_not_called()
 
 
-def test_server_desktop_route_rejects_input_without_com():
+def test_server_desktop_route_deduplicates_input_without_com():
     from catia_mcp.server import CATIAMCPServer
     server = CATIAMCPServer()
     server.connection.ensure_connected = Mock(side_effect=AssertionError("COM should not be called"))
@@ -48,9 +46,52 @@ def test_server_desktop_route_rejects_input_without_com():
     args = {"request_id": "ui1", "reason": "test", "action": {"kind": "hotkey", "keys": ["ctrl", "a"]}}
     first = server._execute_serial("catia_ui_action", args)
     second = server._execute_serial("catia_ui_action", args)
-    assert not first["ok"] and not second["ok"]
-    assert first["code"] == second["code"] == "OPERATION_DISABLED"
-    assert first["input_may_have_been_sent"] is False
-    backend.send.assert_not_called()
+    assert first["ok"] and second["replayed"]
+    backend.send.assert_called_once()
     server.connection.ensure_connected.assert_not_called()
     server.worker.shutdown()
+
+
+def test_offscreen_and_cancelled_input_never_sent():
+    tool, backend = setup()
+    with pytest.raises(CADOperationError, match="outside"):
+        tool.execute("catia_ui_action", {"action": {"kind": "click", "x": 2000, "y": 10}})
+    tool.cancel_event = NS(is_set=lambda: True)
+    with pytest.raises(CADOperationError, match="cancelled"):
+        tool.execute("catia_ui_action", {"action": {"kind": "key", "key": "enter"}})
+    backend.send.assert_not_called()
+
+
+@pytest.mark.parametrize("partial", [True, False])
+def test_input_invalidates_context_and_is_not_replayed(partial):
+    import threading
+    from catia_mcp.server import CATIAMCPServer
+    server = CATIAMCPServer()
+    tool, backend = setup()
+    server.desktop_tools.backend_factory = lambda: backend
+    if partial:
+        backend.send.side_effect = CADOperationError("UI_INPUT_PARTIAL", "Only some events delivered")
+    args = {"request_id": "partial", "reason": "recovery", "action": {"kind": "key", "key": "enter"}}
+    try:
+        first = server._execute_with_timeout_marker("catia_ui_action", args, threading.Event())
+        assert first["ok"] is not partial
+        if partial:
+            assert first["input_may_have_been_sent"]
+            assert first["tool_gap"]["ui_executed"] is None
+        else:
+            assert first["tool_gap"]["ui_executed"] is True
+        assert server.session.reconciliation_required
+        assert server._execute_serial("catia_ui_action", args)["replayed"]
+        backend.send.assert_called_once()
+    finally:
+        server.worker.shutdown()
+
+
+def test_fallback_only_offers_ui_for_known_completed_nonpolicy_failures():
+    from catia_mcp.fallback import fallback_advice
+    for code in ("COM_TIMEOUT", "SESSION_STATE_UNKNOWN", "OPERATION_DISABLED"):
+        advice = fallback_advice({"ok": False, "code": code})["ui_fallback"]
+        assert "catia_ui_action" not in advice["desktop_tools"]
+    advice = fallback_advice({"ok": False, "code": "POSITION_UNAVAILABLE"})["ui_fallback"]
+    assert advice["status"] == "available_after_inspection"
+    assert "catia_ui_action" in advice["desktop_tools"]

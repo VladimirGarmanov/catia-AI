@@ -84,7 +84,7 @@ class SketchSessionTools(OperationTools):
             "If update is required, finish the intended sketch edits, close/update explicitly, then reread.",
             "Inspect problem_handles before changing identified constraints; never auto-delete constraints.",
             "For fully/under/over-constrained status, inspect native CATIA Sketch Analysis. "
-            "A snapshot can read an already-open dialog; UI input remains disabled.",
+            "UI may open Sketch Analysis within an authorized diagnostic task; inspect its snapshot. Never invoke AutoConstraint.",
         ]
         if not same_object(document, self.conn.active_document):
             raise CADOperationError("DOCUMENT_MISMATCH", "Active document changed during sketch inspection")

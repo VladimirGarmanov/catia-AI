@@ -31,8 +31,9 @@ READINESS_CHECK = (
     "updates each feature and measures results. Use screenshots at meaningful "
     "checkpoints, not after every primitive. Never save or overwrite without an "
     "explicit path and instruction. Fix and AutoConstraint are forbidden everywhere. "
-    "UI input is disabled; catia_ui_snapshot is read-only. Never bypass a denied "
-    "command with scripts or external desktop tools. On COM_TIMEOUT reconcile the "
+    "UI fallback is enabled: inspect catia_ui_snapshot before catia_ui_action, "
+    "log the missing_tool and verify the result. Never use UI or scripts for "
+    "Fix/AutoConstraint or to repeat an uncertain write. On COM_TIMEOUT reconcile the "
     "outstanding operation before continuing. "
 )
 READINESS_PROMPT = (
