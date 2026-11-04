@@ -135,6 +135,27 @@ CATProduct. Иначе изменение структуры внешней по
 родителя, не вокруг начала сборки. После Update читается решённая поза.
 Если solver вернул компонент назад, результат `POSTCONDITION_FAILED`.
 
+### Проверка чтения положения на Windows
+
+После UPDATE и перезапуска AI-сессии оставить нужный CATProduct активным:
+
+1. `catia_get_model_state`, затем `catia_assembly_inspect` с `include_positions=true`.
+   У нужного экземпляра должны вернуться 12 конечных чисел `axis_components`;
+   `unavailable.axis_components`/отсутствие позы не считаются успехом чтения.
+2. По свежему occurrence handle вызвать `catia_assembly_get_positions`.
+   Сравнить позу с inspection. Оба вызова только читают, без Update/SetComponents.
+3. Для регрессии legacy Move вызвать `catia_move_component` с точным уникальным
+   именем экземпляра, всеми шестью приращениями = 0, свежими document_id/revision
+   и новым request_id. Ожидаются та же поза, `changed=false`, `updated=false`
+   и неизменённая revision. Не повторять прежний request_id с закешированной ошибкой.
+4. Реальное смещение и его readback проверять отдельно только на явно выбранной
+   тестовой сборке. Успешное чтение не доказывает работу solver/перемещения.
+
+Адаптер SAFEARRAY использует untyped `IDispatch.Invoke`, чтобы generated wrapper
+pywin32 не отвергал VARIANT с ошибкой `Objects for SAFEARRAYS must be sequences`.
+Если ошибка остаётся, нужен полный `message`: он теперь содержит имя метода,
+путь вызова и тип исключения. Не заменять недоступную позу нулевой/единичной.
+
 Связи требуют текущие selection handles с настоящими COM Reference и
 проверяемым LeafProduct. Имена/номера рёбер не используются как ID. Значения
 distance — mm, angle — deg, передаются через `ValuateFromString`; после Update

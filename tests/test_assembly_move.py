@@ -1,4 +1,4 @@
-"""Reproduce late-bound out-array behavior without using pywin32 or CATIA."""
+"""Reproduce typed-wrapper SAFEARRAY rejection without pywin32 or CATIA."""
 import json
 import sys
 from types import SimpleNamespace as NS
@@ -20,7 +20,8 @@ class Variant:
 
 @pytest.fixture
 def rig(monkeypatch):
-    monkeypatch.setitem(sys.modules, "pythoncom", NS(VT_BYREF=0x4000, VT_ARRAY=0x2000, VT_VARIANT=12))
+    monkeypatch.setitem(sys.modules, "pythoncom", NS(
+        VT_BYREF=0x4000, VT_ARRAY=0x2000, VT_VARIANT=12, DISPATCH_METHOD=1))
     client = NS(VARIANT=Variant)
     monkeypatch.setitem(sys.modules, "win32com", NS(client=client))
     monkeypatch.setitem(sys.modules, "win32com.client", client)
@@ -29,8 +30,24 @@ def rig(monkeypatch):
         if isinstance(output, Variant):
             output.value = tuple(pose)
         # Ordinary list is deliberately unchanged: late binding lost the out value.
-    position = NS(GetComponents=Mock(side_effect=read),
-                  SetComponents=Mock(side_effect=lambda values: pose.__setitem__(slice(None), values)))
+    class Position:
+        def __init__(self):
+            self._oleobj_ = NS(GetIDsOfNames=Mock(return_value=42),
+                               Invoke=Mock(side_effect=self.invoke))
+            self.SetComponents = Mock(side_effect=lambda values: pose.__setitem__(slice(None), values))
+
+        def GetComponents(self, output):
+            if isinstance(output, Variant):
+                # Exact Windows failure: the generated/type-informed wrapper
+                # expects a Python sequence and rejects VARIANT before COM.
+                raise TypeError("Objects for SAFEARRAYS must be sequences (of sequences), or a buffer object.")
+            # A plain input list is unchanged, as in the original bug.
+
+        def invoke(self, dispid, lcid, flags, result_wanted, output):
+            assert (dispid, lcid, flags, result_wanted) == (42, 0, 1, True)
+            return read(output)
+
+    position = Position()
     component = NS(Name="PULLEY.1", PartNumber="PULLEY", Position=position)
     product = NS(Products=NS(Count=1, Item=lambda _: component), Update=Mock())
     document = NS(Name="Assembly.CATProduct", Product=product)
@@ -50,12 +67,16 @@ def test_zero_move_reads_byref_without_mutation_update_or_revision(rig):
     ignored_list = [0.] * 12
     rig.position.GetComponents(ignored_list)
     assert ignored_list == [0.] * 12  # The previous code diagnosed these zeros as a bad pose.
+    with pytest.raises(TypeError, match="Objects for SAFEARRAYS must be sequences"):
+        rig.position.GetComponents(Variant(0x600C, tuple(ignored_list)))
     result = rig.server._execute_serial("catia_move_component", rig.args)
     assert result["ok"] and result["changed"] is False
     assert result["axis_components"] == IDENTITY
     assert result["session"]["revision"] == 0 and result["updated"] is False
     rig.position.SetComponents.assert_not_called()
     rig.product.Update.assert_not_called()
+    rig.position._oleobj_.GetIDsOfNames.assert_called_once_with(0, "GetComponents")
+    rig.position._oleobj_.Invoke.assert_called_once()
 
 
 def test_real_increment_uses_existing_rotation_and_is_not_replayed(rig):
@@ -75,7 +96,7 @@ def test_real_increment_uses_existing_rotation_and_is_not_replayed(rig):
                                       ("zeros", "INVALID_COMPONENT_POSE")])
 def test_unreadable_or_invalid_pose_fails_before_any_mutation(rig, mode, code):
     if mode == "unpopulated":
-        rig.position.GetComponents.side_effect = lambda _: None
+        rig.position._oleobj_.Invoke.side_effect = lambda *args: None
     elif mode == "mirrored":
         rig.pose[0] = -1
     else:

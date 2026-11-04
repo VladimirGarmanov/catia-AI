@@ -1,5 +1,33 @@
 # Реализация CATIA_AGENT_CODEX_PACKAGE — 2026-10-09
 
+## SAFEARRAY: исправление упаковки аргумента pywin32 — 2026-11-03
+
+Windows-проверка предыдущего исправления выявила точную ошибку:
+`Objects for SAFEARRAYS must be sequences (of sequences), or a buffer object.`
+Она возникала до перемещения: pywin32 type-informed wrapper пытался преобразовать
+объект VARIANT как обычную Python-последовательность. Предыдущие моки проверяли
+только заполнение VARIANT и не воспроизводили этот слой упаковки аргументов.
+
+Общий `com_arrays.read_array` теперь для bound COM-метода получает DISPID у того
+же объекта и вызывает `IDispatch.Invoke` с явным BYREF SAFEARRAY. Сгенерированная
+обёртка/InvokeTypes больше не преобразует VARIANT повторно. Это untyped-путь
+pywin32, аналогичный DumbDispatch; lookup не вызывает getter как property.
+Нет makepy-перегенерации, макросов, смены COM-соединения или перебора повторных
+вызовов. Исправление применяется к legacy Move, assembly inspection/positions
+и другим существующим пользователям общего адаптера. Незаполненный/нечисловой
+массив по-прежнему является ошибкой, не позой из нулей или identity.
+
+Регрессия воспроизводит точный TypeError Windows-обёртки и проверяет проход
+через Invoke, неизменённые входные References, получение массива и сохранение
+native ошибки без retry. Offline: **324 passed, 2 skipped**, Ruff F/E9 и diff check
+прошли; регистрация/stdio остаются **163 full / 13 inspection**.
+Windows CATIA для нового вызова ещё не проверена. Проба через обычные MCP tools:
+[ASSEMBLY_DRAWING.md](ASSEMBLY_DRAWING.md#проверка-чтения-положения-на-windows).
+
+Основание: [pywin32 VARIANT и ограничения generated wrappers](https://timgolden.me.uk/pywin32-docs/html/com/win32com/HTML/variant.html),
+[Invoke: упаковка аргументов и копирование BYREF обратно](https://github.com/mhammond/pywin32/blob/main/com/win32com/src/PyIDispatch.cpp),
+[CAA Position.GetComponents](https://catiadesign.org/_doc/V5Automation/generated/interfaces/InfInterfaces/interface_Position_14902.htm).
+
 ## Legacy Move SAFEARRAY и восстановление UI — 2026-11-03
 
 `catia_move_component` больше не читает Position через обычный Python-список
