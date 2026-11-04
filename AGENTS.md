@@ -61,7 +61,8 @@ For an authorized modeling request:
 2. Connect and read model state and selection. Confirm the intended document or
    explicit new-part request. A missing active document is normal before a new
    part; other connection/read errors must be resolved first.
-3. Describe a short feature plan and measurable postconditions. Resolve missing
+3. Build the complete feature/mate plan before starting a complex task; give the
+   human a concise summary of decisions and measurable postconditions. Resolve missing
    dimensions and ambiguous targets before writing. If the user already gave a
    complete modeling instruction, execute it; do not stop after only a plan or
    demand repeated authorization for that same scope.
@@ -72,6 +73,41 @@ For an authorized modeling request:
 5. Compare the finished model against the drawing and agreed dimensions. Report
    verified and unverified items separately. A team reviewer can independently
    assess the supplied evidence, but cannot certify unobserved live geometry. At most two scoped repair attempts; never broaden scope.
+
+### Plan the whole task, then execute sustained sequences
+
+For an authorized multi-step task, read the relevant context once, reason through
+dependencies and design intent, then execute the whole resolved sequence. Do not
+stop after a plan or after every successful command to ask whether to continue.
+Keep explanations concise; record decisions, assumptions and checks, not a stream
+of internal deliberation. Command count is not a target: avoid redundant reads,
+duplicate constraints and screenshots after every primitive.
+
+For assemblies read ASSEMBLY_DRAWING.md, especially the planning workflow. First
+use catia_assembly_spatial_context to map occurrences, parent/root frames, poses,
+existing constraints and missing data. Component origins are NOT centers, axes
+of holes, contact faces or bounding boxes. Do not infer clearances from origins.
+Create a mate graph: component pair, exact geometric supports, intended relation,
+orientation/side/offset, desired remaining motion, order and acceptance check.
+Choose an existing reference component; Fix is still forbidden. Relative mates
+may leave a global rigid motion; report that instead of silently grounding it.
+
+Use catia_assembly_mate_preview on fresh supports, then catia_assembly_mate for
+typed axis/plane/point mates. Axis modes require actual Line References; cylinders,
+circles and whole AxisSystems are not automatically interchangeable with axes.
+Use legacy catia_assembly_constraint for its other documented modes. Ask for exact
+selection if the support cannot be resolved; never invent BRep paths or edge IDs.
+
+Plan stages (placement, axis alignment, seating/offset, orientation, final checks)
+with as many serial calls as required. Each mutation still needs its returned
+result checked, fresh revision and a unique request_id. Refresh selection handles
+after writes; future commands in a plan carry logical support descriptions until
+resolved, not fabricated handles/revisions. A supported tool's own Update/readback
+is sufficient for that operation: do not add redundant Update or full-tree reads.
+At each completed mate group inspect spatial context and constraint_status; use
+screenshots only for an unresolved visual issue or the final meaningful checkpoint.
+Never queue an unchecked bulk script: after failure/timeout stop the dependent
+sequence and reconcile. Ask only for missing geometry/dimensions or new scope.
 
 ## Model operations
 

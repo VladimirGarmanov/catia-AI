@@ -21,7 +21,7 @@ except ImportError:
 def test_inspection_server_only_lists_explicit_tools():
     full = CATIAMCPServer()
     inspection = CATIAMCPServer(inspection_only=True)
-    assert len(full._tool_router) == 163
+    assert len(full._tool_router) == 166
     assert set(inspection._tool_router) == INSPECTION_TOOL_NAMES
     assert inspection.connection.allow_launch is False
 

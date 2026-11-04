@@ -29,12 +29,15 @@ Ready-to-copy demonstrations: **[DEMO_PROMPTS.md](DEMO_PROMPTS.md)**.
 ## Working with CATIA
 
 Read the drawing and active model/selection, resolve missing dimensions, then
-execute one feature at a time through MCP. Update and measure the result.
+plan the complete task and execute its commands serially through MCP without
+asking to continue after each success. For assemblies, map root-relative poses
+and plan axis/plane mates first; check each result and the assembly at milestones.
+Reuse each tool's own Update/readback rather than repeating it unnecessarily.
 Screenshots are useful at meaningful checkpoints, not after every primitive.
 The agent does not infer invisible dimensions or overwrite CAD files without
 an explicit path and instruction.
 
-The current server registers **163 full tools**; the separate inspection mode
+The current server registers **166 full tools**; the separate inspection mode
 exposes 13. Tool count describes registration, not full native GUI coverage or
 live Windows validation. Available groups include document/model context,
 Sketcher, Part Design, GSD, assembly, drafting, measurement, and exports.

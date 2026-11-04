@@ -67,7 +67,7 @@ def test_new_schemas_guard_writes_keep_read_only_and_reject_fix():
         assert not schema.is_valid({**guards, "mode": "fix", "selection_handle": "s"})
         assert not schema.is_valid({**guards, "mode": "fix", "selection_handles": ["a", "b"]})
         assert not schema.is_valid({**guards, "mode": "distance", "selection_handles": ["a"], "value": 10})
-        assert len(server._tool_router) == 163
+        assert len(server._tool_router) == 166
     finally:
         server.worker.shutdown()
 

@@ -34,6 +34,7 @@ from catia_mcp.fallback import fallback_advice
 from catia_mcp.runtime import SessionState, CADOperationError, error_details
 from catia_mcp.tools.assembly import AssemblyTools
 from catia_mcp.tools.assembly_workflow import AssemblyWorkflowTools, READ_TOOLS as ASSEMBLY_READ_TOOLS
+from catia_mcp.tools.assembly_planning import AssemblyPlanningTools, READ_TOOLS as ASSEMBLY_PLANNING_READ_TOOLS
 from catia_mcp.tools.context import ContextTools
 from catia_mcp.tools.document import DocumentTools
 from catia_mcp.tools.export import ExportTools, ScreenshotCapture
@@ -109,6 +110,7 @@ class CATIAMCPServer:
         from catia_mcp.tools.drawing_management import DrawingManagementTools
         self.assembly_management_tools = AssemblyManagementTools(self.engineering_tools)
         self.assembly_workflow_tools = AssemblyWorkflowTools(self.engineering_tools)
+        self.assembly_planning_tools = AssemblyPlanningTools(self.engineering_tools)
         self.drawing_management_tools = DrawingManagementTools(self.engineering_tools)
         from catia_mcp.tools.analysis_tools import AnalysisTools
         from catia_mcp.tools.sketch_operations import SketchOperationTools
@@ -143,6 +145,7 @@ class CATIAMCPServer:
             self.drafting_tools,
             self.assembly_management_tools,
             self.assembly_workflow_tools,
+            self.assembly_planning_tools,
             self.drawing_management_tools,
             self.analysis_tools,
             self.sketch_operation_tools,
@@ -336,7 +339,7 @@ class CATIAMCPServer:
         if name == "catia_report_missing_tool":
             return self._execute_local_report(arguments)
         state = self.session
-        read_names = INSPECTION_TOOL_NAMES | ASSEMBLY_READ_TOOLS | {
+        read_names = INSPECTION_TOOL_NAMES | ASSEMBLY_READ_TOOLS | ASSEMBLY_PLANNING_READ_TOOLS | {
             "catia_sketch_get_geometry", "catia_get_inertia", "catia_measure",
             "catia_measure_distance", "catia_get_bounding_box", "catia_list_objects",
             "catia_measure_object", "catia_capability_status",
@@ -448,7 +451,7 @@ class CATIAMCPServer:
                 state.requests[request_id] = (fingerprint, deepcopy(result))
             return result
         except Exception as exc:
-            uncertain = write and (state.mutation_started if switches_document or name in {"catia_save_document", "catia_move_component"} else entered)
+            uncertain = write and (state.mutation_started if switches_document or name in {"catia_save_document", "catia_move_component", "catia_assembly_mate"} else entered)
             if uncertain:
                 state.reconciliation_required = True
                 if key and not switches_document:

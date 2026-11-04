@@ -1,9 +1,149 @@
 # Assembly и Drawing
 
-Обновление Assembly от 2026-11-03 добавляет **12 MCP-инструментов** и **8 режимов
-сопряжений**. Всего сервер регистрирует **163 full / 13 inspection**; существующие
+Обновление от 2026-11-04 добавляет пространственный контекст, preview опор
+и typed mate с **10 режимами** поверх предыдущих Assembly-инструментов.
+Всего сервер регистрирует **166 full / 13 inspection**; существующие
 имена сохранены. Это конкретное покрытие API, не вся GUI CATIA и не заявление
 о проверке на Windows. Runtime остаётся direct pywin32 COM, общий для Codex и Claude.
+
+## Сначала весь план, затем последовательность команд
+
+Цель — завершить разрешённую сборочную задачу без постоянного «продолжать?».
+Это не массовая отправка непроверенных COM-вызовов. Агент анализирует задачу
+целиком, затем последовательно исполняет этапы, проверяя каждый ответ. Между
+успешными командами не нужна новая авторизация на уже согласованный объём.
+
+1. Прочитать workspace/model/selection и `catia_assembly_spatial_context`.
+   Получить таблицу «экземпляр → родитель → поза относительно корня → роль».
+   Названия — подписи; записи выполняются по handles. Для вложенных деталей
+   поза вычисляется как `T_root_child = T_root_parent × T_parent_child`.
+   Оси хранятся столбцами, перенос — мм. Отсутствующая поза предка делает
+   положение потомков неизвестным. `spatial_complete=false` запрещает делать
+   выводы о всей сборке по неполным данным.
+2. Сопоставить детали с чертежом: база, вал, опоры, колесо, крепёж; отделить
+   прочитанные факты от предполагаемого назначения. Начало детали не является
+   её центром, осью отверстия или габаритом. Этот инструмент не измеряет BRep
+   плоскости, зазоры и пересечения и не распознаёт роль детали автоматически.
+3. Записать граф сопряжений: пара компонентов, точные опоры, тип связи,
+   сторона/ориентация/размер, желаемая подвижность, порядок и проверка результата.
+   Выбрать опорный компонент, но не создавать Fix. Относительные связи могут
+   оставлять глобальное движение сборки; это явно сообщается пользователю.
+4. До записи проверить фактические schemas и доступность опор. Существующие
+   геометрические оси/плоскости и подготовленные при моделировании datum-элементы
+   предпочтительнее догадок по граням. Publications помогают обозначить интерфейсы,
+   но их имя само по себе не становится устойчивым Reference. Новые mate tools
+   принимают текущее точное выделение; не строят BRep-пути по строкам.
+5. Выполнить весь согласованный этап: позиционирование → совмещение осей →
+   посадочные плоскости/смещения → угловая ориентация → итоговая проверка.
+   План может содержать десятки вызовов. Для будущих шагов хранить смысл опор,
+   а handles/revision подставлять только после свежего чтения перед записью.
+   После каждого write handles выделения устаревают; нельзя переиспользовать
+   пачку заранее подготовленных JSON-вызовов с одной revision.
+6. Между удачными шагами продолжать автоматически. Использовать встроенный
+   Update/readback инструмента, не повторять их без причины. После логической
+   группы связей прочитать spatial context и `catia_assembly_constraint_status`.
+   В конце проверить положение, связи и требуемые зазоры отдельно. Скриншот —
+   для существенной визуальной проверки/ошибки, не после каждой команды.
+   При failed/partial_failure/timeout остановить зависимые шаги и сверить модель.
+
+### Три новых инструмента
+
+| Инструмент | Назначение |
+| --- | --- |
+| `catia_assembly_spatial_context` | Дерево, положения в общей системе, constraints/publications, полнота чтения; без Update |
+| `catia_assembly_mate_preview` | Два свежих selection handles → владельцы, измеренный тип геометрии, позы, совместимые режимы; без записи/проверки разрешимости |
+| `catia_assembly_mate` | Одна связь с начальным именем и настройками до Update; native status, readback настроек и поз до/после |
+
+`mate` требует name, mode, два selection_handles и обычные document_id,
+expected_revision, request_id. Геометрия проверяется через SPA GeometryName,
+а не по имени объекта. Оба владельца должны быть разными непосредственными
+детьми корня. Вложенное редактирование и неявное изменение исходных деталей
+не поддерживаются. Дубликат имени связи отклоняется; семантическую избыточность
+связей проверяет агент/solver, а не поиск похожих имён.
+
+| Режим | Опоры и native type | Дополнительные входы |
+| --- | --- | --- |
+| `axis_coincidence` | две точные линии, On=2 | orientation |
+| `axis_parallel` | две линии, Parallelism=8 | orientation |
+| `axis_perpendicular` | две линии, Perpendicularity=11 | — |
+| `plane_coincidence` | две плоскости, On=2 | orientation |
+| `plane_offset` | две плоскости, Distance=1 | distance_mm ≥ 0, side, orientation |
+| `plane_parallel` | две плоскости, Parallelism=8 | orientation |
+| `plane_perpendicular` | две плоскости, Perpendicularity=11 | — |
+| `plane_angle` | две плоскости, Angle=6, sector=0 | angle_deg 0…180 |
+| `plane_contact` | две плоскости, SurfContact=20 | — |
+| `point_coincidence` | две точки, On=2 | — |
+
+orientation: same/opposite/undefined, side: positive/negative/undefined.
+`undefined` оставляет соответствующий выбор solver, не гарантирует нужную сторону.
+`axis_*` здесь связывает **две линии**, а не native mono-element AxisParallelism
+относительно глобального X/Y/Z. Цилиндрическая грань, окружность и целый AxisSystem
+не подменяются осью. Preview возвращает для такой пары пустой список typed modes;
+это известная граница, не повод выбирать «Concentricity» наугад.
+
+Пример замысла для вала и свободно вращающегося колеса: соосность двух datum-линий,
+затем расстояние между торцевыми плоскостями. Для изолированной идеальной пары
+соосность оставляет вращение и осевое перемещение; посадочная плоскость может
+убрать осевое перемещение. Вращение сохраняется по замыслу. У неподвижного шкива
+может потребоваться отдельная угловая связь. Это качественная оценка проекта,
+**не вычисленный DOF**. Не добавлять parallel поверх совпадающих осей/плоскостей
+ради количества команд и не убирать намеренную подвижность лишними связями.
+
+### Пример цепочки для подготовленных опор
+
+```text
+get_model_state → spatial_context → план всей сборки
+get_selection → mate_preview(две оси-линии)
+mate(axis_coincidence, orientation=по плану, name=Wheel_Axis)
+get_selection заново → mate_preview(две посадочные плоскости)
+mate(plane_offset, distance_mm=по чертежу, side/ orientation=по плану, name=Wheel_Seat)
+spatial_context → assembly_constraint_status
+[следующая пара деталей по тому же плану]
+финальная проверка положения, связей и подвижности
+```
+
+Это последовательность намерений, не готовый JSON с выдуманными handles.
+Если нужные плоскости ещё не выделены, получить точное выделение разрешённым
+способом или попросить пользователя выбрать их. Не создавать заменяющую
+геометрию в чужом документе и не повторять неопределённую запись через UI.
+
+### Что покрывает текущий Assembly-набор
+
+| Задача | Инструменты / границы |
+| --- | --- |
+| Найти детали, вложенность, позы, references | domain_objects, assembly_inspect, assembly_component_details, spatial_context |
+| Разместить/повернуть, вставить/заменить/повторить | assembly_component, insert_document, replace_component, duplicate_component, pattern, transform |
+| Оси, плоскости, посадки, угол | mate_preview + mate; точные опоры обязательны |
+| Касательность, симметрия, трёхэлементные связи | assembly_constraint; совместимость конкретных опор решает CATIA |
+| Править/подавлять/удалять одну связь | assembly_constraint; удаление только явно, Fix создавать/активировать нельзя |
+| Статус solver и размер связи | assembly_inspect, assembly_constraint_status; global DOF неизвестен |
+| Publications, BOM, metadata | assembly_publication, publication_relay, assembly_bom, set_metadata |
+| Clash/clearance, кинематика | отдельные scoped DMU tools и лицензия; позы и Status=0 этого не доказывают |
+
+### Источники и Windows-приёмка
+
+Проверены CAA-страницы [CatConstraintType](https://catiadesign.org/_doc/V5Automation/generated/interfaces/MecModInterfaces/enum_CatConstraintType_27587.htm),
+[Constraints](https://catiadesign.org/_doc/V5Automation/generated/interfaces/MecModInterfaces/interface_Constraints_22166.htm),
+[Constraint](https://catiadesign.org/_doc/V5Automation/generated/interfaces/MecModInterfaces/interface_Constraint_21016.htm),
+[Orientation](https://catiadesign.org/_doc/V5Automation/generated/interfaces/MecModInterfaces/enum_CatConstraintOrientation_42617.htm),
+[Side](https://catiadesign.org/_doc/V5Automation/generated/interfaces/MecModInterfaces/enum_CatConstraintSide_27170.htm),
+[Measurable](https://catiadesign.org/_doc/V5Automation/generated/interfaces/SpaceAnalysisInterfaces/interface_Measurable_34815.htm)
+и [CatMeasurableName](https://catiadesign.org/_doc/V5Automation/generated/interfaces/SpaceAnalysisInterfaces/enum_CatMeasurableName_40819.htm).
+Это зеркало документации Dassault, не домен Dassault. CAA прямо различает On,
+Concentricity и orientation/side; generic 3D Concentricity описывает сферы.
+GUI-выбор оси цилиндра нельзя без проверки приравнять к Reference всей поверхности.
+
+Изменение поведения AI задаётся общим AGENTS.md и launcher/handoff-инструкциями
+для Codex/Claude; новая модель/API-подписка не добавляется. Поддержка AGENTS.md
+описана в [OpenAI documentation](https://developers.openai.com/codex/guides/agents-md).
+
+На Windows проверить в новой тестовой CATProduct: две разные детали с явными
+datum-линиями/плоскостями; preview типов; каждый нужный режим mate; настройки
+до Update; status/readback; поворот и перенос вложенной подсборки с ручной
+сверкой root-поз; отказ на устаревшем выделении/цилиндре вместо линии; solver
+ошибку без повторного создания. Отдельно проверить перемещение связанных
+соседей и сохранение намеренного вращения. До этого native выполнение остаётся
+непроверенным: offline-моки проверяют контракты, математику преобразований и ошибки.
 
 ## Новые инструменты сборки
 
