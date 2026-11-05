@@ -4,6 +4,8 @@ import subprocess
 from pathlib import Path
 from types import SimpleNamespace as NS
 
+import pytest
+
 from scripts import windows_launcher as launcher
 
 
@@ -12,6 +14,8 @@ def project(tmp_path):
     python.parent.mkdir(parents=True)
     python.touch()
     (tmp_path / ".local").mkdir()
+    (tmp_path / "CLAUDE.md").write_text("@AGENTS.md\n", encoding="utf-8")
+    (tmp_path / "AGENTS.md").write_text("Read model state before writing.\n", encoding="utf-8")
     return python
 
 
@@ -42,11 +46,59 @@ def test_claude_drawing_launch_uses_manifest_and_keeps_permissions(tmp_path, mon
     monkeypatch.setattr(subprocess, "call", lambda *a, **kw: calls.append((a, kw)) or 0)
     assert launcher.start_claude(runner, Path("claude.exe"), tmp_path / "drawing.pdf") == 0
     argv = calls[0][0][0]
-    assert "--strict-mcp-config" in argv and "--append-system-prompt-file" in argv
+    assert "--strict-mcp-config" in argv and "--append-system-prompt-file" not in argv
     assert not any("skip-permissions" in arg for arg in argv)
     assert "--image" not in argv and "Do not model yet" in argv[-1]
     assert json.loads((tmp_path / ".local" / "claude-drawing.json").read_text())["pages"] == [str(image)]
     launcher.windows_command(["claude.cmd", *argv[1:]], "cmd.exe")
+
+
+@pytest.mark.parametrize("executable", ["claude.exe", "claude.cmd"])
+def test_claude_starts_without_hidden_prompt_file_flag(tmp_path, monkeypatch, executable):
+    python = project(tmp_path)
+    runner = launcher.Runner(tmp_path, tmp_path / ".local" / "start.log")
+    commands = []
+
+    def run(argv, **kwargs):
+        commands.append(argv)
+        # Public help can omit --append-system-prompt-file. Both streams are valid.
+        if executable.endswith(".cmd"):
+            return NS(stdout="  --mcp-config <configs...>\n  --strict-mcp-config\n", stderr="")
+        return NS(stdout="  --mcp-config <configs...>\n", stderr="  --strict-mcp-config\n")
+
+    monkeypatch.setattr(runner, "run", run)
+    launched = []
+    monkeypatch.setattr(subprocess, "call", lambda argv, **kw: launched.append((argv, kw)) or 0)
+    rules_before = {name: (tmp_path / name).read_bytes() for name in ("CLAUDE.md", "AGENTS.md")}
+    assert launcher.start_claude(runner, Path(executable)) == 0
+    assert commands == [[executable, "--help"],
+                        [str(python), str(tmp_path / "scripts" / "check_mcp_transport.py")]]
+    argv, kwargs = launched[0]
+    assert kwargs["cwd"] == tmp_path  # Native CLAUDE.md discovery starts here.
+    text = argv if isinstance(argv, str) else " ".join(argv)
+    assert "--mcp-config" in text and "--strict-mcp-config" in text
+    assert "Read AGENTS.md" in text and "Read CLAUDE.md" in text
+    assert "--append-system-prompt" not in text and "skip-permissions" not in text
+    assert len(text) < 8000
+    assert rules_before == {name: (tmp_path / name).read_bytes() for name in rules_before}
+
+
+def test_claude_reports_missing_mcp_flag_before_starting(tmp_path):
+    project(tmp_path)
+    runner = NS(root=tmp_path, run=lambda *a, **kw: NS(stdout="--mcp-config", stderr=""))
+    with pytest.raises(launcher.SetupError, match="--strict-mcp-config"):
+        launcher.diagnose_claude(runner, Path("claude.exe"))
+    assert not (tmp_path / ".local" / "claude-mcp.json").exists()
+
+
+@pytest.mark.parametrize("filename", ["CLAUDE.md", "AGENTS.md"])
+def test_claude_reports_missing_project_rules(tmp_path, filename):
+    project(tmp_path)
+    (tmp_path / filename).unlink()
+    runner = NS(root=tmp_path, run=lambda *a, **kw: NS(
+        stdout="--mcp-config --strict-mcp-config", stderr=""))
+    with pytest.raises(launcher.SetupError, match=filename):
+        launcher.diagnose_claude(runner, Path("claude.exe"))
 
 
 def test_install_both_preserves_clients_and_local_runtime_state(tmp_path, monkeypatch):
