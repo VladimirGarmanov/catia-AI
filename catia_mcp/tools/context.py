@@ -35,11 +35,15 @@ class ContextTools:
                 "name": "catia_get_model_state",
                 "description": (
                     "Read the active document, bodies/sketches/features or components, "
-                    "parameters, and the current selection. This is not geometry verification."
+                    "and the current selection. detail=summary (default) returns only the "
+                    "parameter count and collapses bodies outside the session focus; "
+                    "detail=full or an explicit max_parameters lists parameters. "
+                    "This is not geometry verification."
                 ),
                 "inputSchema": {
                     "type": "object",
                     "properties": {
+                        "detail": {"enum": ["summary", "full"], "default": "summary"},
                         "max_parameters": {
                             "type": "integer", "minimum": 0, "maximum": 500,
                             "default": 100,
@@ -103,13 +107,44 @@ class ContextTools:
             document_info = json.loads(self.documents._get_active_document_info(doc))
         except Exception as exc:
             return self._error("MODEL_STATE_READ_FAILED", f"Cannot inspect active model: {exc}")
-        data: dict[str, Any] = {"document": document_info, "selection": selection}
+        detail = arguments.get("detail", "summary")
+        if detail not in {"summary", "full"}:
+            return self._error("INVALID_ARGUMENT", "detail must be summary or full")
+        full = detail == "full" or "max_parameters" in arguments
+        # Report the effective level: an explicit max_parameters forces the full listing.
+        data: dict[str, Any] = {"document": document_info, "selection": selection,
+                                "detail": "full" if full else "summary"}
+        if full and detail != "full":
+            data["detail_note"] = "max_parameters given; detail=summary ignored"
+        state = getattr(self.conn, "session", None)
+        focus = state.focus_report() if state is not None else None
+        if focus:
+            data["focus"] = focus
         if document_info["type"] == "CATPart":
+            if not full:
+                data["parameters"] = {"total": document_info.get("parameters_count"), "returned": 0,
+                                      "omitted": "detail=summary; use catia_list_objects(include_parameters=true, parameter_filter=...)"}
+                if focus and focus.get("kind") == "body":
+                    self._collapse_unfocused_bodies(doc.Part, document_info, state, focus)
+                return self._success(data)
             try:
                 data["parameters"] = self._read_parameters(doc.Part, max_parameters)
             except Exception as exc:
                 return self._error("MODEL_STATE_READ_FAILED", f"Cannot inspect parameters: {exc}")
         return self._success(data)
+
+    @staticmethod
+    def _collapse_unfocused_bodies(part: Any, info: dict[str, Any], state: Any, focus: dict) -> None:
+        """Keep the focused Body expanded; others become one-line counts (summary only)."""
+        from catia_mcp.runtime import same_object
+        target = state.resolve(focus["handle"], {"body"}).value
+        bodies = part.Bodies
+        for index, row in enumerate(info.get("bodies", []), start=1):
+            if index <= bodies.Count and same_object(bodies.Item(index), target):
+                row["focused"] = True
+                continue
+            info["bodies"][index - 1] = {"name": row["name"], "features": len(row["features"]),
+                                         "sketches": len(row["sketches"]), "collapsed": True}
 
     @staticmethod
     def _error(code: str, message: str) -> dict[str, Any]:

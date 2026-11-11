@@ -16,7 +16,7 @@ IMPLEMENTATIONS = {
     13: ["catia_sketch_point"], 14: ["catia_sketch_line"],
     16: ["catia_sketch_rectangle", "catia_sketch_centered_rectangle"],
     17: ["catia_sketch_circle"], 18: ["catia_sketch_arc"], 19: ["catia_sketch_ellipse"],
-    20: ["catia_sketch_spline"], 21: ["catia_sketch_set_axis"], 33: ["catia_sketch_diagnose", "catia_sketch_constraint_status"],
+    20: ["catia_sketch_spline"], 21: ["catia_sketch_set_axis"], 33: ["catia_sketch_diagnose", "catia_sketch_constraint_status", "catia_sketch_dof"],
     46: ["catia_pad"], 47: ["catia_pocket"], 48: ["catia_shaft"], 49: ["catia_groove"],
     50: ["catia_hole"], 51: ["catia_swept_solid"], 52: ["catia_swept_solid"],
     54: ["catia_solid_loft"], 55: ["catia_solid_loft"],
@@ -43,7 +43,7 @@ IMPLEMENTATIONS = {
     145: ["catia_offset_constraint"], 146: ["catia_angle_constraint"],
     188: ["catia_create_parameter", "catia_set_parameter"], 189: ["catia_create_formula"],
     198: ["catia_measure_object"], 199: ["catia_measure_distance"], 200: ["catia_get_inertia"],
-    209: ["catia_pocket"], 210: ["catia_sketch_diagnose", "catia_sketch_constraint_status"], 218: ["catia_get_inertia"],
+    209: ["catia_pocket"], 210: ["catia_sketch_diagnose", "catia_sketch_constraint_status", "catia_sketch_dof"], 218: ["catia_get_inertia"],
     202: ["catia_export"], 203: ["catia_export"], 204: ["catia_export"],
     205: ["catia_export"], 206: ["catia_export"], 207: ["catia_save_document"],
 }
@@ -93,6 +93,7 @@ for numbers, handler in (
     ((120, 189, 190, 191, 192), "catia_knowledgeware"),
     ((193, 194), "catia_template_instance"),
     ((198, 199, 200), "catia_measure_exact"),
+    ((89, 90, 91, 92, 93, 94), "catia_point"),
     ((201,), "catia_material"), ((*range(208, 219),), "catia_diagnose_geometry"),
 ):
     for number in numbers:

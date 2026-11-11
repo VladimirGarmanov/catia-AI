@@ -72,7 +72,9 @@ def test_empty_selection_and_model_state():
         {"name": "PartBody", "features": ["Pad.1"], "sketches": ["Sketch.1"]}
     ]
     assert state["data"]["selection"]["count"] == 0
-    assert state["data"]["parameters"]["items"][0]["display"] == "40mm"
+    assert state["data"]["parameters"]["returned"] == 0 and "items" not in state["data"]["parameters"]
+    full = tools.execute("catia_get_model_state", {"detail": "full"})
+    assert full["data"]["parameters"]["items"][0]["display"] == "40mm"
     limited = tools.execute("catia_get_model_state", {"max_parameters": 1})
     assert limited["data"]["parameters"]["truncated"] is True
 
@@ -322,12 +324,12 @@ def test_failed_capture_does_not_return_or_replace_old_image(tmp_path):
 
 def test_server_registers_legacy_tools_and_returns_mcp_image():
     server = CATIAMCPServer()
-    assert len(server._tool_router) == 166
+    assert len(server._tool_router) == 176
     assert "catia_get_selection" in server._tool_router
     assert "catia_get_model_state" in server._tool_router
     listed = asyncio.run(server.server.request_handlers[ListToolsRequest](ListToolsRequest()))
     by_name = {tool.name: tool for tool in listed.root.tools}
-    assert len(by_name) == 166
+    assert len(by_name) == 176
     assert by_name["catia_get_selection"].annotations.readOnlyHint is True
     assert by_name["catia_get_model_state"].annotations.readOnlyHint is True
     server.connection.app = SimpleNamespace(Caption="Mock CATIA")

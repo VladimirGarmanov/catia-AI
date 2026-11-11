@@ -9,7 +9,12 @@
 1. Прочитать `catia_get_model_state` для document_id/revision.
 2. Получить целый tree handle через `catia_list_objects` для CATPart или
    `catia_domain_objects` для CATProduct/CATDrawing. Для constraint/product
-   handles также подходит `catia_assembly_inspect`.
+   handles также подходит `catia_assembly_inspect`. По умолчанию
+   `catia_list_objects` компактен: параметры выдаются только при
+   `include_parameters=true` (служебные/feature-параметры — ещё и
+   `include_internal_parameters=true`), элементы и ограничения эскиза — при
+   `scope_handle=<sketch>` или `include_sketch_internals=true`, а объекты вне
+   текущего фокуса (`catia_set_focus`) — при `ignore_focus=true`.
 3. Вызвать `catia_rename_object` с handle, new_name, document_id,
    expected_revision, уникальным request_id. Можно передать expected_name,
    чтобы обнаружить переименование пользователем между чтением и записью.

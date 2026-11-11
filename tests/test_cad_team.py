@@ -109,3 +109,19 @@ def test_report_protocol_does_not_accept_questions_as_ready(bundle):
     with pytest.raises(ValueError, match="unresolved questions"):
         bundle.submit("file_001", "reader", state["revision"], invalid)
     assert read_json(bundle.task_path("file_001"))["status"] == "in_progress"
+
+
+def test_worker_program_must_compile_offline(bundle, tmp_path):
+    from scripts.cad_team import main
+    good = {"title": "plate", "steps": [
+        {"id": "sk", "tool": "catia_create_sketch", "args": {"plane": "xy"}},
+        {"id": "pad", "tool": "catia_pad", "args": {"height": 8, "sketch_handle": {"$ref": "sk.handle"}}}]}
+    bad = {"steps": [{"id": "pad", "tool": "catia_pad", "args": {"height": "eight"}}]}
+    board_state = bundle.claim("file_001", "worker", 0)
+    with pytest.raises(ValueError, match="program does not compile"):
+        bundle.submit("file_001", "worker", board_state["revision"], dict(report(), program=bad))
+    done = bundle.submit("file_001", "worker", board_state["revision"], dict(report(), program=good))
+    assert done["status"] == "completed" and done["report"]["program_id"].startswith("plan_")
+    path = tmp_path / "plan.json"
+    path.write_text(__import__("json").dumps(bad))
+    assert main(["compile", str(path)]) == 1

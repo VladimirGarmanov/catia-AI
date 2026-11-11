@@ -12,6 +12,8 @@ import ntpath
 from typing import Any
 
 from catia_mcp.connection import CATIAConnection
+from catia_mcp import hole_options
+from catia_mcp.hole_options import OPTION_PROPERTIES
 from catia_mcp.runtime import CADOperationError, same_object
 from catia_mcp.tools.patterns import (LINEAR_SUPPORT, CENTER_SUPPORT, validate_pattern,
     configure_pattern, read_pattern, require_body_seed)
@@ -196,37 +198,30 @@ class PartDesignTools:
             {
                 "name": "catia_hole",
                 "description": (
-                    "Create a simple, counterbored or countersunk flat-bottom Hole from a positioning sketch "
-                    "containing exactly one user point. The sketch and direction must "
-                    "be checked against the target solid. Threading is unsupported."
+                    "Create a Hole from a positioning sketch containing exactly one user point. "
+                    "Types: simple, counterbored, countersunk (any two of head diameter/depth/angle; "
+                    "the matching CounterSunkMode is set), counterdrilled. limit=blind uses depth; "
+                    "up_to_next/up_to_last make through holes. bottom=flat|v. reverse_direction "
+                    "flips the drilling side. Options and diameter are read back; material removal "
+                    "is checked by MainBody volume. Threads: catia_feature_options mode=hole_thread."
                 ),
                 "inputSchema": {
                     "type": "object",
                     "properties": {
-                        "diameter": {
-                            "type": "number",
-                            "description": "Hole diameter in mm",
-                        },
-                        "depth": {
-                            "type": "number",
-                            "description": "Hole depth in mm",
-                        },
-                        "type": {
-                            "type": "string",
-                            "description": (
-                                "Head dimensions are mandatory for counterbored/countersunk modes"
-                            ),
-                            "enum": ["simple", "counterbored", "countersunk"],
-                            "default": "simple",
-                        },
-                        "threaded": {
-                            "type": "boolean",
-                            "description": "Whether to add threading (default: false)",
-                            "default": False,
-                        },
-                        "head_diameter": {"type": "number", "exclusiveMinimum": 0},
-                        "head_depth": {"type": "number", "exclusiveMinimum": 0},
-                        "head_angle": {"type": "number", "exclusiveMinimum": 0, "exclusiveMaximum": 180},
+                        "diameter": {"type": "number", "exclusiveMinimum": 0, "description": "Hole diameter in mm"},
+                        "depth": {"type": "number", "exclusiveMinimum": 0,
+                                  "description": "Blind depth in mm; CATIA ignores it for up_to_next/up_to_last"},
+                        "type": {"enum": ["simple", "counterbored", "countersunk", "counterdrilled"], "default": "simple"},
+                        "threaded": {"type": "boolean", "default": False,
+                                     "description": "Unsupported here; must stay false"},
+                        "head_diameter": {"type": "number", "exclusiveMinimum": 0, "description": "mm"},
+                        "head_depth": {"type": "number", "exclusiveMinimum": 0, "description": "mm"},
+                        "head_angle": {"type": "number", "exclusiveMinimum": 0, "exclusiveMaximum": 180, "description": "deg"},
+                        "limit": OPTION_PROPERTIES["limit"],
+                        "bottom": OPTION_PROPERTIES["bottom"],
+                        "bottom_angle": {"type": "number", "exclusiveMinimum": 0, "exclusiveMaximum": 180,
+                                         "description": "deg, only with bottom=v"},
+                        "reverse_direction": OPTION_PROPERTIES["reverse_direction"],
                         "sketch_name": {
                             "type": "string",
                             "description": "Sketch containing the hole center point",
@@ -395,7 +390,7 @@ class PartDesignTools:
             },
             {
                 "name": "catia_list_features",
-                "description": "List shapes in MainBody only; unknown COM types are reported honestly.",
+                "description": "List shapes of one Body: body_handle, else the session focus Body (catia_set_focus), else MainBody. Unknown COM types are reported honestly.",
                 "inputSchema": {
                     "type": "object",
                     "properties": {},
@@ -457,7 +452,7 @@ class PartDesignTools:
                 length_key = "height" if definition["name"] == "catia_pad" else "depth"
                 definition["inputSchema"]["required"] = []
                 properties[length_key]["description"] += "; required only for dimension mode"
-            if definition["name"] not in {"catia_list_features", "catia_list_edges"}:
+            if definition["name"] != "catia_list_edges":
                 properties["body_handle"] = {"type": "string", "minLength": 1}
             if "sketch_name" in properties:
                 properties["sketch_handle"] = {"type": "string", "minLength": 1}
@@ -1003,33 +998,20 @@ class PartDesignTools:
         return f"Chamfer created: {length} mm at {angle}°. Feature: '{chamfer.Name}'"
 
     def _hole(self, args: dict[str, Any]) -> str:
-        hole_type = args.get("type", "simple")
-        codes = {"simple": 0, "counterbored": 2, "countersunk": 3}
-        if hole_type not in codes:
-            raise ValueError("Unsupported hole type")
-        expected_head = {"simple": set(), "counterbored": {"head_diameter", "head_depth"},
-                         "countersunk": {"head_diameter", "head_angle"}}[hole_type]
-        supplied_head = {k for k in ("head_diameter", "head_depth", "head_angle") if k in args}
-        if supplied_head != expected_head:
-            raise ValueError(f"{hole_type} requires exactly these head fields: {sorted(expected_head)}")
-        if expected_head and args["head_diameter"] <= args["diameter"]:
-            raise ValueError("Head diameter must exceed the bore diameter")
-        if hole_type == "counterbored" and args["head_depth"] >= args["depth"]:
-            raise ValueError("Counterbore head depth must be less than bore depth")
         if args.get("threaded", False):
-            raise ValueError("Threaded holes need explicit thread parameters and are unsupported")
+            raise ValueError("Threaded holes are configured afterwards with catia_feature_options mode=hole_thread")
         if not args.get("sketch_name") and not args.get("sketch_handle"):
-            raise ValueError("A named positioning sketch with one user point is required")
+            raise ValueError("A positioning sketch (sketch_handle or unique sketch_name) with one user point is required")
+        legacy = {"type": "hole_type", "head_diameter": "head_diameter_mm", "head_depth": "head_depth_mm",
+                  "head_angle": "head_angle_deg", "bottom_angle": "bottom_angle_deg"}
+        options = {legacy.get(key, key): value for key, value in args.items()
+                   if key in legacy or key in {"limit", "bottom", "reverse_direction"}}
+        spec = hole_options.normalize(options, args["diameter"], args["depth"])
         self.conn.ensure_connected()
         part = self.conn.get_active_part()
         sf = part.ShapeFactory
 
         sketch = self._get_last_sketch(args.get("sketch_name"))
-        diameter = args["diameter"]
-        depth = args["depth"]
-        if any(not isinstance(value, (int, float)) or not math.isfinite(value) or value <= 0
-               for value in (diameter, depth)):
-            raise ValueError("Hole diameter and depth must be finite and positive in mm")
         geometry = sketch.GeometricElements
         point_count = 0
         for index in range(1, geometry.Count + 1):
@@ -1043,26 +1025,18 @@ class PartDesignTools:
             )
 
         before = self._volume(part, self.conn.get_active_part_body())
-        hole = sf.AddNewHoleFromSketch(sketch, depth)
+        hole = sf.AddNewHoleFromSketch(sketch, spec["depth_mm"])
         self._created(hole)
-        hole.Type = codes[hole_type]
-        hole.Diameter.ValuateFromString(f"{diameter}mm")
-        if expected_head:
-            hole.HeadDiameter.ValuateFromString(f"{args['head_diameter']}mm")
-        if hole_type == "counterbored":
-            hole.HeadDepth.ValuateFromString(f"{args['head_depth']}mm")
-        if hole_type == "countersunk":
-            hole.HeadAngle.ValuateFromString(f"{args['head_angle']}deg")
-        hole.BottomType = 0  # catFlatBottom
-        if not math.isclose(float(hole.Diameter.Value), diameter, abs_tol=1e-7):
-            raise RuntimeError("Hole was created, but its diameter did not match the request")
-
+        hole_options.apply(hole, spec)
         self._updated(part, hole)
+        native = hole_options.readback(hole, spec)
         after = self._volume(part, self.conn.get_active_part_body())
         if before is not None and after is not None and after >= before:
-            raise CADOperationError("POSTCONDITION_FAILED", "Hole updated but did not remove material; inspect the existing feature before retrying")
+            hint = "" if spec["reverse_direction"] else " Inspect it: the drilling side may need reverse_direction=true."
+            raise CADOperationError("POSTCONDITION_FAILED", f"Hole {hole.Name!r} updated but removed no material ({before} -> {after} m^3).{hint}")
         self.conn.refresh_display()
-        return f"{hole_type} Hole: D{diameter} mm, depth {depth} mm. Feature: '{hole.Name}'; volume m^3 {before} -> {after} (None=unverified)"
+        return (f"{spec['hole_type']} Hole {spec['limit']}: D{spec['diameter_mm']} mm, depth {spec['depth_mm']} mm. "
+                f"Feature: '{hole.Name}'; native readback {json.dumps(native)}; volume m^3 {before} -> {after} (None=unverified)")
 
     def _rect_pattern(self, args: dict[str, Any]) -> dict:
         self.conn.ensure_connected()
@@ -1218,6 +1192,12 @@ class PartDesignTools:
 
     def _list_features(self) -> str:
         self.conn.ensure_connected()
+        session = getattr(self.conn, "session", None)
+        focus = session.focus_report() if session is not None else None
+        source = "body_handle" if getattr(self.conn, "operation_body", None) is not None else "main_body"
+        if source == "main_body" and focus and focus.get("kind") == "body":
+            self.conn.operation_body = session.resolve(focus["handle"], {"body"}).value
+            source = "focus"
         body = self.conn.get_active_part_body()
         shapes = body.Shapes
 
@@ -1234,8 +1214,11 @@ class PartDesignTools:
             })
 
         if not features:
-            return "No features in the active body"
-        return json.dumps({"scope": "MainBody.Shapes only", "features": features}, indent=2)
+            return f"No features in body {body.Name!r} (scope source: {source})"
+        data = {"scope": f"{body.Name}.Shapes only", "scope_source": source, "features": features}
+        if focus:
+            data["focus"] = focus
+        return json.dumps(data, ensure_ascii=False)
 
     def _list_edges(self) -> dict[str, Any]:
         return {

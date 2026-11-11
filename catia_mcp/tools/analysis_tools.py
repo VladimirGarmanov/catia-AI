@@ -1,18 +1,39 @@
 """Measurement, material assignment, DMU and state-based diagnostics."""
 
+import math
+
 from catia_mcp.com_arrays import read_array
 from catia_mcp.runtime import CADOperationError, same_object
 from catia_mcp.constraint_policy import check_constraint_command
 from catia_mcp.tools.engineering import HANDLE, NUMBER, POSITIVE, tool
 from catia_mcp.tools.operations import OperationTools, BOOL, array, group
 
+# CatMeasurableName, in CAA order.
+GEOMETRY_NAMES = {0: "unknown", 1: "measurable", 2: "volume", 3: "surface", 4: "cylinder", 5: "sphere",
+                  6: "cone", 7: "plane", 8: "curve", 9: "circle", 10: "line", 11: "point", 12: "axis_system"}
+UNIT_BASIS = ("CAA documents Measurable.Area in m2 and Volume in m3. Lengths, radii, distances and "
+              "coordinates follow the CATIA SPA model length unit (mm) and are not rescaled.")
+SURFACES = {2, 3, 4, 5, 6, 7}
+# property: (Measurable attribute, API unit, public unit, scale, valid CatMeasurableName values)
+SCALARS = {"length": ("Length", "mm", "mm", 1, {8, 9, 10}),
+           "radius": ("Radius", "mm", "mm", 1, {4, 5, 9}),
+           "perimeter": ("Perimeter", "mm", "mm", 1, {3, 7}),
+           "angle": ("Angle", "deg", "deg", 1, {6, 9}),
+           "area": ("Area", "m2", "mm2", 1e6, SURFACES),
+           "volume": ("Volume", "m3", "mm3", 1e9, {2})}
+GETTERS = {"point": ("GetPoint", {11}, "mm"), "center": ("GetCenter", {5, 9}, "mm"),
+           "cog": ("GetCOG", SURFACES | {8, 9, 10}, "mm"),
+           "direction": ("GetDirection", {10}, "unit_vector"), "axis": ("GetAxis", {4, 6, 9}, "unit_vector")}
+MEASURABLE_KINDS = {"point", "vertex", "line", "curve", "edge", "face", "surface", "plane", "feature",
+                    "sketch", "geometry", "body", "point2d", "line2d", "circle2d", "ellipse2d"}
+
 
 class AnalysisTools(OperationTools):
     def get_tool_definitions(self):
         return [
-            group("catia_measure_exact", "Read geometric measurements in active Part coordinates. SI values and explicit public units. No containers or guessed topology. SAFEARRAY failures are reported, never replaced with zeros.", {
-                "scalar": {"handle": HANDLE, "property": {"enum": ["length", "radius", "area", "volume"]}},
-                "point": {"handle": HANDLE}, "center": {"handle": HANDLE},
+            group("catia_measure_exact", "Read geometric measurements in active Part coordinates. Lengths, radii, perimeters, distances and coordinates are CATIA SPA model units (mm, not rescaled); Area is m2 and Volume m3 per CAA, also returned as mm2/mm3. Bodies support scalar/cog only (CAA forbids body-to-body distance). No guessed topology; SAFEARRAY failures are reported, never replaced with zeros.", {
+                "scalar": {"handle": HANDLE, "property": {"enum": ["length", "radius", "area", "volume", "perimeter", "angle"]}},
+                "point": {"handle": HANDLE}, "center": {"handle": HANDLE}, "cog": {"handle": HANDLE},
                 "direction": {"handle": HANDLE}, "axis": {"handle": HANDLE},
                 "distance": {"first_handle": HANDLE, "second_handle": HANDLE},
                 "angle": {"first_handle": HANDLE, "second_handle": HANDLE},
@@ -51,37 +72,37 @@ class AnalysisTools(OperationTools):
                     "cog_m": read_array(inertia.GetCOGPosition, 3), "tensor_kg_m2": read_array(inertia.GetInertiaMatrix, 9),
                     "frame": "active document Product", "warning": "Mass is only as reliable as assigned materials/densities"}
         self.conn.get_active_part()  # Assembly occurrence metrology requires a separate context contract.
-        h = a.get("handle", a.get("first_handle"))
-        allowed = {"point", "vertex", "line", "curve", "edge", "face", "surface", "plane", "feature", "sketch"}
-        reference = self.ref(h, allowed)
+        between = mode in {"distance", "angle", "distance_points"}
+        allowed = MEASURABLE_KINDS - ({"body"} if between else set())
+        reference = self.ref(a.get("handle", a.get("first_handle")), allowed)
         measurable = doc.GetWorkbench("SPAWorkbench").GetMeasurable(reference)
         geometry = int(measurable.GeometryName)
-        result = {"ok": True, "frame": "active Part", "geometry_type": geometry}
+        result = {"ok": True, "frame": "active Part", "geometry_type": geometry,
+                  "geometry_name": GEOMETRY_NAMES.get(geometry, "unknown"),
+                  "unit_basis": UNIT_BASIS, "live_validated": False}
         if mode == "scalar":
-            property_name, api_unit, public_unit, scale, types = {
-                "length": ("Length", "m", "mm", 1000, {8, 9, 10}),
-                "radius": ("Radius", "m", "mm", 1000, {4, 5, 9}),
-                "area": ("Area", "m2", "mm2", 1e6, {2, 3, 4, 5, 6, 7}),
-                "volume": ("Volume", "m3", "mm3", 1e9, {2}),
-            }[a["property"]]
+            property_name, api_unit, public_unit, scale, types = SCALARS[a["property"]]
             if geometry not in types:
-                raise CADOperationError("WRONG_GEOMETRY_TYPE", "Requested property is undefined for this measurable type")
+                raise CADOperationError("WRONG_GEOMETRY_TYPE", f"{a['property']} is undefined for {GEOMETRY_NAMES.get(geometry, geometry)}")
             value = float(getattr(measurable, property_name))
+            if not math.isfinite(value) or (a["property"] != "angle" and value < 0):
+                raise CADOperationError("POSTCONDITION_FAILED", f"CATIA returned an invalid {a['property']}: {value}")
             result.update(api_value=value, api_unit=api_unit, value=value * scale, unit=public_unit)
-        elif mode in {"point", "center", "direction", "axis"}:
-            methods = {"point": ("GetPoint", {11}, "m"), "center": ("GetCenter", {5, 9}, "m"),
-                       "direction": ("GetDirection", {10}, "unit_vector"), "axis": ("GetAxis", {4, 6}, "unit_vector")}
-            method, types, unit = methods[mode]
+        elif not between:
+            method, types, unit = GETTERS[mode]
             if geometry not in types:
-                raise CADOperationError("WRONG_GEOMETRY_TYPE", "Getter is undefined for this measurable type")
+                raise CADOperationError("WRONG_GEOMETRY_TYPE", f"{method} is undefined for {GEOMETRY_NAMES.get(geometry, geometry)}")
             result.update(value=read_array(getattr(measurable, method), 3), unit=unit)
         else:
             other = self.ref(a["second_handle"], allowed)
             if mode == "distance_points":
-                result.update(value=read_array(measurable.GetMinimumDistancePoints, 9, other), unit="m",
+                result.update(value=read_array(measurable.GetMinimumDistancePoints, 9, other), unit="mm",
                               warning="Native nine-component CATIA output, not an invented pair-of-points layout")
             elif mode == "distance":
-                result.update(value=float(measurable.GetMinimumDistance(other)) * 1000, unit="mm")
+                value = float(measurable.GetMinimumDistance(other))
+                if not math.isfinite(value) or value < 0:
+                    raise CADOperationError("POSTCONDITION_FAILED", f"CATIA returned an invalid distance: {value}")
+                result.update(api_value=value, api_unit="mm", value=value, unit="mm")
             else:
                 result.update(value=float(measurable.GetAngleBetween(other)), unit="deg")
         return result

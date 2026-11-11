@@ -1,5 +1,73 @@
 # Реализация CATIA_AGENT_CODEX_PACKAGE — 2026-10-09
 
+## Дешёвый локальный поиск по CAA — 2026-11-10
+
+`catia_v5_reference_member` возвращает только секцию одного метода/свойства
+(сигнатура, параметры, тип возврата, кратко пример; лимит 1500, максимум 6000
+символов), при неоднозначности — список интерфейсов. `catia_v5_reference_enum`
+даёт значения enum с 0-based индексами в порядке CAA. Индекс членов строится
+лениво в `.local/v5-reference/members.json` (версия + отпечаток страниц).
+`catia_v5_reference_search`: `scope=members`, `in_text` (сниппеты ±160) и
+compact по умолчанию (`compact=false` — прежний формат). Без сети, COM и чтения
+вне кэша. Страницы parser v1 без типов. Windows/live COM не проверялись.
+
+## Экономия токенов: фокус и узкие чтения — 2026-11-10
+
+- `catia_set_focus` (read-only, только состояние сессии): document_id + необязательный
+  handle Body/geoset; не активирует и не выделяет. Сбрасывается при смене активного
+  документа (activate, новый документ, внешнее переключение) и сообщает `cleared`.
+- `catia_list_objects`: `scope_handle` (поддерево body/geoset/ordered_geoset/sketch),
+  `kinds`, `ignore_focus`; параметры по умолчанию **не** выводятся (`include_parameters`,
+  `parameter_filter`; только пользовательские по `Parameter.UserAccessMode`=2, иначе
+  `include_internal_parameters`; в scope — `Parameters.SubList(obj, True)`), элементы и
+  ограничения скетча — только при `include_sketch_internals` или scope на скетч.
+  Компактные записи без null, счётчики пропущенного в `omitted`.
+- `catia_list_features`: `body_handle`, иначе фокус, иначе MainBody.
+- `catia_get_model_state`: `detail=summary` по умолчанию (только число параметров,
+  тела вне фокуса свёрнуты); `detail=full` или явный `max_parameters` — прежний список.
+  document_id/revision/handles выделения сохраняются.
+- Значения UserAccessMode/SubList взяты из кэша CAA; в живой CATIA на Windows **не проверены**
+  (`live_validated=false`).
+## Точки как в диалоге Point Definition — 2026-11-10
+
+- `catia_point` (модуль `catia_mcp/tools/points.py`): режимы coordinates (опц.
+  reference point / axis system), on_curve_distance (geodesic/euclidean,
+  `DistanceType` 1/-1), on_curve_ratio, on_curve_direction, on_plane, on_surface,
+  center, tangent_on_curve, between (middle или ratio), datum
+  (неассоциативная копия, `confirm_non_associative=true`). Сигнатуры — по кэшу CAA
+  HybridShapeFactory.AddNewPoint*. Все комбинации проверяются до конструктора.
+- Обратное чтение: X/Y/Z, Offset/Ratio/OnCurveType, XOffset/YOffset; координаты
+  через Measurable.GetPoint (mm). Сверка для coordinates без ссылок, between и
+  center (GetCenter). Расхождение — `POSTCONDITION_FAILED`, точка остаётся.
+- Between: CAA противоречит сам себе (Orientation=1 «от второй точки», Ratio = d1/d2
+  «от первой»). Оба инструмента (`catia_point`, `catia_reference_point`) передают ratio
+  без изменений с Orientation=1; измеренная точка сравнивается с обоими вариантами и
+  результат сообщает `ratio_measured_from` (first_point/second_point), ни один не
+  принимается на веру. С `support_handle` прямолинейная сверка не делается (точка на
+  кривой/поверхности). center принимает только окружности/рёбра/сферы, не прямые.
+  Старые `catia_gsd_point` и point_* режимы `catia_wireframe_surface` сохранены.
+  Windows validation pending.
+
+## Измерения, отверстия и единый передатчик плана — 2026-11-10
+
+- **Измерения.** `catia_measure_exact` умножал длину, радиус и расстояние SPA на
+  1000 и подписывал координаты как метры. По CAA в м²/м³ документированы только
+  Area/Volume; длины, расстояния и координаты Measurable — в модельных mm.
+  Теперь они не масштабируются (`unit_basis`, `live_validated=false`). Добавлены
+  `perimeter`, `angle`, `cog`, ось окружности, измерение Body (scalar/cog; тело-тело
+  CAA запрещает). `catia_measure_distance` принимает handles (грани/рёбра из выделения),
+  возвращает структурированный mm-результат вместо «raw/unverified».
+- **Отверстия.** Общий контракт `catia_mcp/hole_options.py` для `catia_hole`,
+  `catia_solid_operation` hole_* и `catia_part_design_advanced` hole_*:
+  simple/counterbored/countersunk/counterdrilled, `limit` blind/up_to_next/up_to_last,
+  `bottom` flat/v, `reverse_direction`. Ошибка: для countersunk не задавался
+  `CounterSunkMode`, поэтому CATIA (Depth&Angle по умолчанию) игнорировала диаметр
+  зенковки. Опции проверяются до конструктора, тип/limit/bottom/диаметр читаются обратно.
+- **Единый передатчик.** `catia_plan_compile` / `catia_plan_step` / `catia_plan_status`
+  и `scripts/cad_team.py compile`; поле `program` в отчётах workers. См. TEAM_WORKFLOW.md.
+- Offline: **409 passed, 2 skipped**; discovery **176 full / 13 inspection**.
+  Единицы SPA, режимы Hole и выполнение плана в живой CATIA на Windows **не проверены**.
+
 ## Assembly: общий пространственный план и typed mates — 2026-11-04
 
 Добавлены `catia_assembly_spatial_context`, `catia_assembly_mate_preview` и
@@ -27,7 +95,7 @@ Update/readback и скриншотов после каждой примитив
 Проверены CAA контракты Constraints/Constraint, CatConstraintType, GeometryName,
 Orientation/Side; источники, матрица покрытия и Windows-пробы — в ASSEMBLY_DRAWING.md.
 Offline: **344 passed, 2 skipped**, Ruff F/E9, diff check. Регистрация и настоящий
-stdio discovery: **166 full / 13 inspection**. Windows/CATIA COM и native solver
+stdio discovery: **176 full / 13 inspection**. Windows/CATIA COM и native solver
 новых режимов **не проверены**; эти результаты не являются live-приёмкой.
 
 ## SAFEARRAY: исправление упаковки аргумента pywin32 — 2026-11-03
@@ -103,6 +171,10 @@ distance_direction, driving_mode. Подробные контракты и Windo
 Запись ограничена непосредственными экземплярами активного CATProduct.
 Массивы — explicit shared-reference occurrences, не независимые файлы и не
 ассоциативная native pattern feature. Explode меняет реальные положения, не Scene.
+Сцены: `catia_assembly_scene` (create/set_component_positions/explode_linear/
+explode_offsets/remove) и read-only `catia_assembly_scene_inspect` пишут только
+DMU ProductScenes по кэшу OSMInterfaces; реальные позы проверяются неизменными.
+Apply-to-product не документирован. live_validated=false, Windows validation pending.
 BOM считает reference identity, статус constraints не подменяет неизвестный DOF.
 Fix/AutoConstraint остаются запрещены. UI input не включался.
 
@@ -165,6 +237,17 @@ Offline: **267 passed, 2 skipped**, Ruff F/E9, регистрация и stdio d
 Два реальных cmd.exe теста пропущены на Mac. Windows EXE не пересобирался;
 Windows запуск, аккаунты и живой CATIA COM остаются непроверенными.
 Изменения локальные; commit/push не выполнялись.
+
+## Оценка DOF эскиза — 2026-11-10
+
+Новый read-only `catia_sketch_dof`: подсчёт по Грюблеру (2 DOF на уникальный
+Point2D + параметры кривых − веса активных driving не-Fix constraints).
+`estimated_dof > 0` при полном разрешении элементов доказывает недоопределённость
+(избыточность только увеличивает истинный DOF); `<= 0` не доказательство.
+Сплайны/неразрешённые ограничения дают `unknown`. `catia_close_sketch` до
+CloseEdition отказывает с `SKETCH_UNDER_CONSTRAINED` (edition открыт), кроме
+`accept_under_constrained=true` + `under_constrained_reason`. Сопоставление
+элементов через Reference.DisplayName — Windows validation pending.
 
 ## Проверка ограничений Sketch — 2026-11-03
 
@@ -604,12 +687,12 @@ JSON Schema указанного tool и соответствующем handler.
 | CATIA-086 | Boolean Intersect | implemented_scoped | catia_boolean | AddNewIntersect |
 | CATIA-087 | Boolean Assemble | implemented_scoped | catia_boolean | AddNewAssemble |
 | CATIA-088 | Split Solid | implemented_scoped | catia_solid_operation | AddNewSplit |
-| CATIA-089 | Point Coordinates | implemented_scoped | catia_reference_point | AddNewPointCoord |
-| CATIA-090 | Point On Curve | implemented_scoped | catia_reference_point | AddNewPointOnCurveFromPercent, AddNewPointOnCurveFromDistance |
-| CATIA-091 | Point On Plane | implemented_scoped | catia_reference_point | AddNewPointOnPlane, AddNewPointOnPlaneWithReference |
-| CATIA-092 | Point On Surface | implemented_scoped | catia_wireframe_surface | AddNewPointOnSurface, AddNewPointOnSurfaceWithReference |
-| CATIA-093 | Circle Sphere Center | implemented_scoped | catia_wireframe_surface | AddNewPointCenter |
-| CATIA-094 | Point Between | implemented_scoped | catia_reference_point | AddNewPointBetween |
+| CATIA-089 | Point Coordinates | implemented_scoped | catia_point, catia_reference_point | AddNewPointCoord |
+| CATIA-090 | Point On Curve | implemented_scoped | catia_point, catia_reference_point | AddNewPointOnCurveFromPercent, AddNewPointOnCurveFromDistance |
+| CATIA-091 | Point On Plane | implemented_scoped | catia_point, catia_reference_point | AddNewPointOnPlane, AddNewPointOnPlaneWithReference |
+| CATIA-092 | Point On Surface | implemented_scoped | catia_point, catia_wireframe_surface | AddNewPointOnSurface, AddNewPointOnSurfaceWithReference |
+| CATIA-093 | Circle Sphere Center | implemented_scoped | catia_point, catia_wireframe_surface | AddNewPointCenter |
+| CATIA-094 | Point Between | implemented_scoped | catia_point, catia_reference_point | AddNewPointBetween |
 | CATIA-095 | Line Point Point | implemented_scoped | catia_gsd_line | AddNewLinePtPt |
 | CATIA-096 | Line Point Direction | implemented_scoped | catia_wireframe_surface | AddNewDirectionByCoord, AddNewLinePtDir |
 | CATIA-097 | Line Normal to Surface | implemented_scoped | catia_wireframe_surface | AddNewLineNormal |

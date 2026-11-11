@@ -1,4 +1,5 @@
 """Documented wireframe/surface and solid constructors with explicit target handles."""
+from catia_mcp import hole_options
 from catia_mcp.runtime import CADOperationError, same_object
 from catia_mcp.tools.engineering import HANDLE, NUMBER, POSITIVE, dimension
 from catia_mcp.tools.operations import (
@@ -72,13 +73,14 @@ SOLID_MODES = {
 
 
 SOLID_MODES["thread_tap_explicit_faces"] = dict(SOLID_MODES["thread_tap"])
+HOLE_MODES = {"hole_at_point", "hole_at_reference"}
 
 
 class AdvancedGeometryTools(OperationTools):
     def get_tool_definitions(self):
         return [
-            group("catia_wireframe_surface", "Typed GSD operations. Part-frame directions; lengths mm, angles deg. Exact face/edge handles require current selection. Live Windows verification pending.", WIRE_MODES, {"container_handle": HANDLE}),
-            group("catia_solid_operation", "Part Design features in an explicit Body: fillets, stiffener, patterns, transforms, Solid Combine, Sew Surface, face removal/replacement, Thread/Tap, Union Trim, two-length chamfer, holes on selected support. Thread/Tap is a CATIA thread specification, not modeled helical teeth. Hole coordinates are absolute Part mm; CATIA may project onto support. Auto Fillet affects all body edges and requires confirm_all_edges=true. Union Trim supports undivided faces only. Exact live face/edge handles required, no guessed IDs. Update/readback is not independent geometry verification; Windows validation pending.", SOLID_MODES, {"body_handle": HANDLE}),
+            group("catia_wireframe_surface", "Typed GSD operations; for points prefer catia_point (full version). Part-frame directions; lengths mm, angles deg. Exact face/edge handles require current selection. Live Windows verification pending.", WIRE_MODES, {"container_handle": HANDLE}),
+            hole_options.extend_group_schema(group("catia_solid_operation", "Part Design features in an explicit Body: fillets, stiffener, patterns, transforms, Solid Combine, Sew Surface, face removal/replacement, Thread/Tap, Union Trim, two-length chamfer, holes on selected support. Thread/Tap is a CATIA thread specification, not modeled helical teeth. Hole coordinates are absolute Part mm; CATIA may project onto support. Auto Fillet affects all body edges and requires confirm_all_edges=true. Union Trim supports undivided faces only. Exact live face/edge handles required, no guessed IDs. Update/readback is not independent geometry verification; Windows validation pending.", SOLID_MODES, {"body_handle": HANDLE}), HOLE_MODES),
             group("catia_profile_solids", "Explicit geometry-equivalent alternative to Multi Pad/Multi Pocket: creates SEPARATE ordinary features from separate sketches, each with its own depth. Not a native multi-domain feature. Stops at first failed Update; never rolls back or retries.", {
                 "pads": {}, "pockets": {},
             }, {"body_handle": HANDLE, "profiles": array({"type": "object", "properties": {
@@ -230,6 +232,7 @@ class AdvancedGeometryTools(OperationTools):
 
     def solid(self, a):
         m = a["mode"]
+        hole_spec = hole_options.normalize(a, a["diameter_mm"], a["depth_mm"]) if m in HOLE_MODES else None
         types = {"sketch_handle": {"sketch"}, "first_face_handle": {"face"}, "second_face_handle": {"face"},
                  "remove_face_handle": {"face"}, "edge_handle": {"edge"}, "axis_handle": LINE,
                  "reference_handle": POINT | {"plane"}, "surface_handle": SURFACE,
@@ -277,15 +280,13 @@ class AdvancedGeometryTools(OperationTools):
         self.engineering.body(a["body_handle"])
         if m == "chamfer_two_lengths":
             obj = constructor(r["edge_handle"], a["propagation"], 0, int(a["reverse"]), a["first_length_mm"], a["second_length_mm"])
-        elif m in {"hole_at_point", "hole_at_reference"}:
+        elif m in HOLE_MODES:
             if m == "hole_at_point":
                 obj = constructor(*a["position_mm"], r["support_face_handle"], a["depth_mm"])
             else:
                 obj = constructor(r["point_handle"], r["support_face_handle"], a["depth_mm"])
             self.state.mark_created(obj, "feature")
-            obj.Type = 0  # catSimpleHole
-            obj.BottomType = 0  # catFlatBottom
-            dimension(obj.Diameter, a["diameter_mm"], "mm")
+            hole_options.apply(obj, hole_spec)
         elif m == "axis_to_axis":
             obj = constructor(r["source_axis_handle"], r["target_axis_handle"])
         elif m == "solid_combine":
@@ -362,6 +363,8 @@ class AdvancedGeometryTools(OperationTools):
         if m == "user_pattern":
             from catia_mcp.tools.patterns import read_user_pattern
             result["pattern"] = read_user_pattern(obj, anchor, positions, a["instances"])
+        if hole_spec is not None:
+            result["hole"] = hole_options.readback(obj, hole_spec)
         return result
 
     def options(self, a):

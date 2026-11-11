@@ -26,6 +26,9 @@ def same_object(left: Any, right: Any) -> bool:
         return False
 
 
+FOCUS_KINDS = frozenset({"body", "geoset", "ordered_geoset"})
+
+
 @dataclass
 class ObjectRecord:
     value: Any
@@ -49,6 +52,11 @@ class SessionState:
         self.modified: list[str] = []
         self.updated = False
         self.mutation_started = False
+        # Compiled catia_plan_compile plans and their per-step results.
+        self.plans: dict[str, dict] = {}
+        # Session-only modeling focus: default read scope, never a CATIA write.
+        self.focus: dict | None = None
+        self.focus_cleared: str | None = None
 
     def document_id(self, document=None) -> str:
         document = document if document is not None else self.connection.active_document
@@ -62,6 +70,8 @@ class SessionState:
 
     def bind(self) -> dict:
         key = self.document_id()
+        if self.focus is not None and self.focus["document_id"] != key:
+            self.clear_focus("active document changed")
         self.bound_document = key
         self.reconciliation_required = False
         return self.context(key)
@@ -124,6 +134,45 @@ class SessionState:
                 raise CADOperationError("STALE_REFERENCE", "Exact selection reference cannot be revalidated; select again")
         return record
 
+    def set_focus(self, document_id, handle=None):
+        focus = {"document_id": document_id}
+        if handle is not None:
+            record = self.resolve(handle, FOCUS_KINDS)
+            focus.update(handle=handle, kind=record.kind, name=str(record.value.Name))
+        self.focus, self.focus_cleared = focus, None
+        return dict(focus)
+
+    def clear_focus(self, reason):
+        if self.focus is not None:
+            self.focus_cleared = reason
+        self.focus = None
+
+    def current_focus(self):
+        """Valid focus for the ACTIVE document, else clear it; never activates anything."""
+        focus = self.focus
+        if focus is None:
+            return None
+        try:
+            active = self.document_id()
+        except Exception:
+            active = None
+        if active != focus["document_id"]:
+            self.clear_focus("active document changed")
+            return None
+        if focus.get("handle"):
+            try:
+                focus["name"] = str(self.resolve(focus["handle"], FOCUS_KINDS).value.Name)
+            except CADOperationError:
+                self.clear_focus("focus object is no longer accessible")
+                return None
+        return dict(focus)
+
+    def focus_report(self):
+        focus = self.current_focus()
+        if focus is not None:
+            return focus
+        return {"cleared": self.focus_cleared} if self.focus_cleared else None
+
     def reference(self, handle, kinds=None):
         record = self.resolve(handle, kinds)
         if record.reference is not None:
@@ -152,4 +201,5 @@ def error_details(exc, operation):
     return {"code": getattr(exc, "code", "INVALID_ARGUMENT" if isinstance(exc, ValueError) else "COM_ERROR"),
             "message": str(exc), "operation": operation,
             "hresult": getattr(cause, "hresult", None),
-            "excepinfo": getattr(cause, "excepinfo", None)}
+            "excepinfo": getattr(cause, "excepinfo", None),
+            **({"details": exc.details} if getattr(exc, "details", None) else {})}

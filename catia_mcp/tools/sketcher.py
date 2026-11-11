@@ -12,7 +12,8 @@ from typing import Any
 
 from catia_mcp.connection import CATIAConnection
 from catia_mcp.constraint_policy import check_constraint_command
-from catia_mcp.runtime import same_object
+from catia_mcp.runtime import CADOperationError, same_object
+from catia_mcp.sketch_dof import dof_summary, estimate_dof
 from catia_mcp.sketch_status import constraint_health
 
 # Plane name mapping
@@ -56,6 +57,11 @@ class SketcherTools:
         self._active_document_identity: tuple[str, str] | None = None
         self._active_document = None
         self._adopted_ui_sketch = False
+        self._pending_close_guard = None
+        # DOF provenance: only sketches created here have a fully known origin of
+        # their projected/intersected (immobile 3D-linked) elements.
+        self._linked_geometry: list = []
+        self._provenance_complete = False
 
     @staticmethod
     def _document_identity(document: Any) -> tuple[str, str]:
@@ -119,11 +125,17 @@ class SketcherTools:
                 "name": "catia_close_sketch",
                 "description": (
                     "Close the active sketch and return to Part Design. "
-                    "Must be called after finishing sketch geometry before applying 3D features."
+                    "Must be called after finishing sketch geometry before applying 3D features. "
+                    "Runs the catia_sketch_dof estimate first and refuses with SKETCH_UNDER_CONSTRAINED "
+                    "(edition left open) when it proves free DOF, unless accept_under_constrained=true "
+                    "with a non-empty under_constrained_reason. Unknown estimates warn, never block."
                 ),
                 "inputSchema": {
                     "type": "object",
-                    "properties": {},
+                    "properties": {
+                        "accept_under_constrained": {"type": "boolean", "default": False},
+                        "under_constrained_reason": {"type": "string", "minLength": 1, "maxLength": 500},
+                    },
                 },
             },
             {
@@ -341,6 +353,7 @@ class SketcherTools:
                 factory = self._active_factory
                 geometry = (factory.CreateProjection if arguments["mode"] == "project" else factory.CreateIntersection)(reference)
                 handle = self.conn.session.mark_created(geometry, "geometry")
+                self._linked_geometry.append(geometry)
                 geometry.Construction = arguments.get("construction", False)
                 self._active_sketch.Evaluate()
                 return {"ok": True, "handle": handle, "warnings": ["Close/update sketch to verify resulting geometry"]}
@@ -351,7 +364,7 @@ class SketcherTools:
                     raise ValueError("Choose plane OR support_handle")
                 return self._create_sketch(arguments.get("plane", "xy"), arguments.get("support_handle"), arguments.get("axis_data"))
             case "catia_close_sketch":
-                return self._close_sketch()
+                return self._close_sketch(arguments)
             case "catia_sketch_line":
                 return self._draw_line(
                     arguments["x1"], arguments["y1"],
@@ -457,6 +470,7 @@ class SketcherTools:
 
         # Open the sketch for editing
         factory = sketch.OpenEdition()
+        self._linked_geometry, self._provenance_complete = [], True
         self._active_sketch = sketch
         self._active_document = document
         self._adopted_ui_sketch = False
@@ -470,8 +484,53 @@ class SketcherTools:
             "Use fresh catia_sketch_get_geometry indices for constraints."
         )
 
-    def _close_sketch(self) -> str:
+    def dof_provenance(self) -> dict[str, Any]:
+        return {"fixed_geometry": tuple(self._linked_geometry), "provenance_complete": self._provenance_complete}
+
+    def close_guard(self, arguments: dict[str, Any] | None = None) -> dict[str, Any]:
+        """Validate and run the DOF estimate before any edition change; raise to refuse."""
+        arguments = arguments or {}
+        accept = arguments.get("accept_under_constrained", False)
+        reason = arguments.get("under_constrained_reason")
+        if not isinstance(accept, bool):
+            raise CADOperationError("INVALID_ARGUMENT", "accept_under_constrained must be a boolean")
+        if reason is not None and (not isinstance(reason, str) or not reason.strip()):
+            raise CADOperationError("INVALID_ARGUMENT", "under_constrained_reason must be a non-empty string")
+        if accept != (reason is not None):
+            raise CADOperationError("INVALID_ARGUMENT", "accept_under_constrained=true requires under_constrained_reason, and vice versa")
         self._ensure_sketch_open()
+        warnings = []
+        try:
+            report = estimate_dof(self._active_sketch, self.conn.get_active_part(), **self.dof_provenance())
+        except Exception as exc:
+            report = {"status": "unknown", "certain": False, "estimated_dof": None}
+            warnings.append(f"DOF estimate unavailable ({exc}); closing without the under-constraint check")
+        summary = dof_summary(report)
+        override = None
+        if report["status"] == "under_constrained":
+            if not accept:
+                names = ", ".join(item["name"] for item in report["likely_free_elements"][:20]) or "none isolated"
+                error = CADOperationError(
+                    "SKETCH_UNDER_CONSTRAINED",
+                    f"Sketch is under-constrained (estimated_dof={report['estimated_dof']}); edition left open. "
+                    f"Likely free elements: {names}. Add coincidence/H/V/dimensions and locate it from the origin "
+                    "(never Fix/AutoConstraint), or pass accept_under_constrained=true with under_constrained_reason.")
+                error.details = {"dof_check": summary, "edition_left_open": True}
+                raise error
+            override = {"accepted": True, "reason": reason.strip(), "estimated_dof": report["estimated_dof"]}
+            warnings.append(f"Closed an under-constrained sketch by explicit override: {reason.strip()}")
+        elif report["status"] == "unknown":
+            warnings.append("DOF estimate is unknown (unmodelled geometry/constraints or unknown projection links); "
+                            "under-constraint was not checked")
+        elif accept:
+            warnings.append("accept_under_constrained was not needed: the estimate did not prove under-constraint")
+        return {"sketch": self._active_sketch, "dof_check": summary, "override": override, "warnings": warnings}
+
+    def _close_sketch(self, arguments: dict[str, Any] | None = None) -> dict[str, Any]:
+        guard = self._pending_close_guard
+        self._pending_close_guard = None
+        if guard is None or not same_object(guard["sketch"], self._active_sketch):
+            guard = self.close_guard(arguments)
         sketch = self._active_sketch
         sketch.CloseEdition()
         self._active_sketch = None
@@ -481,7 +540,11 @@ class SketcherTools:
         self._adopted_ui_sketch = False
         self.conn.get_active_part().UpdateObject(sketch)
         self.conn.refresh_display()
-        return "Sketch closed. You can now apply Part Design features (pad, pocket, etc.)."
+        result = {"ok": True, "message": "Sketch closed. You can now apply Part Design features (pad, pocket, etc.).",
+                  "dof_check": guard["dof_check"], "warnings": guard["warnings"]}
+        if guard["override"]:
+            result["under_constrained_override"] = guard["override"]
+        return result
 
     def _draw_line(self, x1: float, y1: float, x2: float, y2: float,
                    construction=False, as_axis=False) -> str:

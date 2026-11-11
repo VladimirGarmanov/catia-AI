@@ -14,6 +14,7 @@ def fixture():
         parameter.ValuateFromString = Mock(side_effect=lambda text: setattr(parameter, "Value", float(text.removesuffix("mm").removesuffix("deg"))))
         return parameter
     feature = NS(Name="Result", FirstAngle=dim(), SecondAngle=dim(), Thickness=dim(), Diameter=dim(),
+                 Type=0, BottomType=0, BottomLimit=NS(LimitMode=0), Reverse=Mock(),
                  AddFaceToKeep2=Mock(), AddFaceToRemove2=Mock(), AddFeatureToLocatePositions=Mock())
     feature.AddFeatureToLocatePositions.side_effect = lambda sketch: setattr(feature, "FeatureToLocatePositions", sketch)
     factory = Mock()

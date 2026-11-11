@@ -91,7 +91,7 @@ class AssemblyWorkflowTools(AssemblyManagementTools):
                 "translate": {"component_handles": HANDLES, "translation_mm": VECTOR},
                 "rotate": {"component_handles": HANDLES, "axis": VECTOR, "pivot_mm": VECTOR, "angle_deg": NUMBER},
             }),
-            tool("catia_assembly_explode", "Apply explicit parent-frame offsets to immediate occurrences for an exploded layout. Changes actual positions, not a scene. Returns original poses for catia_assembly_transform(set_positions) restore. No automatic spacing or constraint suppression; solver returning a component is an error.",
+            tool("catia_assembly_explode", "Apply explicit parent-frame offsets to immediate occurrences for an exploded layout. Changes actual positions, not a scene (use catia_assembly_scene for presentation). Returns original poses for catia_assembly_transform(set_positions) restore. No automatic spacing or constraint suppression; solver returning a component is an error.",
                  {"offsets": array(record_schema({"component_handle": HANDLE, "translation_mm": VECTOR}), 1, 100)}, ["offsets"]),
             tool("catia_assembly_set_metadata", "Edit only the active root Product reference metadata with readback. Does not rename files, edit external references, save or run geometry Update. Supply only fields to change.",
                  {"properties": {"type": "object", "properties": {k: v[1] for k, v in METADATA.items()},

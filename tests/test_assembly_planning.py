@@ -188,7 +188,7 @@ def test_spatial_context_composes_rotated_parent_and_propagates_unavailable(rig)
 
 
 def test_schemas_and_registration_keep_reads_separate_from_mutations(rig):
-    assert len(rig.server._tool_router) == 166
+    assert len(rig.server._tool_router) == 176
     for definition in rig.tools.get_tool_definitions():
         schema = rig.server._schemas[definition["name"]]
         Draft202012Validator.check_schema(schema)

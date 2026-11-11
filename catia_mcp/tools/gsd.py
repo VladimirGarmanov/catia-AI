@@ -106,7 +106,7 @@ class GSDTools:
             },
             {
                 "name": "catia_gsd_point",
-                "description": "Create a 3D point at (x, y, z). Coordinates in mm.",
+                "description": "Create a 3D point at (x, y, z) mm. Legacy; catia_point is the full Point Definition version.",
                 "inputSchema": {
                     "type": "object",
                     "properties": {

@@ -3,6 +3,7 @@
 Source: downloaded V5Automation/PartInterfaces/ShapeFactory and object pages.
 No generic COM invocation, silent retries, or claim of native GUI equivalence.
 """
+from catia_mcp import hole_options
 from catia_mcp.runtime import CADOperationError, same_object
 from catia_mcp.tools.engineering import HANDLE, NUMBER, POSITIVE, dimension
 from catia_mcp.tools.operations import OperationTools, BOOL, VECTOR, LINE, CURVE, array, group, unit_vector
@@ -84,6 +85,8 @@ CONSTRUCTORS = {
     "circular_pattern": "AddNewCircPattern", "trim_divided_faces": "AddNewTrim",
 }
 
+HOLE_MODES = {"hole_barycenter", "hole_one_edge", "hole_two_edges"}
+
 
 class ShapeFactoryTools(OperationTools):
     def get_tool_definitions(self):
@@ -109,6 +112,7 @@ class ShapeFactoryTools(OperationTools):
         for variant in definition["inputSchema"]["oneOf"]:
             if variant["properties"]["mode"]["const"] in {"circular_pattern", "circular_pattern_list"}:
                 variant["propertyNames"]["enum"].append("complete_crown")
+        hole_options.extend_group_schema(definition, HOLE_MODES)
         return [definition]
 
     def execute(self, name, a):
@@ -161,6 +165,7 @@ class ShapeFactoryTools(OperationTools):
                 raise CADOperationError("INVALID_ARGUMENT", "The same face pair cannot be kept and removed")
         if m in {"shaft_reference", "groove_reference"} and not 0 < a["first_angle_deg"] + a["second_angle_deg"] <= 360:
             raise CADOperationError("INVALID_ARGUMENT", "Total revolution must be in (0,360] degrees")
+        hole_spec = hole_options.normalize(a, a["diameter_mm"], a["depth_mm"]) if m in HOLE_MODES else None
         if m == "hole_two_edges" and same_object(refs["first_edge_handle"], refs["second_edge_handle"]):
             raise CADOperationError("INVALID_ARGUMENT", "Hole requires two distinct edges")
         if m in {"rectangular_pattern", "circular_pattern"}:
@@ -204,8 +209,7 @@ class ShapeFactoryTools(OperationTools):
                 prefix.extend([refs["first_edge_handle"], refs["second_edge_handle"]])
             obj = constructor(*prefix, refs["support_face_handle"], a["depth_mm"])
             self.state.mark_created(obj, "feature")
-            obj.Type, obj.BottomType = 0, 0
-            dimension(obj.Diameter, a["diameter_mm"], "mm")
+            hole_options.apply(obj, hole_spec)
         elif m == "auto_draft":
             obj = constructor(a["angle_deg"])
             self.state.mark_created(obj, "feature")
@@ -245,6 +249,8 @@ class ShapeFactoryTools(OperationTools):
             self.state.mark_created(obj, "feature")
             configure_pattern(obj, m, a)
         result = self.finish(obj)
+        if hole_spec is not None:
+            result["hole"] = hole_options.readback(obj, hole_spec)
         if m in {"rectangular_pattern", "circular_pattern"}:
             result["pattern"] = read_pattern(obj, m, a)
         elif m == "user_pattern":

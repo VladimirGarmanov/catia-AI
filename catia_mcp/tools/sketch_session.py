@@ -1,6 +1,7 @@
 """Existing-sketch editing. InWorkObject is NOT proof of a UI edition state."""
 from catia_mcp.runtime import CADOperationError, same_object
 from catia_mcp.constraint_policy import check_constraint_edit
+from catia_mcp.sketch_dof import dof_summary, estimate_dof
 from catia_mcp.sketch_status import constraint_health
 from catia_mcp.tools.engineering import HANDLE, NUMBER, tool, dimension
 from catia_mcp.tools.operations import OperationTools
@@ -33,6 +34,10 @@ class SketchSessionTools(OperationTools):
                 "max_constraints": {"type": "integer", "minimum": 1, "maximum": 5000, "default": 1000},
                 "require_fully_constrained": {"type": "boolean", "default": False},
             }, readonly=True),
+            tool("catia_sketch_dof", "Estimate remaining sketch DOF by counting (2 per unique Point2D + curve parameters - active driving constraint weights) for an exact sketch_handle or the bound open sketch. status=under_constrained (estimated_dof>0, all resolved) is a proof and lists likely free elements; possibly_fully_constrained/over_or_redundant are NOT proof; unknown means splines or unresolved constraints. No Evaluate/Update/edition change. catia_close_sketch enforces it.", {
+                "sketch_handle": HANDLE,
+                "max_constraints": {"type": "integer", "minimum": 1, "maximum": 5000, "default": 1000},
+            }, readonly=True),
             tool("catia_sketch_set_construction", "Set existing geometry in the bound open sketch to construction=true or standard=false. Use a fresh handle from catia_sketch_get_geometry. Preserves geometry and constraints; Evaluate/readback checks the flag, not full constraint rank. To make the revolution centerline standard, first assign a different axis explicitly.", {
                 "geometry_handle": HANDLE, "construction": {"type": "boolean"},
             }, ["geometry_handle", "construction"]),
@@ -49,9 +54,7 @@ class SketchSessionTools(OperationTools):
             }, ["source", "mode"]),
         ]
 
-    def constraint_status(self, args):
-        document = self.conn.active_document
-        part = self.conn.get_active_part()  # Validate CATPart before reading sketch state.
+    def target_sketch(self, args):
         editor = self.engineering.sketcher
         if args.get("sketch_handle"):
             sketch = self.state.resolve(args["sketch_handle"], {"sketch"}).value
@@ -62,6 +65,29 @@ class SketchSessionTools(OperationTools):
             sketch = editor._active_sketch
         if not any(same_object(sketch, value) for value in self.sketches()):
             raise CADOperationError("STALE_REFERENCE", "Sketch is not in the current Part's discovered sketch collections")
+        return sketch
+
+    def dof(self, args):
+        document = self.conn.active_document
+        part = self.conn.get_active_part()
+        sketch = self.target_sketch(args)
+        editor = self.engineering.sketcher
+        bound = same_object(sketch, editor._active_sketch)
+        provenance = editor.dof_provenance() if bound else {"provenance_complete": False}
+        report = estimate_dof(sketch, part, register=self.state.register,
+                              max_constraints=args.get("max_constraints", 1000), **provenance)
+        if not same_object(document, self.conn.active_document):
+            raise CADOperationError("DOCUMENT_MISMATCH", "Active document changed during sketch inspection")
+        report.update(sketch_handle=self.state.register(sketch, "sketch"), sketch_name=str(sketch.Name),
+                      document_id=self.state.document_id(document),
+                      server_bound_open=same_object(sketch, self.engineering.sketcher._active_sketch))
+        return report
+
+    def constraint_status(self, args):
+        document = self.conn.active_document
+        part = self.conn.get_active_part()  # Validate CATPart before reading sketch state.
+        editor = self.engineering.sketcher
+        sketch = self.target_sketch(args)
         report = constraint_health(sketch, register=self.state.register,
                                    max_constraints=args.get("max_constraints", 1000))
         report.update(sketch_handle=self.state.register(sketch, "sketch"), sketch_name=str(sketch.Name),
@@ -101,6 +127,8 @@ class SketchSessionTools(OperationTools):
     def execute(self, name, a):
         if name == "catia_sketch_constraint_status":
             return self.constraint_status(a)
+        if name == "catia_sketch_dof":
+            return self.dof(a)
         if name == "catia_sketch_set_construction":
             return self.set_construction(a)
         if name in {"catia_sketch_constraints", "catia_sketch_edit_constraint"}:
@@ -144,8 +172,14 @@ class SketchSessionTools(OperationTools):
         editor._active_document_identity = editor._document_identity(self.conn.active_document)
         editor._active_document = self.conn.active_document
         editor._adopted_ui_sketch = a["mode"] == "adopt_user_open"
+        editor._linked_geometry, editor._provenance_complete = [], False
+        try:
+            dof_check = dof_summary(estimate_dof(target, self.conn.get_active_part(), **editor.dof_provenance()))
+        except Exception as exc:
+            dof_check = {"status": "unknown", "error": str(exc)}
         return {"ok": True, "handle": self.state.register(target, "sketch"), "name": str(target.Name),
-                "created_sketch": False, "mode": a["mode"], "edition_left_open": True,
+                "created_sketch": False, "mode": a["mode"], "edition_left_open": True, "dof_check": dof_check,
+                "close_rule": "catia_close_sketch refuses a proven under-constrained sketch unless explicitly overridden with a reason",
                 "warning": "UI editing state is user-confirmed, not proven by COM; do not switch sketch/document"}
 
     def set_construction(self, a):

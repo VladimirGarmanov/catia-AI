@@ -11,7 +11,15 @@ from catia_mcp.tools.advanced_geometry import AdvancedGeometryTools
 
 def fixture():
     dim = lambda: NS(ValuateFromString=Mock(), ValueAsString=lambda: "1mm")
-    feature = NS(Name="Result", Diameter=dim(), Pitch=dim(), Depth=dim(),
+
+    def length(value=1.0):
+        parameter = NS(Value=value, ValueAsString=lambda: f"{parameter.Value}mm")
+        parameter.ValuateFromString = Mock(side_effect=lambda text: setattr(
+            parameter, "Value", float(text.removesuffix("mm").removesuffix("deg"))))
+        return parameter
+    feature = NS(Name="Result", Diameter=length(), Pitch=dim(), Depth=dim(),
+                 Type=0, BottomType=0, BottomLimit=NS(LimitMode=0), Reverse=Mock(),
+                 HeadDiameter=length(), HeadDepth=length(), HeadAngle=length(), BottomAngle=length(),
                  SetExplicitPolarity=Mock(), ReverseDirection=Mock(),
                  AddFaceToKeep=Mock(), AddFaceToRemove=Mock())
     factory = Mock()
@@ -89,3 +97,53 @@ def test_update_failure_retains_feature_evidence():
         tool.execute("catia_solid_operation", {"mode": "auto_fillet", "body_handle": h("body"),
              "fillet_radius_mm": 2, "round_radius_mm": 3, "confirm_all_edges": True})
     assert tool.state.created and not tool.state.updated
+
+
+def test_countersunk_through_reversed_hole_sets_native_modes():
+    tool, part, feature, h = fixture()
+    result = tool.execute("catia_solid_operation", {
+        "mode": "hole_at_point", "body_handle": h("body"), "position_mm": [0, 0, 0],
+        "support_face_handle": h("face"), "depth_mm": 20, "diameter_mm": 6.6,
+        "hole_type": "countersunk", "head_diameter_mm": 12, "head_angle_deg": 90,
+        "limit": "up_to_last", "reverse_direction": True})
+    assert feature.Type == 3 and feature.CounterSunkMode == 2  # catCSModeAngleDiameter
+    assert feature.BottomLimit.LimitMode == 2 and feature.BottomType == 0
+    feature.HeadDiameter.ValuateFromString.assert_called_once_with("12mm")
+    feature.HeadAngle.ValuateFromString.assert_called_once_with("90deg")
+    feature.Reverse.assert_called_once_with()
+    assert result["hole"]["limit_mode"] == 2 and result["hole"]["diameter"] == "6.6mm"
+
+
+@pytest.mark.parametrize("options,message", [
+    ({"hole_type": "countersunk", "head_diameter_mm": 12}, "exactly two"),
+    ({"hole_type": "counterbored", "head_diameter_mm": 5, "head_depth_mm": 2}, "exceed the bore"),
+    ({"hole_type": "counterbored", "head_diameter_mm": 12, "head_depth_mm": 25}, "less than the blind"),
+    ({"bottom": "v", "limit": "up_to_last"}, "blind hole"),
+    ({"bottom_angle_deg": 118}, "requires bottom=v"),
+])
+def test_invalid_hole_options_rejected_before_constructor(options, message):
+    tool, part, feature, h = fixture()
+    with pytest.raises(CADOperationError, match=message):
+        tool.execute("catia_solid_operation", {
+            "mode": "hole_at_point", "body_handle": h("body"), "position_mm": [0, 0, 0],
+            "support_face_handle": h("face"), "depth_mm": 20, "diameter_mm": 6.6, **options})
+    part.ShapeFactory.AddNewHoleFromPoint.assert_not_called()
+
+
+def test_measure_exact_keeps_spa_lengths_in_mm_and_scales_area():
+    from catia_mcp.tools.analysis_tools import AnalysisTools
+    tool, part, feature, h = fixture()
+    measurable = NS(GeometryName=10, Length=25.0, GetMinimumDistance=lambda other: 20.0)
+    surface = NS(GeometryName=7, Area=0.0004, Perimeter=80.0)
+    queue = [measurable, measurable, surface, surface]
+    tool.conn.active_document.GetWorkbench = lambda name: NS(GetMeasurable=lambda ref: queue.pop(0))
+    analysis = AnalysisTools(tool.engineering)
+    line, other = h("line"), h("line")
+    assert analysis.measure({"mode": "scalar", "property": "length", "handle": line})["value"] == 25.0
+    distance = analysis.measure({"mode": "distance", "first_handle": line, "second_handle": other})
+    assert distance["value"] == 20.0 and distance["unit"] == "mm"
+    area = analysis.measure({"mode": "scalar", "property": "area", "handle": h("plane")})
+    assert area["value"] == pytest.approx(400.0) and area["unit"] == "mm2"
+    assert analysis.measure({"mode": "scalar", "property": "perimeter", "handle": h("plane")})["value"] == 80.0
+    with pytest.raises(CADOperationError, match="Expected"):
+        analysis.measure({"mode": "distance", "first_handle": h("body"), "second_handle": other})

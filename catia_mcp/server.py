@@ -35,6 +35,7 @@ from catia_mcp.runtime import SessionState, CADOperationError, error_details
 from catia_mcp.tools.assembly import AssemblyTools
 from catia_mcp.tools.assembly_workflow import AssemblyWorkflowTools, READ_TOOLS as ASSEMBLY_READ_TOOLS
 from catia_mcp.tools.assembly_planning import AssemblyPlanningTools, READ_TOOLS as ASSEMBLY_PLANNING_READ_TOOLS
+from catia_mcp.tools.assembly_scenes import AssemblySceneTools, READ_TOOLS as ASSEMBLY_SCENE_READ_TOOLS
 from catia_mcp.tools.context import ContextTools
 from catia_mcp.tools.document import DocumentTools
 from catia_mcp.tools.export import ExportTools, ScreenshotCapture
@@ -127,6 +128,11 @@ class CATIAMCPServer:
         self.desktop_tools = DesktopTools(self.connection, self.session)
         from catia_mcp.tools.workspace import WorkspaceTools
         self.workspace_tools = WorkspaceTools(self.engineering_tools)
+        from catia_mcp.tools.plans import PlanTools
+        self.plan_tools = PlanTools(self)
+        self.assembly_scene_tools = AssemblySceneTools(self.engineering_tools)
+        from catia_mcp.tools.points import PointTools
+        self.point_tools = PointTools(self.engineering_tools)
 
         # All tool modules
         self._tool_modules = [
@@ -155,6 +161,9 @@ class CATIAMCPServer:
             self.volume_factory_tools,
             self.desktop_tools,
             self.workspace_tools,
+            self.plan_tools,
+            self.assembly_scene_tools,
+            self.point_tools,
         ]
 
         # Build tool name -> module routing table
@@ -339,19 +348,9 @@ class CATIAMCPServer:
         if name == "catia_report_missing_tool":
             return self._execute_local_report(arguments)
         state = self.session
-        read_names = INSPECTION_TOOL_NAMES | ASSEMBLY_READ_TOOLS | ASSEMBLY_PLANNING_READ_TOOLS | {
-            "catia_sketch_get_geometry", "catia_get_inertia", "catia_measure",
-            "catia_measure_distance", "catia_get_bounding_box", "catia_list_objects",
-            "catia_measure_object", "catia_capability_status",
-            "catia_sketch_diagnose", "catia_domain_objects", "catia_measure_exact",
-            "catia_material_catalog", "catia_diagnose_geometry",
-            "catia_capability_request",
-            "catia_sketch_context", "catia_v5_reference_search", "catia_v5_reference_read",
-            "catia_sketch_constraints", "catia_sketch_constraint_status",
-            "catia_ui_snapshot",
-            "catia_assembly_inspect", "catia_drawing_inspect",
-            "catia_get_workspace_state",
-        }
+        if name == "catia_plan_step":
+            return self._execute_plan_step(arguments)
+        read_names = self.read_tool_names()
         write = name not in read_names
         creates_document = name in {"catia_new_part", "catia_new_product", "catia_open_document", "catia_new_drawing"}
         switches_document = name == "catia_activate_document"
@@ -380,7 +379,7 @@ class CATIAMCPServer:
                 return replay
             if write and len(state.requests) >= 10000:
                 raise CADOperationError("CAPABILITY_UNAVAILABLE", "Session journal full; inspect/save explicitly and restart MCP")
-            if name not in {"catia_connect", "catia_disconnect", "catia_capability_status", "catia_capability_request", "catia_v5_reference_search", "catia_v5_reference_read", "catia_list_edges", "catia_get_bounding_box"}:
+            if name not in {"catia_connect", "catia_disconnect", "catia_capability_status", "catia_capability_request", "catia_plan_compile", "catia_plan_status", "catia_v5_reference_search", "catia_v5_reference_read", "catia_v5_reference_member", "catia_v5_reference_enum", "catia_list_edges", "catia_get_bounding_box"}:
                 self.connection.ensure_connected()
                 if arguments.get("document_id") and self.session.document_id() != arguments["document_id"]:
                     raise CADOperationError("DOCUMENT_MISMATCH", "Explicit document_id differs from the active document")
@@ -402,6 +401,9 @@ class CATIAMCPServer:
                     raise CADOperationError("INVALID_ARGUMENT", "Close the edited sketch before this operation")
                 if name == "catia_save_document" and self.sketcher_tools._active_sketch is not None:
                     raise CADOperationError("SKETCH_OPEN", "Finish and close the bound sketch before saving; edition was not changed")
+            if name == "catia_close_sketch":
+                # Refuse an under-constrained close before entering the write: nothing changed.
+                self.sketcher_tools._pending_close_guard = self.sketcher_tools.close_guard(arguments)
             entered = True
             if write and not creates_document and not switches_document and name != "catia_save_document":
                 try:
@@ -473,6 +475,92 @@ class CATIAMCPServer:
             if isinstance(request_id, str) and fingerprint is not None and write and request_id not in state.requests:
                 state.requests[request_id] = (fingerprint, deepcopy(result))
             return result
+
+    def read_tool_names(self):
+        """Tools that never mutate CATIA; every other tool follows the write contract."""
+        return INSPECTION_TOOL_NAMES | ASSEMBLY_READ_TOOLS | ASSEMBLY_PLANNING_READ_TOOLS | ASSEMBLY_SCENE_READ_TOOLS | {
+            "catia_sketch_get_geometry", "catia_get_inertia", "catia_measure",
+            "catia_measure_distance", "catia_get_bounding_box", "catia_list_objects",
+            "catia_measure_object", "catia_capability_status",
+            "catia_sketch_diagnose", "catia_domain_objects", "catia_measure_exact",
+            "catia_material_catalog", "catia_diagnose_geometry",
+            "catia_capability_request",
+            "catia_sketch_context", "catia_v5_reference_search", "catia_v5_reference_read",
+            "catia_v5_reference_member", "catia_v5_reference_enum",
+            "catia_sketch_constraints", "catia_sketch_constraint_status",
+            "catia_ui_snapshot",
+            "catia_assembly_inspect", "catia_drawing_inspect",
+            "catia_get_workspace_state", "catia_plan_compile", "catia_plan_status",
+            "catia_set_focus",
+            "catia_sketch_dof",
+        }
+
+    def _execute_plan_step(self, arguments):
+        """Run exactly one compiled step through the ordinary typed-tool path."""
+        from catia_mcp.plan_compiler import evaluate_checks, resolve_args
+        name = "catia_plan_step"
+        try:
+            error = next(iter(Draft202012Validator(self._schemas[name]).iter_errors(arguments)), None)
+            if error is not None:
+                raise CADOperationError("INVALID_ARGUMENT", error.message)
+            plan = self.session.plans.get(arguments["plan_id"])
+            if plan is None:
+                raise CADOperationError("PLAN_NOT_FOUND", "Unknown plan_id in this MCP session; compile the plan first")
+            steps = plan["compiled"]["steps"]
+            requested = arguments.get("step_id")
+            if requested is not None and requested in plan["results"] and \
+                    next(s["index"] for s in steps if s["id"] == requested) < plan["cursor"]:
+                return {"ok": True, "replayed": True, "plan_id": arguments["plan_id"], "step_id": requested,
+                        "result": deepcopy(plan["results"][requested]), "checks": plan["checks"].get(requested),
+                        "message": "Step already completed; it was not executed again"}
+            if plan["halted"] is not None:
+                raise CADOperationError("PLAN_HALTED", f"Plan stopped at step {plan['halted']['step_id']}: "
+                                        f"{plan['halted']['reason']}. Inspect the model, then compile a corrected plan")
+            if plan["cursor"] >= len(steps):
+                return {"ok": True, "plan_id": arguments["plan_id"], "finished": True, "next_step": None,
+                        "message": "All steps completed; compare the model with the drawing"}
+            step = steps[plan["cursor"]]
+            if requested is not None and requested != step["id"]:
+                raise CADOperationError("PLAN_ORDER", f"Steps run in order; the next step is {step['id']}")
+            args = resolve_args(step, plan["results"])
+            if step["write"]:
+                args["request_id"] = step["request_id"]
+                creates = step["tool"] in {"catia_new_part", "catia_new_product", "catia_open_document", "catia_new_drawing"}
+                if not creates and not {"document_id", "expected_revision"} <= arguments.keys():
+                    raise CADOperationError("MODEL_CONTEXT_REQUIRED", "Write steps need document_id and expected_revision "
+                                            "from the latest model state or previous step session")
+                for key in ("document_id", "expected_revision"):
+                    if key in arguments:
+                        args[key] = arguments[key]
+        except Exception as exc:
+            error = error_details(exc, name)
+            return {"ok": False, "code": error["code"], "error": error, "cad_changed": False,
+                    "plan_id": arguments.get("plan_id") if isinstance(arguments, dict) else None}
+        result = self._execute_serial(step["tool"], args)
+        if isinstance(result, ScreenshotCapture):
+            result = {"ok": True, "file_path": str(result.file_path)}
+        elif not isinstance(result, dict):
+            result = {"ok": True, "message": result}
+        created = result.get("created_handles")
+        if "handle" not in result and isinstance(created, list) and len(created) == 1:
+            # Legacy text tools still register their one new feature; expose it uniformly.
+            result = {**result, "handle": created[0]}
+        checks = evaluate_checks(step["checks"], result)
+        succeeded = bool(result.get("ok", True)) and all(check["passed"] for check in checks)
+        plan["results"][step["id"]] = deepcopy(result)
+        plan["checks"][step["id"]] = checks
+        if succeeded:
+            plan["cursor"] += 1
+        else:
+            failed = [check for check in checks if not check["passed"]]
+            plan["halted"] = {"step_id": step["id"], "tool": step["tool"],
+                              "reason": result.get("code") or ("failed checks: " + json.dumps(failed, ensure_ascii=False, default=str))}
+        following = steps[plan["cursor"]]["id"] if succeeded and plan["cursor"] < len(steps) else None
+        return {"ok": succeeded, "code": None if succeeded else (result.get("code") or "PLAN_CHECK_FAILED"),
+                "plan_id": arguments["plan_id"], "step_id": step["id"], "tool": step["tool"],
+                "index": step["index"], "result": result, "checks": checks, "next_step": following,
+                "remaining": len(steps) - plan["cursor"], "session": self.session.context(),
+                "halted": deepcopy(plan["halted"])}
 
     def _execute_local_report(self, arguments):
         name = "catia_report_missing_tool"

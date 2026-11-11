@@ -2,7 +2,7 @@
 
 Обновление от 2026-11-04 добавляет пространственный контекст, preview опор
 и typed mate с **10 режимами** поверх предыдущих Assembly-инструментов.
-Всего сервер регистрирует **166 full / 13 inspection**; существующие
+Всего сервер регистрирует **176 full / 13 inspection**; существующие
 имена сохранены. Это конкретное покрытие API, не вся GUI CATIA и не заявление
 о проверке на Windows. Runtime остаётся direct pywin32 COM, общий для Codex и Claude.
 
@@ -208,6 +208,23 @@ Duplicate и Pattern создают **экземпляры одной reference*
 Все элементы пакета проверяются до первой записи; после Update перечитываются
 все целевые позы. Ограничения не отключаются. Если solver сдвинул компонент
 обратно, возвращается ошибка; уже выполненные перемещения не откатываются.
+
+### Сцены (DMU Product-Scenes) для разнесённого вида
+
+Для презентационного разнесения без изменения реальных поз используйте сцены.
+`catia_assembly_scene_inspect` (read-only) перечисляет сцены активного CATProduct
+(index, handle, name, full/partial) и, при `scene_handle`+`component_handles`,
+реальные и сценовые позы; без перегрузки в сцене поза равна `null`, данные не
+создаются. `catia_assembly_scene`: `create` (ProductScenes.AddProductSceneFull/
+AddProductScenePartial с корневым Product), `set_component_positions` (12 значений,
+оси-столбцы, мм), `explode_linear` (k-й экземпляр списка сдвигается на
+k·`spacing_mm` вдоль `direction` от реальной позы), `explode_offsets`, `remove`
+(требует `expected_name`). Запись через SceneProductData.Position.SetComponents,
+затем readback и проверка неизменности реальных поз (иначе POSTCONDITION_FAILED).
+Product Update не вызывается. Применения сцены к изделию в CAA нет — не
+предлагается. Ошибка COM/лицензии DMU → CAPABILITY_UNAVAILABLE без отката к
+`catia_assembly_explode`. Система координат сценовой позы предполагается как
+у Product.Position; требуется проверка в Windows CATIA.
 
 Групповой `rotate` поворачивает и базис, и положение начала компонента вокруг
 `pivot_mm`. Это отличается от старого `catia_assembly_component(mode=rotate)`,

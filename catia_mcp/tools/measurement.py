@@ -10,6 +10,7 @@ import math
 from typing import Any
 
 from catia_mcp.connection import CATIAConnection
+from catia_mcp.runtime import CADOperationError
 
 
 class MeasurementTools:
@@ -23,23 +24,20 @@ class MeasurementTools:
             {
                 "name": "catia_measure_distance",
                 "description": (
-                    "Measure minimum distance between two uniquely named geometry elements "
-                    "in the active CATPart. CATIA's raw length unit needs Windows calibration; "
-                    "the result is not labelled mm until then. Search clears the current selection."
+                    "Measure the minimum distance in mm between two geometries of the active CATPart. "
+                    "Prefer first_handle/second_handle from catia_list_objects or a fresh selection "
+                    "(faces/edges included); element1/element2 accept unique whole-feature names only. "
+                    "CATIA SPA returns the distance in the model length unit (mm); bodies cannot be "
+                    "measured between. Same contract as catia_measure_exact mode=distance."
                 ),
                 "inputSchema": {
                     "type": "object",
                     "properties": {
-                        "element1": {
-                            "type": "string",
-                            "description": "Name of first element (feature, face, edge, point)",
-                        },
-                        "element2": {
-                            "type": "string",
-                            "description": "Name of second element",
-                        },
+                        "first_handle": {"type": "string", "minLength": 1},
+                        "second_handle": {"type": "string", "minLength": 1},
+                        "element1": {"type": "string", "description": "Unique whole-feature/sketch/GSD name"},
+                        "element2": {"type": "string", "description": "Unique whole-feature/sketch/GSD name"},
                     },
-                    "required": ["element1", "element2"],
                 },
             },
             {
@@ -123,7 +121,7 @@ class MeasurementTools:
     def execute(self, tool_name: str, arguments: dict[str, Any]) -> str | dict[str, Any]:
         match tool_name:
             case "catia_measure_distance":
-                return self._measure_distance(arguments["element1"], arguments["element2"])
+                return self._measure_distance(arguments)
             case "catia_get_inertia":
                 return self._get_inertia(arguments.get("density"))
             case "catia_get_bounding_box":
@@ -137,23 +135,36 @@ class MeasurementTools:
             case _:
                 raise ValueError(f"Unknown measurement tool: {tool_name}")
 
-    def _measure_distance(self, elem1_name: str, elem2_name: str) -> str:
+    def _measure_distance(self, args: dict[str, Any]) -> dict[str, Any]:
+        by_handle = "first_handle" in args or "second_handle" in args
+        by_name = "element1" in args or "element2" in args
+        if by_handle == by_name or (by_handle and not {"first_handle", "second_handle"} <= args.keys()) \
+                or (by_name and not {"element1", "element2"} <= args.keys()):
+            raise CADOperationError("INVALID_ARGUMENT", "Pass both first_handle/second_handle OR both element1/element2")
         self.conn.ensure_connected()
         part = self.conn.get_active_part()
         doc = self.conn.active_document
-        spa = doc.GetWorkbench("SPAWorkbench")
+        if by_handle:
+            kinds = {"point", "vertex", "line", "curve", "edge", "face", "surface", "plane", "feature",
+                     "sketch", "geometry", "point2d", "line2d", "circle2d", "ellipse2d"}
+            references = [self.conn.session.reference(args[key], kinds) for key in ("first_handle", "second_handle")]
+            targets = [args["first_handle"], args["second_handle"]]
+        else:
+            targets = [args["element1"], args["element2"]]
+            references = [part.CreateReferenceFromObject(self._unique_geometry(part, name)) for name in targets]
+        distance = float(doc.GetWorkbench("SPAWorkbench").GetMeasurable(references[0]).GetMinimumDistance(references[1]))
+        if not math.isfinite(distance) or distance < 0:
+            raise CADOperationError("POSTCONDITION_FAILED", f"CATIA returned an invalid distance: {distance}")
+        return {"ok": True, "value": distance, "unit": "mm", "api_value": distance, "api_unit": "mm",
+                "targets": targets, "document": str(doc.Name), "frame": "active Part",
+                "unit_basis": "CATIA SPA model length unit (mm); not rescaled", "live_validated": False}
 
-        references = []
+    @staticmethod
+    def _unique_geometry(part, name):
         candidates = []
 
         def collect(collection):
-            for index in range(1, collection.Count + 1):
-                candidates.append(collection.Item(index))
-
-        for index in range(1, part.Bodies.Count + 1):
-            body = part.Bodies.Item(index)
-            collect(body.Shapes)
-            collect(body.Sketches)
+            candidates.extend(collection.Item(index) for index in range(1, collection.Count + 1))
 
         def geosets(collection):
             for index in range(1, collection.Count + 1):
@@ -162,25 +173,16 @@ class MeasurementTools:
                 collect(container.HybridSketches)
                 geosets(container.HybridBodies)
 
+        for index in range(1, part.Bodies.Count + 1):
+            body = part.Bodies.Item(index)
+            collect(body.Shapes)
+            collect(body.Sketches)
         geosets(part.HybridBodies)
-        for name in (elem1_name, elem2_name):
-            matches = [obj for obj in candidates if str(obj.Name) == name]
-            if len(matches) != 1:
-                raise ValueError(f"Name {name!r} matched {len(matches)} whole geometries; faces/edges cannot be identified by name")
-            references.append(part.CreateReferenceFromObject(matches[0]))
-
-        # Measure
-        measurable = spa.GetMeasurable(references[0])
-        distance = measurable.GetMinimumDistance(references[1])
-
-        return json.dumps({
-            "minimum_distance_raw": distance,
-            "unit": "CATIA_SPA_length_unverified",
-            "target_names": [elem1_name, elem2_name],
-            "document": doc.Name,
-            "selection_cleared": False,
-            "note": "Calibrate against known geometry on this CATIA installation before treating the raw value as mm.",
-        })
+        matches = [obj for obj in candidates if str(obj.Name) == name]
+        if len(matches) != 1:
+            raise CADOperationError("AMBIGUOUS_REFERENCE", f"Name {name!r} matched {len(matches)} whole geometries; "
+                                    "faces/edges need handles from catia_list_objects or a fresh selection")
+        return matches[0]
 
     def _get_inertia(self, density: float | None = None) -> dict[str, Any]:
         self.conn.ensure_connected()

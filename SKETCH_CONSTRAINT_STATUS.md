@@ -2,7 +2,9 @@
 
 `catia_sketch_constraint_status` проверяет доступные данные ограничений без
 изменения CATIA. По умолчанию читает привязанный открытый Sketch. Для закрытого
-эскиза передай свежий `sketch_handle` из `catia_list_objects`.
+эскиза передай свежий `sketch_handle` из `catia_list_objects` (эскиз вне
+текущего фокуса виден только с `ignore_focus=true`; handles отдельных ограничений
+и элементов эскиза — с `scope_handle=<sketch>` или `include_sketch_internals=true`).
 
 ```json
 {"sketch_handle": "obj_...", "require_fully_constrained": true}
@@ -49,3 +51,12 @@ Analysis для свободной линии, полностью огранич
 отключённого ограничения и конфликтующих размеров. До/после сравнить геометрию,
 выбор и открытость Sketch. Offline doubles проверяют ветвления и read-only
 поведение, но не доказывают работу native CATIA solver.
+
+## Оценка DOF: `catia_sketch_dof`
+
+Подсчёт: 2 DOF на уникальный Point2D (включая StartPoint/EndPoint/CenterPoint),
+Line2D +0, окружность +1, дуга −1, эллипс +3, дуга эллипса +1; оси AbsoluteAxis 0.
+Вычитаются веса активных driving ограничений (Fix не считается и делает оценку
+`unknown`). `under_constrained` — доказательство; `possibly_fully_constrained` и
+`over_or_redundant` — нет. Native Sketch Analysis остаётся окончательной проверкой.
+`catia_close_sketch` использует эту оценку как охрану закрытия.

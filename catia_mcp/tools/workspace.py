@@ -95,12 +95,16 @@ class WorkspaceTools:
             raise CADOperationError("SESSION_STATE_UNKNOWN", "Open document collection changed during inspection; reread workspace")
         if active is not None and not same_object(self.conn.active_document, active):
             raise CADOperationError("SESSION_STATE_UNKNOWN", "Active document changed during inspection; reread workspace")
-        return {"ok": True, "documents": rows, "total_documents": total,
+        result = {"ok": True, "documents": rows, "total_documents": total,
                 "active_document_id": self.state.document_id(active) if active is not None else None,
                 "bound_document_id": self.state.bound_document,
                 "truncated": total > limit, "unavailable": unavailable,
                 "revision_scope": "server-local; external edits are not detected",
                 "warning": "Inventory is not geometry verification or authorization to modify every listed document"}
+        focus = self.state.focus_report()
+        if focus:
+            result["focus"] = focus
+        return result
 
     def activate(self, args):
         state = self.state
@@ -129,6 +133,7 @@ class WorkspaceTools:
         # restore the prior window implicitly, and do not advance geometry revisions.
         state.mutation_started = True
         state.invalidate_topology()
+        state.clear_focus("document switched")
         state.bound_document = None
         state.reconciliation_required = True
         target.Activate()
