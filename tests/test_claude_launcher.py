@@ -53,6 +53,9 @@ def test_claude_drawing_launch_uses_manifest_and_keeps_permissions(tmp_path, mon
     launcher.windows_command(["claude.cmd", *argv[1:]], "cmd.exe")
 
 
+TOOL_FLAGS = "  --allowedTools, --allowed-tools <tools...>\n  --disallowedTools, --disallowed-tools <tools...>\n"
+
+
 @pytest.mark.parametrize("executable", ["claude.exe", "claude.cmd"])
 def test_claude_starts_without_hidden_prompt_file_flag(tmp_path, monkeypatch, executable):
     python = project(tmp_path)
@@ -63,8 +66,8 @@ def test_claude_starts_without_hidden_prompt_file_flag(tmp_path, monkeypatch, ex
         commands.append(argv)
         # Public help can omit --append-system-prompt-file. Both streams are valid.
         if executable.endswith(".cmd"):
-            return NS(stdout="  --mcp-config <configs...>\n  --strict-mcp-config\n", stderr="")
-        return NS(stdout="  --mcp-config <configs...>\n", stderr="  --strict-mcp-config\n")
+            return NS(stdout="  --mcp-config <configs...>\n  --strict-mcp-config\n" + TOOL_FLAGS, stderr="")
+        return NS(stdout="  --mcp-config <configs...>\n", stderr="  --strict-mcp-config\n" + TOOL_FLAGS)
 
     monkeypatch.setattr(runner, "run", run)
     launched = []
@@ -79,6 +82,7 @@ def test_claude_starts_without_hidden_prompt_file_flag(tmp_path, monkeypatch, ex
     assert "--mcp-config" in text and "--strict-mcp-config" in text
     assert "Read AGENTS.md" in text and "Read CLAUDE.md" in text
     assert "--append-system-prompt" not in text and "skip-permissions" not in text
+    assert all(flag in text for flag in ("--allowedTools", "mcp__catia-v5", "--disallowedTools", "Agent", "Task"))
     assert len(text) < 8000
     assert rules_before == {name: (tmp_path / name).read_bytes() for name in rules_before}
 
@@ -96,7 +100,7 @@ def test_claude_reports_missing_project_rules(tmp_path, filename):
     project(tmp_path)
     (tmp_path / filename).unlink()
     runner = NS(root=tmp_path, run=lambda *a, **kw: NS(
-        stdout="--mcp-config --strict-mcp-config", stderr=""))
+        stdout="--mcp-config --strict-mcp-config " + TOOL_FLAGS, stderr=""))
     with pytest.raises(launcher.SetupError, match=filename):
         launcher.diagnose_claude(runner, Path("claude.exe"))
 
@@ -134,3 +138,36 @@ def test_claude_only_runtime_does_not_require_codex(tmp_path, monkeypatch):
     runner = NS(root=tmp_path, run=lambda args: commands.append(args), say=lambda _: None)
     assert launcher.get_runtime(runner, install=False, client="claude") == (None, executable)
     assert commands == [[str(executable), "--version"]]
+
+
+def test_claude_session_flags_match_codex_scope(tmp_path):
+    config = tmp_path / "claude-mcp.json"
+    single = launcher.claude_session_flags(config)
+    team = launcher.claude_session_flags(config, team=True)
+    for flags in (single, team):
+        assert flags[:4] == ["--mcp-config", str(config), "--strict-mcp-config", "--allowedTools"]
+        assert flags[4] == "mcp__catia-v5"  # CATIA tools only; Bash/file permissions unchanged
+        assert not any("skip-permissions" in f or f == "--permission-mode" for f in flags)
+    assert single[-3:] == ["--disallowedTools", "Agent", "Task"]
+    assert "--disallowedTools" not in team
+
+
+def test_claude_reports_missing_tool_permission_flag(tmp_path):
+    project(tmp_path)
+    runner = NS(root=tmp_path, run=lambda *a, **kw: NS(stdout="--mcp-config --strict-mcp-config --allowedTools", stderr=""))
+    with pytest.raises(launcher.SetupError, match="--disallowedTools"):
+        launcher.diagnose_claude(runner, Path("claude.exe"))
+
+
+def test_claude_team_roles_mirror_codex_roles_without_catia_access():
+    import tomllib
+    root = Path(__file__).resolve().parents[1]
+    codex = {p.stem: tomllib.loads(p.read_text(encoding="utf-8")) for p in (root / ".codex" / "agents").glob("*.toml")}
+    claude = {p.stem: p.read_text(encoding="utf-8") for p in (root / ".claude" / "agents").glob("*.md")}
+    assert codex and set(codex) == set(claude)
+    for name, role in codex.items():
+        front, body = claude[name].split("---\n")[1:3]
+        fields = dict(line.split(": ", 1) for line in front.strip().splitlines())
+        assert fields["name"] == role["name"] and fields["description"].startswith(role["description"])
+        assert fields["tools"] == "Read, Grep, Glob, Write"  # no MCP, Bash or Agent
+        assert " ".join(role["developer_instructions"].split()) in " ".join(body.split())

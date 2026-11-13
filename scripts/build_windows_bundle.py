@@ -26,7 +26,7 @@ APP = OUTPUT / "CATIA-AI"
 PROJECT = APP / "project"
 RUNTIME = APP / "runtime"
 PROJECT_ENTRIES = (
-    "catia_mcp", "CATIA_AGENT_CODEX_PACKAGE", ".codex/agents",
+    "catia_mcp", "CATIA_AGENT_CODEX_PACKAGE", ".codex/agents", ".claude/agents",
     "scripts/windows_launcher.py", "scripts/install_node.py", "scripts/update_project.py",
     "scripts/project_layout.py", "scripts/mcp_entry.py", "scripts/check_mcp_transport.py",
     "scripts/drawing_inputs.py", "scripts/drawing_handoff.py", "scripts/cad_team.py",

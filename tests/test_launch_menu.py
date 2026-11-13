@@ -142,7 +142,7 @@ def test_bundle_does_not_ship_old_builds_or_root_user_files(tmp_path, monkeypatc
     source, destination = tmp_path / "source", tmp_path / "payload"
     for relative in bundle.PROJECT_ENTRIES:
         target = source / relative
-        if relative in {"catia_mcp", "CATIA_AGENT_CODEX_PACKAGE", "scripts", ".codex/agents"}:
+        if relative in {"catia_mcp", "CATIA_AGENT_CODEX_PACKAGE", "scripts", ".codex/agents", ".claude/agents"}:
             target.mkdir(parents=True)
             (target / "example.py").write_text("application code")
         else:

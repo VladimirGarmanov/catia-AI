@@ -1,6 +1,6 @@
 # Project-scoped Codex team configuration. Codex loads this after the project is trusted.
-# The coordinator sees only catia-v5-inspect; the executor agent explicitly enables
-# the full catia-v5 server in its own configuration.
+# The launcher enables subagents only in Team mode; the main session alone has the
+# full catia-v5 MCP. Roles in .codex/agents mirror .claude/agents for Claude Code.
 [agents]
 enabled = true
 max_concurrent_threads_per_session = 6

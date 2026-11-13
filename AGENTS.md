@@ -29,7 +29,10 @@ planning ledger, not an execution engine or proof that geometry exists.
 Use available planning roles or a generic agent with the same explicit offline
 scope. If subagents are unavailable, report it once and offer serial planning;
 do not claim a team ran. cad_executor is now a checklist author, not a CAD writer.
-Custom role TOML mcp_servers/sandbox settings do not isolate inherited MCP access.
+The same offline roles exist for Codex (.codex/agents/*.toml) and Claude Code
+(.claude/agents/*.md); keep them identical. Codex role TOML mcp_servers/sandbox
+settings do not isolate inherited MCP access. Claude role tool allowlists omit MCP,
+but a generic Claude subagent inherits it.
 The one-caller rule is scheduling discipline, not a security boundary.
 
 The coordinator merges reports, resolves cross-file dimensions and dependencies,
@@ -298,7 +301,8 @@ sequence and reconcile. Ask only for missing geometry/dimensions or new scope.
 - The user must not switch active documents or run another CATIA automation
   client during modeling. Single-agent scheduling is not a COM interprocess lock.
 - Treat failed tools as failures. Offline tests do not validate Windows geometry.
-- Drawings are read by Codex, not by a paid AI API in the Python MCP server.
+- Drawings are read by the AI client (Codex or Claude Code), not by a paid AI API
+  in the Python MCP server.
   The Claude skills in .claude/skills are engineering references, not automatic
   Codex instructions.
 
