@@ -331,7 +331,16 @@ distance — mm, angle — deg, передаются через `ValuateFromStri
 | `catia_drawing_dimension_edit` | restore_position, unclip, clip, value_auto, remove |
 
 Прежние инструменты создания ассоциативных видов, разрезов, размеров,
-допусков, текста/GDT и title block остаются. `catia_domain_objects` теперь
+допусков, текста/GDT и title block остаются.
+
+`catia_drawing_annotation(mode=balloon)`: `text` (номер позиции), `position_mm`,
+`head_mm` (конец выноски), `frame` = circle/scored_circle/oblong/ellipse
+(CatTextFrameType 3/4/10/11). Создаёт DrawingText, `ActivateFrame` и одну
+выноску, затем Update листа и readback FrameType/Text. Это НЕ нативный балун
+Generate Balloons: связи с компонентом и строкой BOM нет, нумерацию и
+соответствие таблице `catia_assembly_bom`/`catia_drawing_table` обеспечивает
+агент. При несовпадении readback — POSTCONDITION_FAILED, текст остаётся в
+`created_handles`. Привязку выноски к геометрии проверить визуально в Windows CATIA. `catia_domain_objects` теперь
 также выдаёт table/GDT handles, root assembly constraints/publications.
 
 Новые 2D primitives — неассоциативная геометрия во view-local mm, без

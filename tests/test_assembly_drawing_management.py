@@ -212,3 +212,49 @@ def test_server_propagates_partial_failure_and_inspection_does_not_mutate():
         sheet.Update.assert_called_once()
     finally:
         server.worker.shutdown()
+
+
+def balloon_fixture(frame_readback=None):
+    from catia_mcp.tools.drafting import DraftingTools
+    leader = NS(Name="Leader.1")
+    text = NS(Name="Text.2", Text="3", FrameType=0, Leaders=NS(Add=Mock(return_value=leader)))
+    text.ActivateFrame = Mock(side_effect=lambda f: setattr(text, "FrameType", f if frame_readback is None else frame_readback))
+    view = NS(Name="View.1", Texts=NS(Add=Mock(return_value=text)))
+    sheet = NS(Name="Sheet.1", Views=Collection(view), Update=Mock())
+    tools = DraftingTools(engineering(NS(Name="Test.CATDrawing", Sheets=Collection(sheet))))
+    args = {"mode": "balloon", "view_handle": tools.state.register(view, "view"),
+            "text": "3", "position_mm": [40, 60], "head_mm": [25, 45], "frame": "circle"}
+    return tools, sheet, view, text, args
+
+
+def test_balloon_is_circle_framed_text_with_leader_and_reads_back():
+    tools, sheet, view, text, args = balloon_fixture()
+    result = tools.annotation(args)
+    view.Texts.Add.assert_called_once_with("3", 40, 60)
+    text.ActivateFrame.assert_called_once_with(3)
+    text.Leaders.Add.assert_called_once_with(25, 45)
+    sheet.Update.assert_called_once()
+    assert result["frame_type"] == 3 and result["text"] == "3"
+    assert tools.state.resolve(result["handle"]).value is text
+    assert len(tools.state.created) == 2
+
+
+def test_balloon_frame_mismatch_fails_and_reports_left_behind_text():
+    tools, _, _, text, args = balloon_fixture(frame_readback=0)
+    with pytest.raises(CADOperationError) as error:
+        tools.annotation(args)
+    assert error.value.code == "POSTCONDITION_FAILED"
+    assert tools.state.resolve(tools.state.created[0]).value is text
+
+
+def test_balloon_schema_requires_frame_and_rejects_unknown_frame():
+    server = CATIAMCPServer()
+    try:
+        schema = Draft202012Validator(server._schemas["catia_drawing_annotation"])
+        base = {"document_id": "d", "request_id": "r", "expected_revision": 0, "mode": "balloon",
+                "view_handle": "v", "text": "1", "position_mm": [0, 0], "head_mm": [1, 1]}
+        assert schema.is_valid({**base, "frame": "circle"})
+        assert not schema.is_valid(base)
+        assert not schema.is_valid({**base, "frame": "triangle"})
+    finally:
+        server.worker.shutdown()

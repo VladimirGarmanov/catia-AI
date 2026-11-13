@@ -516,7 +516,7 @@ point_plane_reference и point_surface_reference. Backend — соответст
   BOM, contact, release-dependent FixTogether; Rule/Check/Law/design table,
   UDF/PowerCopy с finally cleanup; visibility без потери непустого выделения.
 - `drafting.py`: новая Drawing/Sheet, front/isometric/projection/auxiliary,
-  section/cut/detail/unfolded, clipping/broken/breakout, scale, text/leader/GDT,
+  section/cut/detail/unfolded, clipping/broken/breakout, scale, text/leader/balloon/GDT,
   размеры/цепочки/baseline/tolerances, примитивы title block/center mark.
 - `analysis_tools.py`, `com_arrays.py`: типизированные измерения, SAFEARRAY adapter,
   inertia/density, чтение каталога и назначение материала, Clash/Section/Mechanism,

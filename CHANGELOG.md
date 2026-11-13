@@ -2,6 +2,14 @@
 
 All notable changes to this project are documented here.
 
+## [Unreleased]
+
+### Added
+- `catia_drawing_annotation` mode `balloon`: item-number DrawingText with a
+  circle/scored_circle/oblong/ellipse frame and one leader, sheet Update and
+  FrameType/Text readback. Not a native Generate Balloons object and not linked
+  to a component or BOM row; not yet validated in live Windows CATIA.
+
 ## [0.2.0] — 2026-08-20
 
 ### Added

@@ -5,6 +5,8 @@ from catia_mcp.tools.operations import OperationTools, VECTOR, INTEGER, array, g
 
 XY = array(NUMBER, 2, 2)
 PROFILE = array(XY, 2)
+# CAA CatTextFrameType 0-based indices for frames commonly used as balloons.
+BALLOON_FRAMES = {"circle": 3, "scored_circle": 4, "oblong": 10, "ellipse": 11}
 
 
 class DraftingTools(OperationTools):
@@ -37,9 +39,10 @@ class DraftingTools(OperationTools):
                 "breakout": {"view_handle": HANDLE, "profile_mm": array(XY, 4),
                              "plane_origin_mm": VECTOR, "plane_first_direction": VECTOR, "plane_second_direction": VECTOR},
             }),
-            group("catia_drawing_annotation", "Create text/leader, GDT, or non-associative title-block/center-mark primitives on an explicitly selected view. Not a native surface-finish or hatch constructor.", {
+            group("catia_drawing_annotation", "Create text/leader, balloon, GDT, or non-associative title-block/center-mark primitives on an explicitly selected view. Balloon is a framed DrawingText (CatTextFrameType) with one leader: it is not a native Generate Balloons object and is not linked to a component or BOM row; the agent supplies the item number. Not a native surface-finish or hatch constructor.", {
                 "text": {"text": HANDLE, "position_mm": XY},
                 "leader": {"text": HANDLE, "position_mm": XY, "head_mm": XY},
+                "balloon": {"text": HANDLE, "position_mm": XY, "head_mm": XY, "frame": {"enum": list(BALLOON_FRAMES)}},
                 "gdt": {"text": HANDLE, "position_mm": XY, "leader_mm": XY, "symbol": INTEGER},
                 "center_mark": {"center_mm": XY, "half_size_mm": POSITIVE},
                 "title_block": {"lines_mm": array(array(NUMBER, 4, 4)),
@@ -203,6 +206,8 @@ class DraftingTools(OperationTools):
         view = self.obj(a["view_handle"], {"view"})
         self.changed(a["view_handle"])
         mode = a["mode"]
+        if mode == "balloon":
+            return self.balloon(view, a)
         if mode in {"text", "leader"}:
             obj = view.Texts.Add(a["text"], *a["position_mm"])
             self.state.mark_created(obj, "drawing_text")
@@ -228,6 +233,19 @@ class DraftingTools(OperationTools):
                 view.SaveEdition()
         self.update_view_sheet(view)
         return {"ok": True, "warning": "Annotations created; inspect drawing layout and attachment. No native hatch/surface-finish support implied."}
+
+    def balloon(self, view, a):
+        obj = view.Texts.Add(a["text"], *a["position_mm"])
+        handle = self.state.mark_created(obj, "drawing_text")
+        obj.ActivateFrame(BALLOON_FRAMES[a["frame"]])
+        self.state.mark_created(obj.Leaders.Add(*a["head_mm"]), "drawing_leader")
+        result = self.update_view_sheet(view)
+        frame, text = int(obj.FrameType), str(obj.Text)
+        if frame != BALLOON_FRAMES[a["frame"]] or text != a["text"]:
+            raise CADOperationError("POSTCONDITION_FAILED",
+                f"Balloon readback: frame {frame!r}, text {text!r}; the text {handle} was left behind, inspect it")
+        return {**result, "ok": True, "handle": handle, "text": text, "frame_type": frame,
+                "warning": "Framed text with leader, not a native associative balloon; numbering and BOM consistency are the caller's responsibility. Verify the leader attachment visually."}
 
     def update_view_sheet(self, view):
         sheets = self.drawing().Sheets
