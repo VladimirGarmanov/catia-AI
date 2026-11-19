@@ -22,6 +22,14 @@ WIRE_MODES = {
     # Native GSD Axis (HybridShapeAxisLine): revolution axis of a cylindrical/conical
     # face or normal axis of a circle edge. Use it to give assembly mates a real LINE.
     "axis_line": {"element_handle": HANDLE},
+    "circle_three_points": {"point_handles": array(HANDLE, 3, 3)},
+    "line_bisecting": {"first_line_handle": HANDLE, "second_line_handle": HANDLE, "begin_mm": NUMBER,
+                       "end_mm": NUMBER, "reverse": BOOL, "solution": {"enum": [1, 2]}},
+    "corner": {"first_curve_handle": HANDLE, "second_curve_handle": HANDLE, "surface_handle": HANDLE,
+               "radius_mm": POSITIVE, "first_orientation": {"enum": [-1, 1]},
+               "second_orientation": {"enum": [-1, 1]}, "trim": BOOL},
+    "polyline": {"point_handles": array(HANDLE, 2, 200), "corner_radii_mm": array({"type": "number", "minimum": 0}, 0, 200),
+                 "closed": BOOL},
     "plane_angle": {"plane_handle": HANDLE, "axis_handle": HANDLE, "angle_deg": NUMBER, "reverse": BOOL},
     "plane_curve": {"curve_handle": HANDLE},
     "plane_mean": {"point_handles": array(HANDLE, 3)},
@@ -129,7 +137,9 @@ class AdvancedGeometryTools(OperationTools):
         kinds = {"point_handle": POINT, "axis_handle": LINE | {"axis_system"}, "curve_handle": CURVE,
                  "plane_handle": {"plane"}, "surface_handle": SURFACE, "boundary_handle": CURVE,
                  "until_handle": SURFACE, "keep_face_handle": {"face"}, "remove_face_handle": {"face"},
-                 "source_handle": CURVE | SURFACE | POINT, "element_handle": CURVE | SURFACE}
+                 "source_handle": CURVE | SURFACE | POINT, "element_handle": CURVE | SURFACE,
+                 "first_line_handle": LINE, "second_line_handle": LINE,
+                 "first_curve_handle": CURVE | POINT, "second_curve_handle": CURVE | POINT}
         r = {key: self.ref(a[key], types) for key, types in kinds.items() if key in a}
         if "begin_mm" in a and a["begin_mm"] >= a["end_mm"]:
             raise CADOperationError("INVALID_ARGUMENT", "Line begin must be smaller than end")
@@ -165,6 +175,34 @@ class AdvancedGeometryTools(OperationTools):
             # CAA AxisLineType 1: revolution axis for a revolution surface; for a circle 3 = normal axis.
             source_kind = self.state.resolve(a["element_handle"]).kind
             obj.AxisLineType = 1 if source_kind in SURFACE else 3
+        elif m == "circle_three_points":
+            points = [self.ref(h, POINT) for h in a["point_handles"]]
+            if len(set(a["point_handles"])) != 3:
+                raise CADOperationError("INVALID_ARGUMENT", "Circle needs three distinct points")
+            obj, kind = f.AddNewCircle3Points(*points), "curve"
+        elif m == "line_bisecting":
+            if a["first_line_handle"] == a["second_line_handle"]:
+                raise CADOperationError("INVALID_ARGUMENT", "Bisecting needs two distinct lines")
+            obj, kind = f.AddNewLineBisecting(r["first_line_handle"], r["second_line_handle"], a["begin_mm"],
+                                              a["end_mm"], a["reverse"], a["solution"]), "line"
+        elif m == "corner":
+            obj, kind = f.AddNewCorner(r["first_curve_handle"], r["second_curve_handle"], r["surface_handle"],
+                                       a["radius_mm"], a["first_orientation"], a["second_orientation"], a["trim"]), "curve"
+        elif m == "polyline":
+            handles, radii = a["point_handles"], a["corner_radii_mm"]
+            if any(x == y for x, y in zip(handles, handles[1:])):
+                raise CADOperationError("INVALID_ARGUMENT", "Consecutive polyline points must differ")
+            if radii and len(radii) != len(handles):
+                raise CADOperationError("INVALID_ARGUMENT", "corner_radii_mm needs one value per point (0 = sharp) or none")
+            points = [self.ref(h, POINT) for h in handles]
+            obj, kind = f.AddNewPolyline(), "curve"
+            self.state.mark_created(obj, kind)
+            for position, point in enumerate(points, 1):
+                obj.InsertElement(point, position)
+            for position, radius in enumerate(radii, 1):
+                if radius > 0:
+                    obj.SetRadius(position, radius)
+            obj.Closure = a["closed"]
         elif m == "plane_angle":
             obj, kind = f.AddNewPlaneAngle(r["plane_handle"], r["axis_handle"], a["angle_deg"], a["reverse"]), "plane"
         elif m == "plane_curve":
@@ -213,6 +251,12 @@ class AdvancedGeometryTools(OperationTools):
         result = self.finish(obj, kind, container)
         if m == "axis_line":
             result.update(self.measure_axis_line(obj))
+        if m == "polyline":
+            count = int(obj.NumberOfElements)
+            if count != len(a["point_handles"]) or bool(obj.Closure) != a["closed"]:
+                raise CADOperationError("POSTCONDITION_FAILED",
+                    f"Polyline {result['handle']} has {count} points/closure {obj.Closure}; left behind, inspect it")
+            result["points"] = count
         return result
 
     def measure_axis_line(self, obj):

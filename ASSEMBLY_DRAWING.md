@@ -3,7 +3,7 @@
 Обновление от 2026-11-04 добавляет пространственный контекст, preview опор
 и typed mate поверх предыдущих Assembly-инструментов; 2026-11-19 — смешанные
 осевые mate (18 режимов), сцены stack/radial/reset, Drafting Properties и BOM.
-Всего сервер регистрирует **182 full / 13 inspection**; существующие
+Всего сервер регистрирует **185 full / 13 inspection**; существующие
 имена сохранены. Это конкретное покрытие API, не вся GUI CATIA и не заявление
 о проверке на Windows. Runtime остаётся direct pywin32 COM, общий для Codex и Claude.
 
@@ -266,6 +266,20 @@ Metadata пишет только в корень активного CATProduct. 
 и принадлежащую ему публикацию. Сигнатура CAA `SetRelay` принимает коллекцию
 `Publications`; текст старой справки называет её Product. Реальная совместимость
 и идентичность `Valuation` требуют Windows-пробы; несовпадение не считается успехом.
+
+### Нумерация деталей (Generate Numbering), 2026-11-19
+
+В CAA V5 Automation нет вызова Generate Numbering, нативный атрибут «Number»
+недоступен. `catia_assembly_numbering_preview` (read-only) и
+`catia_assembly_numbering` (`apply` / `clear`) пишут `prefix`+номер в
+Product.DescriptionInst непосредственных экземпляров корня — это свойство
+экземпляра в самой сборке, файлы деталей не меняются. Экземпляры одной
+ReferenceProduct (идентичность COM, не PartNumber) получают один номер; порядок
+`tree_order` или натуральный по PartNumber, `start`/`step`. Чужие непустые
+значения перезаписываются только с `overwrite_existing=true`; `clear` очищает
+только значения формата prefix+цифры. Возвращённые items — номера для балунов и
+совпадают с `catia_drawing_bom_table scope=top` при tree_order. Сохранить сборку
+для фиксации — отдельной явной командой.
 
 ### Связи между осями (catia_assembly_mate), 2026-11-19
 

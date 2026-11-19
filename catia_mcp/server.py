@@ -36,6 +36,7 @@ from catia_mcp.tools.assembly import AssemblyTools
 from catia_mcp.tools.assembly_workflow import AssemblyWorkflowTools, READ_TOOLS as ASSEMBLY_READ_TOOLS
 from catia_mcp.tools.assembly_planning import AssemblyPlanningTools, READ_TOOLS as ASSEMBLY_PLANNING_READ_TOOLS
 from catia_mcp.tools.assembly_scenes import AssemblySceneTools, READ_TOOLS as ASSEMBLY_SCENE_READ_TOOLS
+from catia_mcp.tools.assembly_numbering import READ_TOOLS as ASSEMBLY_NUMBERING_READ_TOOLS
 from catia_mcp.tools.context import ContextTools
 from catia_mcp.tools.document import DocumentTools
 from catia_mcp.tools.export import ExportTools, ScreenshotCapture
@@ -115,6 +116,10 @@ class CATIAMCPServer:
         self.drawing_management_tools = DrawingManagementTools(self.engineering_tools)
         from catia_mcp.tools.drafting_properties import DraftingPropertyTools
         self.drafting_property_tools = DraftingPropertyTools(self.engineering_tools)
+        from catia_mcp.tools.assembly_numbering import AssemblyNumberingTools
+        from catia_mcp.tools.part_features import PartFeatureTools
+        self.assembly_numbering_tools = AssemblyNumberingTools(self.engineering_tools)
+        self.part_feature_tools = PartFeatureTools(self.engineering_tools)
         from catia_mcp.tools.analysis_tools import AnalysisTools
         from catia_mcp.tools.sketch_operations import SketchOperationTools
         self.analysis_tools = AnalysisTools(self.engineering_tools)
@@ -156,6 +161,8 @@ class CATIAMCPServer:
             self.assembly_planning_tools,
             self.drawing_management_tools,
             self.drafting_property_tools,
+            self.assembly_numbering_tools,
+            self.part_feature_tools,
             self.analysis_tools,
             self.sketch_operation_tools,
             self.sketch_session_tools,
@@ -481,7 +488,7 @@ class CATIAMCPServer:
 
     def read_tool_names(self):
         """Tools that never mutate CATIA; every other tool follows the write contract."""
-        return INSPECTION_TOOL_NAMES | ASSEMBLY_READ_TOOLS | ASSEMBLY_PLANNING_READ_TOOLS | ASSEMBLY_SCENE_READ_TOOLS | {
+        return INSPECTION_TOOL_NAMES | ASSEMBLY_READ_TOOLS | ASSEMBLY_PLANNING_READ_TOOLS | ASSEMBLY_SCENE_READ_TOOLS | ASSEMBLY_NUMBERING_READ_TOOLS | {
             "catia_sketch_get_geometry", "catia_get_inertia", "catia_measure",
             "catia_measure_distance", "catia_get_bounding_box", "catia_list_objects",
             "catia_measure_object", "catia_capability_status",

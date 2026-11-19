@@ -1,5 +1,20 @@
 # Реализация CATIA_AGENT_CODEX_PACKAGE — 2026-10-09
 
+## Нумерация сборки, Thread, новые GSD-режимы — 2026-11-19 (2)
+
+- `catia_assembly_numbering_preview` / `catia_assembly_numbering` (apply/clear):
+  номера позиций в Product.DescriptionInst экземпляров корня, один номер на
+  ReferenceProduct, tree_order/part_number, защита чужих значений, readback.
+- `catia_thread` (metric M1–M64 по ISO 261 coarse или MdxP fine; custom):
+  AddNewThreadWithRef, полярность/направление/диаметр/шаг/глубина с readback;
+  SPA-диаметр боковой грани: thread ≈ D, tap в [малый Ø, D], иначе
+  WRONG_GEOMETRY_EFFECT. Это спецификация резьбы, не винтовая геометрия.
+- `catia_wireframe_surface`: circle_three_points, line_bisecting, corner,
+  polyline (радиусы в вершинах, замкнутость, readback числа точек).
+- Shell уже был расширен (несколько граней, внутр./внешн. толщина).
+- Offline: **535 passed, 2 skipped**; discovery **185 full / 13 inspection**.
+  Windows/CATIA не проверено (DescriptionInst как носитель номера, единицы SPA Radius).
+
 ## Drafting Properties, Shell, BOM, сцены, осевые mate — 2026-11-19
 
 - **Drafting.** Новый модуль `catia_mcp/tools/drafting_properties.py`:

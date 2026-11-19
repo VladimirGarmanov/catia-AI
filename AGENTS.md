@@ -147,6 +147,11 @@ sequence and reconcile. Ask only for missing geometry/dimensions or new scope.
   not displayed Text; view Name changes the prefix. Parameters use global
   Parameter.Rename, with no Local: prefix. Files and intrinsic axes are excluded.
 
+- Number assembly parts with `catia_assembly_numbering_preview`, then
+  `catia_assembly_numbering mode=apply` (instance DescriptionInst of root occurrences,
+  one number per reference); reuse its items for balloons and the BOM table.
+- Thread/Tap: `catia_thread` with exact cylindrical lateral and planar limit faces;
+  metric designations use the ISO coarse table unless MdxP is given.
 - Assembly: `catia_assembly_inspect` reads occurrences, root constraints and
   publications. `catia_assembly_component` writes immediate root occurrences;
   nested external subassembly edits need that document explicitly activated

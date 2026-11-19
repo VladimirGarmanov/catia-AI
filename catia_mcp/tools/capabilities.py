@@ -95,6 +95,8 @@ for numbers, handler in (
     ((169,), "catia_drawing_text_style"),
     ((160, 161, 162), "catia_drawing_view_generation"),
     ((141, 175), "catia_drawing_bom_table"),
+    ((141,), "catia_assembly_numbering"), ((141,), "catia_assembly_numbering_preview"),
+    ((67,), "catia_thread"),
     ((183,), "catia_hole"), ((183,), "catia_pocket"), ((186,), "catia_set_parameter"),
     ((120, 189, 190, 191, 192), "catia_knowledgeware"),
     ((193, 194), "catia_template_instance"),
