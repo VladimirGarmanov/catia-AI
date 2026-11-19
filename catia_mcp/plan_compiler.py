@@ -42,6 +42,8 @@ EXCLUDED_TOOLS = {
 }
 # Side effects outside the model: allowed only when the human explicitly asked.
 OUTPUT_TOOLS = {"catia_save_document", "catia_close_document", "catia_export"}
+# Modes of otherwise in-session tools that write files to disk.
+OUTPUT_MODES = {("catia_assembly_operation", "bom"), ("catia_assembly_operation", "bom_custom")}
 CHECK_OPS = {"eq", "ne", "approx", "gt", "gte", "lt", "lte", "exists", "truthy"}
 REF_TYPES = {"string": "__plan_ref__", "number": 1.0, "integer": 1, "boolean": True}
 
@@ -177,6 +179,8 @@ def compile_plan(plan: dict, schemas: dict[str, dict], read_tools: set[str],
         if tool in OUTPUT_TOOLS and not allow_outputs:
             _fail(f"Step {step_id}: {tool} needs plan allow_outputs=true, set only on explicit user instruction")
         args = step.get("args", {})
+        if isinstance(args, dict) and (tool, args.get("mode")) in OUTPUT_MODES and not allow_outputs:
+            _fail(f"Step {step_id}: {tool} mode {args.get('mode')} writes a file; needs plan allow_outputs=true")
         if not isinstance(args, dict):
             _fail(f"Step {step_id}: args must be an object")
         guards = [key for key in GUARDS if key in args]

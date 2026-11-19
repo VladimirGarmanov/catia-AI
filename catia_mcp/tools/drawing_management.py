@@ -159,11 +159,13 @@ class DrawingManagementTools(DraftingTools):
             return {"ok": True, "cells": cells, "rows": int(obj.NumberOfRows), "columns": int(obj.NumberOfColumns),
                     "returned_range": [r0, c0, end_row, end_col], "position_mm": [float(obj.x), float(obj.y)],
                     "angle_rad": float(obj.Angle)}
+        from catia_mcp.tools.drafting_properties import read_dimension_properties
         parameters = []
         for _, parameter in members(obj.Parameters):
             parameters.append({"name": str(parameter.Name), "value_with_unit": str(parameter.ValueAsString())})
         return {"ok": True, "parameters": parameters, **read_properties(obj, {"DimType": int, "DimStatus": int,
-                "IsClipped": bool, "ValueAutoMode": bool}), "warning": "Measured drawing values are not source-model constraints"}
+                "IsClipped": bool, "ValueAutoMode": bool}), "properties": read_dimension_properties(obj),
+                "warning": "Measured drawing values are not source-model constraints"}
 
     def sheet_setup(self, a):
         sheet = self.obj(a["sheet_handle"], {"sheet"})

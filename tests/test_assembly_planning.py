@@ -78,19 +78,22 @@ def rig(monkeypatch):
 
 def args_for(rig, mode):
     args = {**rig.guards, "mode": mode, "name": "Shaft_Pulley_Mate", "selection_handles": rig.handles}
-    if mode in {"axis_coincidence", "axis_parallel", "plane_coincidence", "plane_parallel", "plane_offset"}:
+    if mode in {"axis_coincidence", "axis_parallel", "plane_coincidence", "plane_parallel", "plane_offset",
+                "axis_offset", "axis_plane_perpendicular"}:
         args["orientation"] = "opposite"
     if mode == "plane_offset":
         args.update(distance_mm=12.5, side="negative")
-    if mode == "plane_angle":
+    if mode in {"axis_offset", "axis_plane_offset"}:
+        args["distance_mm"] = 12.5
+    if mode in {"plane_angle", "axis_angle"}:
         args["angle_deg"] = 45.
     return args
 
 
 @pytest.mark.parametrize("mode", list(MATES))
 def test_typed_mate_sets_options_before_one_update_and_deduplicates(rig, mode):
-    kind, native = MATES[mode]
-    rig.kinds[:] = [kind, kind]
+    pairs, native = MATES[mode]
+    rig.kinds[:] = list(next(iter(pairs)))
     args = args_for(rig, mode)
 
     def update():
@@ -99,14 +102,17 @@ def test_typed_mate_sets_options_before_one_update_and_deduplicates(rig, mode):
             assert obj.Orientation == 1
         if mode == "plane_offset":
             assert obj.Side == 1 and obj.Dimension.Value == 12.5 and obj.Mode == 0
-        if mode == "plane_angle":
+        if mode in {"plane_angle", "axis_angle"}:
             assert obj.AngleSector == 0 and obj.Dimension.Value == 45
+        if mode in {"axis_offset", "axis_plane_offset"}:
+            assert obj.Dimension.Value == 12.5 and obj.Mode == 0
 
     rig.root.Update.side_effect = update
     result = rig.server._execute_serial("catia_assembly_mate", args)
     assert result["ok"] and result["native_constraint_satisfied"]
     assert result["remaining_dof"] is None and result["global_assembly_verified"] is False
     assert result["constraint"]["Type"] == native
+    assert result["measured"]["status"] == "unverified"  # mock SPA has no distance/angle
     assert len(result["created_handles"]) == 1 and len(result["modified_handles"]) == 2
     assert result["session"]["revision"] == 1
     assert rig.server._execute_serial("catia_assembly_mate", args)["replayed"]
@@ -119,6 +125,7 @@ def test_preview_is_read_only_and_does_not_turn_cylinder_into_axis(rig):
     rig.kinds[:] = [4, 4]
     result = rig.server._execute_serial("catia_assembly_mate_preview", {"selection_handles": rig.handles})
     assert result["ok"] and result["compatible_modes"] == []
+    assert "axis_line" in result["warnings"][0]
     assert result["supports"][0]["geometry_kind"] == "cylinder"
     assert result["solvability_checked"] is False
     failed = rig.server._execute_serial("catia_assembly_mate", args_for(rig, "axis_coincidence"))
@@ -188,7 +195,7 @@ def test_spatial_context_composes_rotated_parent_and_propagates_unavailable(rig)
 
 
 def test_schemas_and_registration_keep_reads_separate_from_mutations(rig):
-    assert len(rig.server._tool_router) == 176
+    assert len(rig.server._tool_router) == 182
     for definition in rig.tools.get_tool_definitions():
         schema = rig.server._schemas[definition["name"]]
         Draft202012Validator.check_schema(schema)
@@ -196,3 +203,34 @@ def test_schemas_and_registration_keep_reads_separate_from_mutations(rig):
     validator = Draft202012Validator(rig.server._schemas["catia_assembly_mate"])
     assert not validator.is_valid({**args_for(rig, "axis_coincidence"), "distance_mm": 5})
     assert not validator.is_valid({**args_for(rig, "axis_coincidence"), "mode": "fix"})
+
+
+def test_mixed_mate_swaps_supports_into_caa_order(rig):
+    rig.kinds[:] = [7, 10]  # plane selected first, line second
+
+    def add(kind, first, second):
+        assert first is rig.references[1] and second is rig.references[0]
+        obj = NS(Name="Constraint.1", Type=kind, Status=0, Mode=0, Side=4, Orientation=2,
+                 IsInactive=lambda: False)
+        rig.constraints.values.append(obj)
+        return obj
+
+    rig.constraints.AddBiEltCst.side_effect = add
+    preview = rig.server._execute_serial("catia_assembly_mate_preview", {"selection_handles": rig.handles})
+    assert set(preview["compatible_modes"]) == {"axis_in_plane", "axis_plane_parallel",
+                                                "axis_plane_perpendicular", "axis_plane_offset"}
+    result = rig.server._execute_serial("catia_assembly_mate", args_for(rig, "axis_in_plane"))
+    assert result["ok"] and result["constraint"]["Type"] == 2
+    assert result["support_order"] == [rig.handles[1], rig.handles[0]]
+
+
+@pytest.mark.parametrize("distance,angle,ok", [(0.0, 180.0, True), (0.0, 3.14159265, True),
+                                               (2.5, 0.0, False), (0.0, 20.0, False)])
+def test_axis_coincidence_measures_distance_and_angle_after_update(rig, distance, angle, ok):
+    measurable = NS(GeometryName=10, GetMinimumDistance=lambda _: distance, GetAngleBetween=lambda _: angle)
+    rig.server.connection.app.ActiveDocument.GetWorkbench = lambda _: NS(GetMeasurable=lambda ref: measurable)
+    result = rig.server._execute_serial("catia_assembly_mate", args_for(rig, "axis_coincidence"))
+    if ok:
+        assert result["ok"] and result["measured"]["status"] == "passed"
+    else:
+        assert result["code"] == "WRONG_GEOMETRY_EFFECT" and result["created_handles"]

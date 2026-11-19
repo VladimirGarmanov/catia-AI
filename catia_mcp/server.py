@@ -113,6 +113,8 @@ class CATIAMCPServer:
         self.assembly_workflow_tools = AssemblyWorkflowTools(self.engineering_tools)
         self.assembly_planning_tools = AssemblyPlanningTools(self.engineering_tools)
         self.drawing_management_tools = DrawingManagementTools(self.engineering_tools)
+        from catia_mcp.tools.drafting_properties import DraftingPropertyTools
+        self.drafting_property_tools = DraftingPropertyTools(self.engineering_tools)
         from catia_mcp.tools.analysis_tools import AnalysisTools
         from catia_mcp.tools.sketch_operations import SketchOperationTools
         self.analysis_tools = AnalysisTools(self.engineering_tools)
@@ -153,6 +155,7 @@ class CATIAMCPServer:
             self.assembly_workflow_tools,
             self.assembly_planning_tools,
             self.drawing_management_tools,
+            self.drafting_property_tools,
             self.analysis_tools,
             self.sketch_operation_tools,
             self.sketch_session_tools,

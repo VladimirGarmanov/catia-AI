@@ -1,5 +1,32 @@
 # Реализация CATIA_AGENT_CODEX_PACKAGE — 2026-10-09
 
+## Drafting Properties, Shell, BOM, сцены, осевые mate — 2026-11-19
+
+- **Drafting.** Новый модуль `catia_mcp/tools/drafting_properties.py`:
+  `catia_drawing_dimension_typed` (distance/length/angle/radius/diameter/
+  distance_along, имена вместо CatDimType-целых, проверка CatGeometricType,
+  readback DimType и измеренного значения, `expected_value`),
+  `catia_drawing_dimension_properties` (формат/точность, тексты вокруг значения,
+  двойное значение, рамка/ориентация/стрелки, выносные линии, допуски ±/посадка),
+  `catia_drawing_text_style`, `catia_drawing_view_generation` (скрытые линии,
+  скругления), `catia_drawing_generate_dimensions` (нативно из 3D-ограничений),
+  `catia_drawing_bom_table`. `catia_drawing_inspect(dimension)` читает блок
+  `properties`. Фейковые значения размеров не поддерживаются намеренно.
+- **Shell.** `catia_shell`: несколько удаляемых граней (`selection_handles`),
+  внутренняя `thickness` и `outer_thickness`, readback толщин и числа граней,
+  объём до/после → FEATURE_NO_EFFECT / WRONG_GEOMETRY_EFFECT; результат — JSON.
+- **Оси.** `catia_wireframe_surface(mode=axis_line)` — нативный GSD Axis из
+  цилиндрической грани/окружности; `catia_assembly_mate` — 18 режимов, смешанные
+  ось/плоскость/точка, axis_offset/axis_angle, SPA-измерение после Update.
+- **Сцены.** `explode_stack`, `explode_radial` (центр масс Product.Analyze),
+  `reset_components`.
+- **BOM.** `catia_assembly_operation(mode=bom_custom)` — AssemblyConvertor с
+  выбранными колонками, TXT/HTML/XLS; `bom`/`bom_custom` в планах требуют allow_outputs.
+- Offline: **520 passed, 2 skipped**; discovery **182 full / 13 inspection**.
+  Всё новое — по кэшу CAA V5; Windows/CATIA COM **не проверено**: выход-параметры
+  GetBaultText/GetTolerances, целые типов допусков, единицы ValueAngle/SPA angle,
+  кадр GetGravityCenter, размеры на сгенерированных рёбрах через selection_handles.
+
 ## Дешёвый локальный поиск по CAA — 2026-11-10
 
 `catia_v5_reference_member` возвращает только секцию одного метода/свойства

@@ -29,6 +29,12 @@ class DomainTools(OperationTools):
                 "work_mode": {"product_handle": HANDLE, "work_mode": {"enum": ["default", "visualization", "design"]}},
                 "publish_selection": {"product_handle": HANDLE, "selection_handle": HANDLE, "name": HANDLE},
                 "bom": {"product_handle": HANDLE, "file_path": HANDLE, "format": {"enum": ["text", "html"]}, "allow_overwrite": BOOL},
+                # AssemblyConvertor (Product.GetItem): the 'Define formats' columns of Analyze > Bill of Material.
+                "bom_custom": {"product_handle": HANDLE, "file_path": HANDLE, "format": {"enum": ["text", "html", "xls"]},
+                               "report": {"enum": ["bill_of_materials", "listing_report"]},
+                               "columns": {**array({"type": "string", "minLength": 1, "maxLength": 64}, 1, 30), "uniqueItems": True},
+                               "summary_columns": {**array({"type": "string", "minLength": 1, "maxLength": 64}, 0, 30), "uniqueItems": True},
+                               "allow_overwrite": BOOL},
                 "contact": {"first_selection_handle": HANDLE, "second_selection_handle": HANDLE},
             }),
             group("catia_knowledgeware", "Typed relations and design tables in active Part. Rule uses CreateProgram, not CreateRule. CATIA expressions only; no Python/macros.", {
@@ -150,6 +156,8 @@ class DomainTools(OperationTools):
         product = self.obj(a["product_handle"], {"product"})
         if mode == "metadata" and not same_object(product, root):
             raise CADOperationError("DOCUMENT_MISMATCH", "Occurrence metadata can modify an external reference document. Only the active root Product metadata is writable here")
+        if mode == "bom_custom":
+            return self.bom_custom(product, a)
         if mode == "bom":
             path = absolute_file(a["file_path"])
             if path.suffix.lower() not in ({".txt"} if a["format"] == "text" else {".htm", ".html"}):
@@ -267,3 +275,34 @@ class DomainTools(OperationTools):
         finally:
             selection.Clear()
         return {"ok": True, "visible": a["visible"], "warning": "Visibility is not geometry; no geometric Update required"}
+
+    def bom_custom(self, product, a):
+        """Configured BOM/listing report file; property names are CATIA's (localized) column labels."""
+        path = absolute_file(a["file_path"])
+        suffixes = {"text": {".txt"}, "html": {".htm", ".html"}, "xls": {".xls"}}[a["format"]]
+        if path.suffix.lower() not in suffixes:
+            raise CADOperationError("INVALID_ARGUMENT", f"{a['format']} BOM requires {sorted(suffixes)}, never a CAD file")
+        if path.exists() and not a["allow_overwrite"]:
+            raise CADOperationError("INVALID_ARGUMENT", "File exists; overwrite requires explicit opt-in")
+        if not path.parent.is_dir():
+            raise CADOperationError("INVALID_ARGUMENT", "Output folder does not exist")
+        item = "BillOfMaterial" if a["report"] == "bill_of_materials" else "ListingReport"
+        try:
+            convertor = product.GetItem(item)
+            convertor.SetCurrentFormat(tuple(a["columns"]))
+            convertor.SetSecondaryFormat(tuple(a["summary_columns"]))
+            convertor.Print({"text": "TXT", "html": "HTML", "xls": "XLS"}[a["format"]], str(path), product)
+        except Exception as exc:
+            raise CADOperationError("CAPABILITY_UNAVAILABLE", f"AssemblyConvertor {item} failed: {exc}") from exc
+        if not path.is_file() or not path.stat().st_size:
+            raise CADOperationError("POSTCONDITION_FAILED", "BOM output missing or empty")
+        header_found = None
+        if a["format"] != "xls":
+            try:
+                content = path.read_text(encoding="utf-8", errors="replace")
+                header_found = {c: c in content for c in a["columns"]}
+            except OSError:
+                header_found = None
+        return {"ok": True, "path": str(path), "report": a["report"], "columns": a["columns"],
+                "summary_columns": a["summary_columns"], "column_labels_found": header_found,
+                "warning": "Column names must match CATIA's (localized) BOM property labels; a missing label means CATIA ignored or renamed it"}

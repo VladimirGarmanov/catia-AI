@@ -318,15 +318,29 @@ class PartDesignTools:
             {
                 "name": "catia_shell",
                 "description": (
-                    "Shell the active solid inward by removing the one face currently selected "
-                    "in CATIA; inner thickness=t, outer thickness=0. Face names are unsupported."
+                    "Shell the active solid: remove one or more exact faces and keep walls of "
+                    "thickness (inner, mm) plus outer_thickness (mm, default 0). Faces come from "
+                    "fresh face selection_handles (first one to AddNewShell, the rest AddFaceToRemove, "
+                    "in the given order) or, without handles, the one face currently selected. "
+                    "Reads back native thicknesses and removed-face count and classifies the body "
+                    "volume change (FEATURE_NO_EFFECT / WRONG_GEOMETRY_EFFECT); a failed check "
+                    "leaves the Shell feature behind for inspection. Face names are unsupported."
                 ),
                 "inputSchema": {
                     "type": "object",
                     "properties": {
                         "thickness": {
                             "type": "number",
-                            "description": "Wall thickness in mm",
+                            "description": "Inner wall thickness in mm (material kept inside the original skin); >= 0",
+                        },
+                        "outer_thickness": {
+                            "type": "number",
+                            "description": "Outer thickness in mm added outside the original skin; >= 0, default 0",
+                        },
+                        "selection_handles": {
+                            "type": "array", "items": {"type": "string", "minLength": 1},
+                            "minItems": 1, "maxItems": 50, "uniqueItems": True,
+                            "description": "Fresh exact face selection handles to remove (open faces of the shell)",
                         },
                         "faces_to_remove": {
                             "type": "array",
@@ -1136,23 +1150,75 @@ class PartDesignTools:
         self.conn.refresh_display()
         return f"Mirror created about {plane_key.upper()} plane. Feature: '{mirror.Name}'"
 
-    def _shell(self, args: dict[str, Any]) -> str:
+    def _shell(self, args: dict[str, Any]) -> dict[str, Any]:
         if args.get("faces_to_remove"):
             raise ValueError("Exact face removal by name is unsupported")
         self.conn.ensure_connected()
         part = self.conn.get_active_part()
+        body = self.conn.get_active_part_body()
         sf = part.ShapeFactory
 
-        thickness = args["thickness"]
-        if not isinstance(thickness, (int, float)) or not math.isfinite(thickness) or thickness <= 0:
-            raise ValueError("Shell wall thickness must be finite and positive in mm")
-        face_ref = self._selected_geometry_reference("Face")
-        shell = sf.AddNewShell(face_ref, thickness, 0)
+        inner, outer = args["thickness"], args.get("outer_thickness", 0)
+        for label, value in (("thickness", inner), ("outer_thickness", outer)):
+            if isinstance(value, bool) or not isinstance(value, (int, float)) or not math.isfinite(value) or value < 0:
+                raise ValueError(f"Shell {label} must be finite and >= 0 mm")
+        if inner + outer <= 0:
+            raise ValueError("Shell needs a positive total wall thickness (thickness + outer_thickness)")
+        handles = args.get("selection_handles") or []
+        if handles and args.get("selection_handle"):
+            raise ValueError("Use selection_handles OR selection_handle, not both")
+        if len(set(handles)) != len(handles):
+            raise ValueError("Shell faces must be distinct selection handles")
+        if handles:
+            # Resolve every face before the first mutation; stale handles fail here.
+            faces = [self.conn.session.reference(h, {"face"}) for h in handles]
+        else:
+            faces = [self._selected_geometry_reference("Face")]
 
+        before = self._volume(part, body)
+        part.InWorkObject = body
+        shell = sf.AddNewShell(faces[0], inner, outer)
         self._created(shell)
+        for face in faces[1:]:
+            shell.AddFaceToRemove(face)
         self._updated(part, shell)
+
+        native = {}
+        for key, attr in (("inner_thickness_mm", "InternalThickness"), ("outer_thickness_mm", "ExternalThickness")):
+            try:
+                native[key] = float(getattr(shell, attr).Value)
+            except Exception as exc:
+                native[key] = None
+                native.setdefault("unavailable", {})[key] = str(exc)
+        try:
+            native["faces_removed"] = int(shell.FacesToRemove.Count)
+        except Exception as exc:
+            native["faces_removed"] = None
+            native.setdefault("unavailable", {})["faces_removed"] = str(exc)
+        for key, expected in (("inner_thickness_mm", inner), ("outer_thickness_mm", outer)):
+            if native[key] is not None and abs(native[key] - expected) > 1e-6:
+                raise CADOperationError("POSTCONDITION_FAILED",
+                    f"Shell {shell.Name!r} {key} reads {native[key]} mm, expected {expected}; feature left behind, inspect it")
+        if native["faces_removed"] is not None and native["faces_removed"] != len(faces):
+            raise CADOperationError("POSTCONDITION_FAILED",
+                f"Shell {shell.Name!r} removes {native['faces_removed']} faces, expected {len(faces)}; feature left behind, inspect it")
+
+        after = self._volume(part, body)
+        effect = "unverified"
+        if before is not None and after is not None:
+            tolerance = max(abs(before) * 1e-9, 1e-15)
+            if abs(after - before) <= tolerance:
+                raise CADOperationError("FEATURE_NO_EFFECT",
+                    f"Shell {shell.Name!r} updated but body volume is unchanged ({before} -> {after} m^3); inspect it")
+            if outer == 0 and after > before:
+                raise CADOperationError("WRONG_GEOMETRY_EFFECT",
+                    f"Inner-only Shell {shell.Name!r} increased volume ({before} -> {after} m^3); inspect it")
+            effect = "material_removed" if after < before else "material_added"
         self.conn.refresh_display()
-        return f"Shell created: {thickness} mm wall thickness. Feature: '{shell.Name}'"
+        return {"ok": True, "name": str(shell.Name), "native": native,
+                "requested": {"inner_thickness_mm": inner, "outer_thickness_mm": outer, "faces": len(faces)},
+                "volume_m3": {"before": before, "after": after}, "effect": effect,
+                "warning": "Exact removed faces and wall uniformity need visual/measure verification on Windows CATIA"}
 
     def _draft(self, args: dict[str, Any]) -> str:
         state = self.conn.session

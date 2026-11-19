@@ -42,6 +42,10 @@ def test_compiles_against_live_schemas_and_derives_request_ids(server):
     (plan({"id": "a", "tool": "catia_nope"}), "unknown or unavailable"),
     (plan({"id": "a", "tool": "catia_ui_action", "args": {}}), "not plannable"),
     (plan({"id": "a", "tool": "catia_save_document", "args": {"file_path": "C:/x.CATPart"}}), "allow_outputs"),
+    (plan({"id": "a", "tool": "catia_assembly_operation", "args": {
+        "mode": "bom_custom", "product_handle": "p", "file_path": "C:/b.txt", "format": "text",
+        "report": "bill_of_materials", "columns": ["Quantity"], "summary_columns": [], "allow_overwrite": False}}),
+     "allow_outputs"),
     (plan({"id": "a", "tool": "catia_pad", "args": {"height": 5, "request_id": "r"}}), "injected live"),
     (plan(PAD), "EARLIER step"),
     (plan(SKETCH, dict(SKETCH)), "Duplicate"),

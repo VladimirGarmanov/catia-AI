@@ -222,3 +222,45 @@ def test_server_level_mid_loop_failure_is_partial_and_poses_unchanged(rig):
         assert [list(p.Position.values) for p in (rig.first, rig.second)] == real
     finally:
         server.worker.shutdown()
+
+
+def test_explode_stack_keeps_base_component_in_place(rig):
+    scene = create(rig)["scene_handle"]
+    result = rig.tools.execute("catia_assembly_scene", {"mode": "explode_stack", "scene_handle": scene,
+        "component_handles": rig.handles, "direction": [0, 0, 2], "spacing_mm": 30})
+    poses = [row["scene_axis_components"] for row in result["positions"]]
+    assert poses[0] == IDENTITY and poses[1][9:] == [5., 0, 30.]
+    assert result["base_component"] == rig.handles[0] and not result["real_positions_changed"]
+    assert rig.first.Position.values == IDENTITY
+
+
+def test_explode_radial_uses_measured_gravity_centers_perpendicular_to_axis(rig):
+    rig.first.Analyze = NS(GetGravityCenter=lambda: [10., 0., 7.])
+    rig.second.Analyze = NS(GetGravityCenter=lambda: [0., -4., 3.])
+    scene = create(rig)["scene_handle"]
+    result = rig.tools.execute("catia_assembly_scene", {"mode": "explode_radial", "scene_handle": scene,
+        "component_handles": rig.handles, "center_mm": [0, 0, 0], "axis": [0, 0, 1], "distance_mm": 50})
+    poses = [row["scene_axis_components"] for row in result["positions"]]
+    assert poses[0][9:] == [50., 0., 0.] and poses[1][9:] == [5., -50., 0.]
+    assert rig.second.Position.values[9:] == [5., 0, 0]
+
+
+def test_explode_radial_rejects_center_on_axis_before_writing(rig):
+    rig.first.Analyze = NS(GetGravityCenter=lambda: [0., 0., 9.])
+    rig.second.Analyze = NS(GetGravityCenter=lambda: [1., 0., 0.])
+    scene = create(rig)["scene_handle"]
+    with pytest.raises(CADOperationError) as error:
+        rig.tools.execute("catia_assembly_scene", {"mode": "explode_radial", "scene_handle": scene,
+            "component_handles": rig.handles, "center_mm": [0, 0, 0], "axis": [0, 0, 1], "distance_mm": 50})
+    assert error.value.code == "INVALID_ARGUMENT"
+    assert not rig.scenes.values[0].data
+
+
+def test_reset_components_restores_real_poses_in_scene(rig):
+    scene = create(rig)["scene_handle"]
+    rig.tools.execute("catia_assembly_scene", {"mode": "explode_linear", "scene_handle": scene,
+        "component_handles": rig.handles, "direction": [1, 0, 0], "spacing_mm": 10})
+    result = rig.tools.execute("catia_assembly_scene", {"mode": "reset_components", "scene_handle": scene,
+        "component_handles": rig.handles})
+    assert [r["scene_axis_components"] for r in result["positions"]] == [rig.first.Position.values, rig.second.Position.values]
+    assert result["reset_to_real_poses"]

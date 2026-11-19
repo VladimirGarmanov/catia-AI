@@ -1,8 +1,9 @@
 # Assembly и Drawing
 
 Обновление от 2026-11-04 добавляет пространственный контекст, preview опор
-и typed mate с **10 режимами** поверх предыдущих Assembly-инструментов.
-Всего сервер регистрирует **176 full / 13 inspection**; существующие
+и typed mate поверх предыдущих Assembly-инструментов; 2026-11-19 — смешанные
+осевые mate (18 режимов), сцены stack/radial/reset, Drafting Properties и BOM.
+Всего сервер регистрирует **182 full / 13 inspection**; существующие
 имена сохранены. Это конкретное покрытие API, не вся GUI CATIA и не заявление
 о проверке на Windows. Runtime остаётся direct pywin32 COM, общий для Codex и Claude.
 
@@ -218,8 +219,15 @@ Duplicate и Pattern создают **экземпляры одной reference*
 создаются. `catia_assembly_scene`: `create` (ProductScenes.AddProductSceneFull/
 AddProductScenePartial с корневым Product), `set_component_positions` (12 значений,
 оси-столбцы, мм), `explode_linear` (k-й экземпляр списка сдвигается на
-k·`spacing_mm` вдоль `direction` от реальной позы), `explode_offsets`, `remove`
-(требует `expected_name`). Запись через SceneProductData.Position.SetComponents,
+k·`spacing_mm` вдоль `direction` от реальной позы), `explode_stack` (первый в
+списке — база, остаётся на месте; k-й сдвигается на (k−1)·`spacing_mm` — ровная
+«стопка» в порядке сборки), `explode_radial` (каждый экземпляр отодвигается на
+`distance_mm` от оси `axis` через `center_mm` по перпендикуляру к его центру масс
+Product.Analyze.GetGravityCenter; центр на оси → INVALID_ARGUMENT до записи),
+`reset_components` (вернуть сценовые позы к реальным), `explode_offsets`, `remove`
+(требует `expected_name`). Для красивого вида: сначала `explode_stack` по оси
+вала/крепежа, затем `explode_radial` для деталей вокруг оси, точечно —
+`explode_offsets`; ошибки исправляются `reset_components`. Запись через SceneProductData.Position.SetComponents,
 затем readback и проверка неизменности реальных поз (иначе POSTCONDITION_FAILED).
 Product Update не вызывается. Применения сцены к изделию в CAA нет — не
 предлагается. Ошибка COM/лицензии DMU → CAPABILITY_UNAVAILABLE без отката к
@@ -237,6 +245,15 @@ BOM объединяет позиции по COM-идентичности `Refer
 учитываются и подсборки, и вложенные экземпляры; для `leaf` только терминальные
 экземпляры. Числа при `truncated=true` неполные. Путь имён — подпись, не ID.
 
+Настраиваемый BOM-файл: `catia_assembly_operation(mode=bom_custom)` —
+Product.GetItem("BillOfMaterial" | "ListingReport") → AssemblyConvertor,
+`SetCurrentFormat(columns)`, `SetSecondaryFormat(summary_columns)`, `Print`
+TXT/HTML/XLS по явному абсолютному пути (перезапись только с `allow_overwrite`).
+Имена колонок — подписи CATIA из Analyze > Bill of Material > Define formats
+(локализованы: в русской CATIA другие); для TXT/HTML возвращается
+`column_labels_found`. В плане `bom`/`bom_custom` требуют `allow_outputs=true`.
+Для BOM на чертеже — `catia_drawing_bom_table`.
+
 `catia_assembly_constraint_status` не запускает solver. Пустой набор, только
 неактивные связи, неполное чтение или неподтверждённая актуальность дают неизвестный
 результат; известная проблема даёт `all_active_satisfied=false`.
@@ -249,6 +266,31 @@ Metadata пишет только в корень активного CATProduct. 
 и принадлежащую ему публикацию. Сигнатура CAA `SetRelay` принимает коллекцию
 `Publications`; текст старой справки называет её Product. Реальная совместимость
 и идентичность `Valuation` требуют Windows-пробы; несовпадение не считается успехом.
+
+### Связи между осями (catia_assembly_mate), 2026-11-19
+
+Цилиндрическая грань — не ось: по CAA `catCstTypeOn` для Cylinder/Cylinder
+означает совпадение поверхностей (одинаковый радиус), а Line/Cylinder —
+образующую. Поэтому соосность строится на настоящих линиях:
+
+1. В каждой детали (активный CATPart) выделить цилиндрическую/коническую грань
+   или круговое ребро, `catia_get_selection` → handle, затем
+   `catia_wireframe_surface(mode=axis_line, element_handle, container_handle)` —
+   нативный GSD Axis (HybridShapeAxisLine, AxisLineType 1 для поверхности
+   вращения, 3 — нормаль окружности). Результат измеряется SPA как LINE.
+2. В сборке выделить две оси (или ось и плоскость/точку), `catia_assembly_mate_preview`
+   покажет совместимые режимы; для цилиндров выдаётся подсказка про axis_line.
+3. `catia_assembly_mate`: axis_coincidence / axis_parallel / axis_perpendicular /
+   axis_offset (расстояние между параллельными осями) / axis_angle /
+   axis_in_plane / axis_plane_parallel / axis_plane_perpendicular /
+   axis_plane_offset / point_on_axis / point_on_plane и прежние plane_*/point_*.
+   Порядок выбора опор для смешанных пар не важен: опоры переставляются в
+   порядок таблиц CatConstraintType (Line первой, Point первой). После Update
+   SPA `GetMinimumDistance`/`GetAngleBetween` проверяют результат: для
+   совпадений расстояние 0, для параллельных 0/180°, перпендикулярных 90°
+   (единица угла SPA не указана в CAA, принимаются градусы или радианы).
+   Расхождение → WRONG_GEOMETRY_EFFECT с созданной связью; ошибка измерения →
+   `measured.status=unverified`, а не успех.
 
 ### Новые режимы catia_assembly_constraint
 
@@ -322,7 +364,13 @@ distance — mm, angle — deg, передаются через `ValuateFromStri
 
 | Инструмент | Режимы / данные |
 | --- | --- |
-| `catia_drawing_inspect` | overview, view, text, table (диапазон ячеек), dimension (измеренные параметры) |
+| `catia_drawing_inspect` | overview, view, text, table (диапазон ячеек), dimension (измеренные параметры + блок `properties`: значение, формат, тексты, допуск, рамка, ориентация) |
+| `catia_drawing_dimension_typed` | distance, length, angle, radius, diameter, distance_along (Add2); проверка CatGeometricType, readback DimType и измеренного значения, `expected_value` |
+| `catia_drawing_dimension_properties` | value (точность, формат, before/after/upper/lower, prefix/suffix, основное/двойное), dual_value, presentation (рамка, ориентация, угол, стрелки снаружи/внутри, half/foreshortened), dimension_line (вид, символы стрелок), extension_lines (overrun/gap/видимость), tolerance_numerical / tolerance_fit / tolerance_clear |
+| `catia_drawing_text_style` | bold, italic, underline, strike_through, font, size, justification, wrapping width |
+| `catia_drawing_view_generation` | hidden lines, fillets, color inheritance, points projection |
+| `catia_drawing_generate_dimensions` | нативный Generate Dimensions листа из 3D-ограничений; новые handles и значения по видам |
+| `catia_drawing_bom_table` | BOM-таблица DrawingTable из открытого CATProduct: колонки item/part_number/quantity/nomenclature/revision/definition/description/source, scope leaf/top/all |
 | `catia_drawing_sheet_setup` | format (ISO/ANSI/Letter/Legal), custom_format, projection (1st/3rd angle), rename, scale, activate, update, force_update, remove |
 | `catia_drawing_view_modify` | position, angle, rename, lock, frame, alignment, activate, update, force_update, unclip, unbreak, unbreakout, remove |
 | `catia_drawing_text_edit` | content, position, angle, font, frame, leader, remove |
@@ -342,6 +390,19 @@ Generate Balloons: связи с компонентом и строкой BOM н
 агент. При несовпадении readback — POSTCONDITION_FAILED, текст остаётся в
 `created_handles`. Привязку выноски к геометрии проверить визуально в Windows CATIA. `catia_domain_objects` теперь
 также выдаёт table/GDT handles, root assembly constraints/publications.
+
+Размеры по типам (`catia_drawing_dimension_typed`): радиус/диаметр требуют
+Circle2D (дуга тоже Circle2D), длина — Line2D, угол — две линии. Источник
+геометрии: `geometry_handles` (2D-элементы вида) или `selection_handles` —
+ЭКСПЕРИМЕНТАЛЬНО для сгенерированных рёбер вида, нужна Windows-проба. После
+Update сравниваются DimType и измеренное `GetValue().Value`; при `expected_value`
+расхождение = POSTCONDITION_FAILED, размер остаётся. Значение никогда не
+подменяется: SetFakeDimValue не предоставляется. Properties-правки перечитывают
+поля и проверяют, что измеренное значение не изменилось. Целые для допусков
+(0 нет, 1 числовой TOL_NUM2, 2 буквенный TOL_ALPHA1) взяты из примеров CAA и
+требуют Windows-проверки. Угол значения (ValueAngle) передаётся в радианах, как
+у DrawingText/View — тоже проверить. BOM-таблица — снимок, не ассоциативный
+BOM: номера item = номера для `catia_drawing_annotation(mode=balloon)`.
 
 Новые 2D primitives — неассоциативная геометрия во view-local mm, без
 автоматического наследования constraints. После записи Factory2D вызывается

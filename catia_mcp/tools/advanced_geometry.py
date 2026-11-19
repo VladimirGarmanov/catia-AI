@@ -19,6 +19,9 @@ WIRE_MODES = {
     "line_point_direction": {"point_handle": HANDLE, "direction": VECTOR, "begin_mm": NUMBER, "end_mm": NUMBER},
     "line_normal": {"surface_handle": HANDLE, "point_handle": HANDLE, "begin_mm": NUMBER, "end_mm": NUMBER},
     "line_tangent": {"curve_handle": HANDLE, "point_handle": HANDLE, "begin_mm": NUMBER, "end_mm": NUMBER},
+    # Native GSD Axis (HybridShapeAxisLine): revolution axis of a cylindrical/conical
+    # face or normal axis of a circle edge. Use it to give assembly mates a real LINE.
+    "axis_line": {"element_handle": HANDLE},
     "plane_angle": {"plane_handle": HANDLE, "axis_handle": HANDLE, "angle_deg": NUMBER, "reverse": BOOL},
     "plane_curve": {"curve_handle": HANDLE},
     "plane_mean": {"point_handles": array(HANDLE, 3)},
@@ -126,7 +129,7 @@ class AdvancedGeometryTools(OperationTools):
         kinds = {"point_handle": POINT, "axis_handle": LINE | {"axis_system"}, "curve_handle": CURVE,
                  "plane_handle": {"plane"}, "surface_handle": SURFACE, "boundary_handle": CURVE,
                  "until_handle": SURFACE, "keep_face_handle": {"face"}, "remove_face_handle": {"face"},
-                 "source_handle": CURVE | SURFACE | POINT}
+                 "source_handle": CURVE | SURFACE | POINT, "element_handle": CURVE | SURFACE}
         r = {key: self.ref(a[key], types) for key, types in kinds.items() if key in a}
         if "begin_mm" in a and a["begin_mm"] >= a["end_mm"]:
             raise CADOperationError("INVALID_ARGUMENT", "Line begin must be smaller than end")
@@ -156,6 +159,12 @@ class AdvancedGeometryTools(OperationTools):
             obj, kind = f.AddNewLineNormal(r["surface_handle"], r["point_handle"], a["begin_mm"], a["end_mm"], False), "line"
         elif m == "line_tangent":
             obj, kind = f.AddNewLineTangency(r["curve_handle"], r["point_handle"], a["begin_mm"], a["end_mm"], False), "line"
+        elif m == "axis_line":
+            obj, kind = f.AddNewAxisLine(r["element_handle"]), "line"
+            self.state.mark_created(obj, kind)
+            # CAA AxisLineType 1: revolution axis for a revolution surface; for a circle 3 = normal axis.
+            source_kind = self.state.resolve(a["element_handle"]).kind
+            obj.AxisLineType = 1 if source_kind in SURFACE else 3
         elif m == "plane_angle":
             obj, kind = f.AddNewPlaneAngle(r["plane_handle"], r["axis_handle"], a["angle_deg"], a["reverse"]), "plane"
         elif m == "plane_curve":
@@ -201,7 +210,25 @@ class AdvancedGeometryTools(OperationTools):
             obj = f.AddNewRemoveFace(r["keep_face_handle"], r["remove_face_handle"])
         else:  # replace_face; mode has already passed the discriminated schema.
             obj = f.AddNewReplaceFace(r["surface_handle"], r["remove_face_handle"], a["side"])
-        return self.finish(obj, kind, container)
+        result = self.finish(obj, kind, container)
+        if m == "axis_line":
+            result.update(self.measure_axis_line(obj))
+        return result
+
+    def measure_axis_line(self, obj):
+        """Measured LINE classification; an unmeasurable axis is reported, never assumed."""
+        try:
+            part = self.conn.get_active_part()
+            measurable = self.conn.active_document.GetWorkbench("SPAWorkbench").GetMeasurable(
+                part.CreateReferenceFromObject(obj))
+            geometry = int(measurable.GeometryName)
+        except Exception as exc:
+            return {"axis_measurement": {"status": "unverified", "reason": str(exc)}}
+        if geometry != 10:  # CatMeasurableName catMeasurableLine
+            raise CADOperationError("WRONG_GEOMETRY_EFFECT",
+                f"Axis {obj.Name!r} measures as type {geometry}, not a line; it was left behind, inspect it")
+        return {"axis_measurement": {"status": "line", "geometry_type": geometry,
+                "use": "Select this Axis in the assembly for catia_assembly_mate axis modes"}}
 
     def profile_solids(self, a):
         body = self.obj(a["body_handle"], {"body"})

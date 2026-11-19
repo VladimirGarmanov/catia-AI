@@ -35,12 +35,18 @@ class AssemblySceneTools(AssemblyWorkflowTools):
         return [
             tool("catia_assembly_scene_inspect", "List Product-Scenes of the active CATProduct (index, handle, name, full/partial type). With scene_handle and component_handles also read real and scene poses; occurrences without scene overload report scene pose null. Never creates scene data, activates or Updates.",
                  {"scene_handle": HANDLE, "component_handles": HANDLES}, readonly=True),
-            group("catia_assembly_scene", "Write DMU Product-Scenes for exploded views. Scene poses never move real occurrences; use this instead of catia_assembly_explode for presentation. Poses are 12 values, axes as columns then origin mm. explode_linear moves the k-th listed occurrence by k*spacing_mm along direction from its real pose; explode_offsets uses explicit vectors. Every write reads scene poses back and verifies real poses unchanged. No apply-to-product (not documented), Update, save or rollback. Windows validation pending.", {
+            group("catia_assembly_scene", "Write DMU Product-Scenes for exploded views. Scene poses never move real occurrences; use this instead of catia_assembly_explode for presentation. Poses are 12 values, axes as columns then origin mm. explode_linear moves the k-th listed occurrence (k=1..N) by k*spacing_mm along direction from its real pose; explode_stack keeps the first listed (base) occurrence in place and moves the k-th by (k-1)*spacing_mm, giving an evenly spaced stack in assembly order; explode_radial pushes each occurrence distance_mm away from an axis through center_mm, along the perpendicular from that axis to its measured gravity center (Product.Analyze, assumed root frame); explode_offsets uses explicit vectors; reset_components sets scene poses back to the real poses. Every write reads scene poses back and verifies real poses unchanged. No apply-to-product (not documented), Update, save or rollback. Windows validation pending.", {
                 "create": {"name": SCENE_NAME, "scene_type": {"enum": ["full", "partial"]}},
                 "set_component_positions": {"scene_handle": HANDLE, "positions": array(
                     record_schema({"component_handle": HANDLE, "axis_components": POSE}), 1, 100)},
                 "explode_linear": {"scene_handle": HANDLE, "component_handles": HANDLES,
                                    "direction": VECTOR, "spacing_mm": {**NUMBER, "exclusiveMinimum": 0}},
+                "explode_stack": {"scene_handle": HANDLE, "component_handles": {**HANDLES, "minItems": 2},
+                                  "direction": VECTOR, "spacing_mm": {**NUMBER, "exclusiveMinimum": 0}},
+                "explode_radial": {"scene_handle": HANDLE, "component_handles": HANDLES,
+                                   "center_mm": VECTOR, "axis": VECTOR,
+                                   "distance_mm": {**NUMBER, "exclusiveMinimum": 0}},
+                "reset_components": {"scene_handle": HANDLE, "component_handles": HANDLES},
                 "explode_offsets": {"scene_handle": HANDLE, "offsets": array(
                     record_schema({"component_handle": HANDLE, "translation_mm": VECTOR}), 1, 100)},
                 "remove": {"scene_handle": HANDLE, "expected_name": SCENE_NAME},
@@ -213,6 +219,61 @@ class AssemblySceneTools(AssemblyWorkflowTools):
         result = self._write(a, targets, poses)
         result.update(direction_unit=list(u), spacing_mm=spacing,
                       offsets_mm=[[k*spacing*x for x in u] for k in range(1, len(targets)+1)])
+        return result
+
+    def _scene_explode_stack(self, a):
+        spacing = a["spacing_mm"]
+        if not spacing > 0 or spacing > 1e6:
+            raise CADOperationError("INVALID_ARGUMENT", "spacing_mm must be positive and finite")
+        u = unit_vector(a["direction"])
+        targets = self._targets(a["component_handles"])
+        poses = [p[:9]+[p[9+i]+k*spacing*u[i] for i in range(3)]
+                 for k, (_, _, p) in enumerate(targets)]
+        result = self._write(a, targets, poses)
+        result.update(direction_unit=list(u), spacing_mm=spacing, base_component=a["component_handles"][0],
+                      offsets_mm=[[k*spacing*x for x in u] for k in range(len(targets))])
+        return result
+
+    def _gravity_center(self, handle, obj):
+        try:
+            return read_array(obj.Analyze.GetGravityCenter, 3)
+        except CADOperationError as exc:
+            raise CADOperationError("CAPABILITY_UNAVAILABLE",
+                f"Gravity center of {handle} unavailable; use explode_offsets with explicit vectors: {exc}") from exc
+        except Exception as exc:
+            raise _unavailable(f"Product.Analyze.GetGravityCenter for {handle}", exc) from exc
+
+    def _scene_explode_radial(self, a):
+        distance = a["distance_mm"]
+        if not distance > 0 or distance > 1e6:
+            raise CADOperationError("INVALID_ARGUMENT", "distance_mm must be positive and finite")
+        axis, center = unit_vector(a["axis"]), a["center_mm"]
+        targets = self._targets(a["component_handles"])
+        # All measurements complete before the first scene write.
+        rows = []
+        for handle, obj, pose in targets:
+            cog = self._gravity_center(handle, obj)
+            rel = [cog[i]-center[i] for i in range(3)]
+            along = sum(rel[i]*axis[i] for i in range(3))
+            radial = [rel[i]-along*axis[i] for i in range(3)]
+            length = sum(v*v for v in radial) ** 0.5
+            if length < 1e-6:
+                raise CADOperationError("INVALID_ARGUMENT",
+                    f"{handle} gravity center lies on the explode axis; no radial direction. Use explode_offsets for it")
+            offset = [distance*v/length for v in radial]
+            rows.append((handle, cog, offset, pose))
+        poses = [p[:9]+[p[9+i]+offset[i] for i in range(3)] for _, _, offset, p in rows]
+        result = self._write(a, targets, poses)
+        result.update(axis_unit=list(axis), center_mm=list(center), distance_mm=distance,
+                      measured_gravity_centers_mm=[{"component_handle": h, "center": c, "offset_mm": o}
+                                                   for h, c, o, _ in rows],
+                      gravity_center_frame="Product.Analyze.GetGravityCenter, assumed active-root frame; Windows validation pending")
+        return result
+
+    def _scene_reset_components(self, a):
+        targets = self._targets(a["component_handles"])
+        result = self._write(a, targets, [pose for _, _, pose in targets])
+        result["reset_to_real_poses"] = True
         return result
 
     def _scene_remove(self, a):

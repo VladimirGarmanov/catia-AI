@@ -88,3 +88,19 @@ class OperationTools:
         self.state.updated = True
         return {"ok": True, "updated": True,
                 "verification": "Update completed; independent geometry verification NOT performed"}
+
+
+def optional_fields(definition, per_mode=None, common=None):
+    """Allow extra fields per group mode without requiring them (schema only)."""
+    per_mode, common = per_mode or {}, common or {}
+    schema = definition["inputSchema"]
+    for variant in schema["oneOf"]:
+        extra = {**per_mode.get(variant["properties"]["mode"]["const"], {}), **common}
+        variant["propertyNames"]["enum"] = sorted(set(variant["propertyNames"]["enum"]) | set(extra))
+        for key, value in extra.items():
+            current = schema["properties"].get(key)
+            if current is None:
+                schema["properties"][key] = value
+            elif current != value and value not in current.get("anyOf", []):
+                schema["properties"][key] = {"anyOf": [*current.get("anyOf", [current]), value]}
+    return definition

@@ -98,6 +98,10 @@ may leave a global rigid motion; report that instead of silently grounding it.
 Use catia_assembly_mate_preview on fresh supports, then catia_assembly_mate for
 typed axis/plane/point mates. Axis modes require actual Line References; cylinders,
 circles and whole AxisSystems are not automatically interchangeable with axes.
+For a hole/shaft axis create a native Axis in that part first with
+catia_wireframe_surface mode=axis_line from the exact cylindrical face or circular
+edge, then select the Axis lines in the assembly. Mixed axis/plane/point modes
+accept either selection order; a measured distance/angle mismatch is a failure.
 Use legacy catia_assembly_constraint for its other documented modes. Ask for exact
 selection if the support cannot be resolved; never invent BRep paths or edge IDs.
 
@@ -173,6 +177,14 @@ sequence and reconcile. Ask only for missing geometry/dimensions or new scope.
 - Root metadata writes do not edit external component reference properties.
   Publication relay requires exact owner/publication handles; failed Valuation
   identity verification is an error, not permission to guess a BRep string.
+- Drawing dimensions by type use `catia_drawing_dimension_typed` (radius/diameter
+  need a circle/arc; pass expected_value from the drawing spec). Presentation edits
+  (precision, prefix/suffix texts, dual value, frame, arrows, extension lines,
+  tolerances) use `catia_drawing_dimension_properties`; text fonts use
+  `catia_drawing_text_style`; view hidden lines/fillets use
+  `catia_drawing_view_generation`. `catia_drawing_generate_dimensions` creates native
+  dimensions from 3D constraints; `catia_drawing_bom_table` writes a BOM table from
+  an open CATProduct whose item numbers feed balloons. Never fake a value.
 - Drawing: discover text/table/dimension handles through `catia_domain_objects`;
   inspect via `catia_drawing_inspect`. New sheet/view/table/text/geometry tools
   update the owning drawing sheet. Drawing dimension presentation tools never
@@ -282,6 +294,8 @@ sequence and reconcile. Ask only for missing geometry/dimensions or new scope.
   Reread selection immediately before use; names are not saved object IDs.
 - Selection names, positions and topology descriptions are transient, not stable
   face/edge IDs. catia_list_edges still cannot enumerate stable topology IDs.
+  catia_shell accepts several fresh face selection_handles plus inner `thickness`
+  and `outer_thickness`; it reads thicknesses/face count and the volume change.
   Fillet, Chamfer, Shell and Thickness now attempt to consume the currently
   selected exact edge/face through a live COM Reference. This path is experimental
   until a Windows CATIA test proves the intended geometry was modified; reread
